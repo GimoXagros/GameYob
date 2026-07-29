@@ -13,6 +13,9 @@ export GAME_SUBTITLE2	:=	Author: Drenn
 export GAME_ICON	:=	$(CURDIR)/icon.bmp
 export TARGET		:=	gameyob
 
+# DSi header identifiers
+TID = 00030004
+GID = GYOB
 
 .PHONY: arm7/$(TARGET).elf arm9/$(TARGET).elf
 
@@ -24,6 +27,10 @@ all: $(TARGET).nds
 #---------------------------------------------------------------------------------
 $(TARGET).nds	:	arm7/$(TARGET).elf arm9/$(TARGET).elf
 	@ndstool -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf -b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE1);$(GAME_SUBTITLE2)" -c $(TARGET).nds 
+	@echo built ... $(notdir $@)
+
+$(TARGET)_dsi.nds: arm7/$(TARGET).elf arm9/$(TARGET).elf
+	@ndstool -7 arm7/$(TARGET).elf -9 arm9/$(TARGET).elf -b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE1);$(GAME_SUBTITLE2)" -g $(GID) -u $(TID) -c $@
 	@echo built ... $(notdir $@)
 
 #---------------------------------------------------------------------------------
@@ -38,4 +45,4 @@ arm9/$(TARGET).elf:
 clean:
 	$(MAKE) -C arm9 clean
 	$(MAKE) -C arm7 clean
-	rm -f $(TARGET).arm7 $(TARGET).arm9
+	rm -f $(TARGET).nds $(TARGET)_dsi.nds $(TARGET).arm7 $(TARGET).arm9
