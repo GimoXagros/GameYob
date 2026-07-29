@@ -19,6 +19,15 @@ The 3DS version had its own kinks, which means you may still prefer to use the
 DS version even on a 3DS. It is recommended to install it using the DSiWare CIA
 file provided with the newer releases of GameYob DS.
 
+## Korean filename build
+
+GameYob `v0.5.2-ko.1` adds modern Korean filename, folder and cheat-name
+support to the stable v0.5.2 codebase.
+
+- [Release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.2-ko.1)
+- [Korean release record](docs/releases/v0.5.2-ko.1.md)
+- [Source branch](https://github.com/GimoXagros/GameYob/tree/release/v0.5.2-ko.1)
+
 ## Features
 
 - Gameboy, Gameboy Color, Super Gameboy emulation
