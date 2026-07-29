@@ -23,12 +23,17 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build 3DSX
-        run: >-
-          docker run --rm
-          --volume "$GITHUB_WORKSPACE:/workspace"
-          --workdir /workspace/platform/3ds
-          devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a
-          make 3dsx
+        run: |
+          docker run --rm \
+          --volume "$GITHUB_WORKSPACE:/workspace" \
+          --workdir /workspace/platform/3ds \
+          devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a \
+          bash -euo pipefail -c '
+            git clone --quiet https://github.com/devkitPro/libctru.git /tmp/libctru &&
+            git -C /tmp/libctru checkout --quiet 6a195608aaed98a460d88174a3f383eb85c68f09 &&
+            make -C /tmp/libctru/libctru &&
+            make CTRULIB=/tmp/libctru/libctru 3dsx
+          '
 
       - name: Record artifact checksum
         run: sha256sum platform/3ds/gameyob.3dsx > platform/3ds/SHA256SUMS.txt
