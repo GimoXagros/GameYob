@@ -4,6 +4,7 @@
 #include "menu.h"
 #include "romfile.h"
 #include "timer.h"
+#include <stdlib.h>
 
 
 /* MBC read handlers */

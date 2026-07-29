@@ -443,7 +443,13 @@ class Gameboy {
         void sgbAttrChr(int block);
         void sgbPalSet(int block);
         void sgbPalTrn(int block);
+        void sgbSound(int block);
+        void sgbSoundTrn(int block);
+        void sgbAttraction(int block);
+        void sgbTest(int block);
+        void sgbIcon(int block);
         void sgbDataSnd(int block);
+        void sgbDataTrn(int block);
         void sgbMltReq(int block);
         void sgbChrTrn(int block);
         void sgbPctTrn(int block);
@@ -462,6 +468,13 @@ class Gameboy {
         u8 sgbNumControllers;
         u8 sgbSelectedController; // Which controller is being observed
         u8 sgbButtonsChecked;
+        u8 sgbSoundState[7];
+        u8 sgbAttractionDisabled;
+        u8 sgbTestSpeed;
+        u8 sgbIconDisable;
+        u32 sgbDataAddress;
+        u8 sgbDataLength;
+        u8 sgbData[0x1000];
 
         // Data for various different sgb commands
         struct SgbCmdData {

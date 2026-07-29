@@ -29,11 +29,9 @@ class SoundEngine {
         void mute();
         void unmute();
 
-        void updateSound(int cycles)
-#ifdef DS
-            ITCM_CODE
-#endif
-            ;
+        // Keep the CPU/MMU hot path in the DS's limited 32 KiB ITCM. The
+        // sound update is event-driven and safely runs from normal ARM9 code.
+        void updateSound(int cycles);
 
         void setSoundEventCycles(int cycles); // Should be moved out of here
         void soundUpdateVBlank();

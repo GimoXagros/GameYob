@@ -70,6 +70,10 @@ ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) \
 			-Wl,-d,-q,--use-blx,-Map,$(TARGET).map
 
+ifneq ($(strip $(CRT0DIR)),)
+LDFLAGS	+=	-B$(CRT0DIR)/
+endif
+
 LIBS	:= -lctru
 
 #---------------------------------------------------------------------------------
@@ -138,7 +142,7 @@ all: $(BUILD)
 # invoke make from the "build" directory to run the 2nd part of this makefile
 $(BUILD):
 	@[ -d $@ ] || mkdir -p $@
-	@make --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
+	@$(MAKE) --no-print-directory -C $(BUILD) -f $(CURDIR)/Makefile
 
  
 #---------------------------------------------------------------------------------
@@ -148,13 +152,13 @@ clean:
  
 
 cia:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=cia
+	@$(MAKE) OUTPUT_FORMAT=cia
 
 3ds:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=3ds
+	@$(MAKE) OUTPUT_FORMAT=3ds
 
 3dsx:
-	@make $(MAKEFLAGS) OUTPUT_FORMAT=3dsx
+	@$(MAKE) OUTPUT_FORMAT=3dsx
  
 #---------------------------------------------------------------------------------
 else # make invoked from "build" directory

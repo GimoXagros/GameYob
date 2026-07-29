@@ -1,0 +1,48 @@
+name: Nintendo DS build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "platform/ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-ds.yml"
+  pull_request:
+    paths:
+      - "platform/ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-ds.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build NDS homebrew
+        run: |
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" \
+            --workdir /workspace/platform/ds \
+            devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a \
+            bash -euo pipefail -c '
+              make &&
+              make gameyob_dsi.nds
+            '
+      - name: Record artifact checksum
+        run: |
+          sha256sum \
+            platform/ds/gameyob.nds \
+            platform/ds/gameyob_dsi.nds \
+            > platform/ds/SHA256SUMS.txt
+      - name: Upload Nintendo DS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameyob-ds-${{ github.sha }}
+          path: |
+            platform/ds/gameyob.nds
+            platform/ds/gameyob_dsi.nds
+            platform/ds/SHA256SUMS.txt
+          if-no-files-found: error

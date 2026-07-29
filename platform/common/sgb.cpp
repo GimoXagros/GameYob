@@ -279,8 +279,49 @@ void Gameboy::sgbPalTrn(int block) {
     sgbDoVramTransfer(sgbPalettes);
 }
 
+void Gameboy::sgbSound(int block) {
+    if (block == 0)
+        memcpy(sgbSoundState, sgbPacket + 1, sizeof(sgbSoundState));
+}
+
+void Gameboy::sgbSoundTrn(int block) {
+    if (block == 0)
+        sgbDoVramTransfer(sgbData);
+}
+
+void Gameboy::sgbAttraction(int block) {
+    if (block == 0)
+        sgbAttractionDisabled = sgbPacket[1] & 1;
+}
+
+void Gameboy::sgbTest(int block) {
+    if (block == 0)
+        sgbTestSpeed = sgbPacket[1];
+}
+
+void Gameboy::sgbIcon(int block) {
+    if (block == 0)
+        sgbIconDisable = sgbPacket[1] & 7;
+}
+
 void Gameboy::sgbDataSnd(int block) {
-    //printLog("SND %.2x -> %.2x:%.2x%.2x\n", sgbPacket[4], sgbPacket[3], sgbPacket[2], sgbPacket[1]);
+    if (block != 0)
+        return;
+    sgbDataAddress = sgbPacket[1] | (sgbPacket[2] << 8) |
+        (sgbPacket[3] << 16);
+    sgbDataLength = sgbPacket[4];
+    if (sgbDataLength > 11)
+        sgbDataLength = 11;
+    memcpy(sgbData, sgbPacket + 5, sgbDataLength);
+}
+
+void Gameboy::sgbDataTrn(int block) {
+    if (block != 0)
+        return;
+    sgbDataAddress = sgbPacket[1] | (sgbPacket[2] << 8) |
+        (sgbPacket[3] << 16);
+    sgbDataLength = 0;
+    sgbDoVramTransfer(sgbData);
 }
 
 void Gameboy::sgbMltReq(int block) {
@@ -293,6 +334,8 @@ void Gameboy::sgbMltReq(int block) {
 
 void Gameboy::sgbChrTrn(int blonk) {
     u8* data = (u8*)malloc(0x1000);
+    if (!data)
+        return;
     sgbDoVramTransfer(data);
     setSgbTiles(data, sgbPacket[1]);
     free(data);
@@ -300,6 +343,8 @@ void Gameboy::sgbChrTrn(int blonk) {
 
 void Gameboy::sgbPctTrn(int block) {
     u8* data = (u8*)malloc(0x1000);
+    if (!data)
+        return;
     sgbDoVramTransfer(data);
     setSgbMap(data);
     free(data);
@@ -321,8 +366,8 @@ void Gameboy::sgbMask(int block) {
 
 void (Gameboy::*sgbCommands[])(int) = {
     &Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbAttrBlock,&Gameboy::sgbAttrLin,&Gameboy::sgbAttrDiv,&Gameboy::sgbAttrChr,
-    NULL,NULL,&Gameboy::sgbPalSet,&Gameboy::sgbPalTrn,NULL,NULL,NULL,&Gameboy::sgbDataSnd,
-    NULL,&Gameboy::sgbMltReq,NULL,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMask,
+    &Gameboy::sgbSound,&Gameboy::sgbSoundTrn,&Gameboy::sgbPalSet,&Gameboy::sgbPalTrn,&Gameboy::sgbAttraction,&Gameboy::sgbTest,&Gameboy::sgbIcon,&Gameboy::sgbDataSnd,
+    &Gameboy::sgbDataTrn,&Gameboy::sgbMltReq,NULL,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMask,
     NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
 };
 
@@ -360,9 +405,15 @@ void Gameboy::sgbHandleP1(u8 val) {
             if (sgbPacketsTransferred == 0) {
                 sgbCommand = sgbPacket[0]/8;
                 sgbPacketLength = sgbPacket[0]&7;
+                if (sgbPacketLength == 0) {
+                    sgbPacketBit = -1;
+                    sgbPacketsTransferred = 0;
+                    return;
+                }
                 //printLog("CMD %x\n", sgbCommand);
             }
-            if (sgbCommands[sgbCommand] != 0)
+            if (sgbCommand < sizeof(sgbCommands)/sizeof(sgbCommands[0]) &&
+                    sgbCommands[sgbCommand] != 0)
                 (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
 
             sgbPacketBit = -1;

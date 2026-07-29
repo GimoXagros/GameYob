@@ -10,6 +10,7 @@
 #include "gbmanager.h"
 #include "menu.h"
 #include "soundengine.h"
+#include "nifi_protocol.h"
 
 void nifiLinkTypeMenu();
 void nifiHostMenu();
@@ -47,20 +48,13 @@ enum NifiCmd {
     NIFI_CMD_INPUT,
     NIFI_CMD_TRANSFER_SRAM,
 
-    NIFI_CMD_FRAGMENT
+    NIFI_CMD_FRAGMENT,
+    NIFI_CMD_INPUT_REQUEST,
+    NIFI_CMD_STATE_HASH
 };
-
-enum {
-    HEADER_HOSTID       = 0x04, // u32
-    HEADER_DATASIZE     = 0x08, // u32
-    HEADER_COMMAND      = 0x0c, // u8
-    HEADER_CHECKSUM     = 0x0d, // u8
-    HEADER_ACKNOWLEDGE  = 0x0e, // u8
-};
-const int PACKET_HEADER_SIZE = 0x10;
 
 const int CLIENT_FRAME_LAG = 4;
-const int FRAGMENT_SIZE = 0x200;
+const int FRAGMENT_SIZE = 0x400;
 
 const int OLD_INPUTS_BUFFER_SIZE = CLIENT_FRAME_LAG + 2;
 
@@ -70,6 +64,10 @@ u8 lastFragment;
 bool nifiEnabled=true;
 bool nifiInitialized = false;
 volatile bool packetAcknowledged;
+volatile u16 acknowledgedSequence = 0xffff;
+u16 nextSequence = 1;
+u32 localRomId = 0;
+u32 linkedRomId = 0;
 
 volatile bool foundClient;
 volatile bool foundHost;
@@ -91,84 +89,164 @@ volatile u32 hostId;
 char linkedFilename[MAX_FILENAME_LEN];
 char linkedRomTitle[20];
 
-volatile u8 receivedInput[32];
-volatile bool receivedInputReady[32];
+const int INPUT_BUFFER_SIZE = 64;
+volatile u8 receivedInput[INPUT_BUFFER_SIZE];
+volatile u32 receivedInputFrame[INPUT_BUFFER_SIZE];
+volatile bool receivedInputReady[INPUT_BUFFER_SIZE];
+u8 sentInput[INPUT_BUFFER_SIZE];
+u32 sentInputFrame[INPUT_BUFFER_SIZE];
+
+struct StateHashEntry {
+    u32 frame;
+    u32 hash;
+};
+StateHashEntry localStateHashes[4];
 
 u8 oldInputs[OLD_INPUTS_BUFFER_SIZE];
 
-u8 nifiGetChecksum(u8* data, u32 dataLen) {
-    u8 checksum = 0;
-    for (int i=0; i<dataLen+PACKET_HEADER_SIZE; i++) {
-        if (i == HEADER_CHECKSUM)
-            continue;
-        checksum *= 7;
-        checksum += data[i];
+u32 nifiHashBytes(u32 hash, const void* data, u32 length) {
+    const u8* bytes = (const u8*)data;
+    for (u32 i = 0; i < length; ++i) {
+        hash ^= bytes[i];
+        hash *= 16777619U;
     }
-    return checksum;
+    return hash;
+}
+
+u32 nifiHashGameboy(Gameboy* gb, u32 hash) {
+    if (!gb)
+        return hash;
+    hash = nifiHashBytes(hash, &gb->gbRegs, sizeof(gb->gbRegs));
+    hash = nifiHashBytes(hash, gb->wram, sizeof(gb->wram));
+    hash = nifiHashBytes(hash, gb->vram, sizeof(gb->vram));
+    hash = nifiHashBytes(hash, gb->highram, sizeof(gb->highram));
+    return hash;
+}
+
+u32 nifiStateHash() {
+    u32 first = nifiHashGameboy(gameboy, 2166136261U);
+    u32 second = nifiHashGameboy(gb2, 2166136261U);
+    if (nifiLinkType == LINK_CABLE && second < first) {
+        u32 swap = first;
+        first = second;
+        second = swap;
+    }
+    u32 result = nifiHashBytes(2166136261U, &first, sizeof(first));
+    return nifiHashBytes(result, &second, sizeof(second));
+}
+
+void nifiSendInputFrame(u32 frame) {
+    const int index = frame & (INPUT_BUFFER_SIZE - 1);
+    if (sentInputFrame[index] != frame)
+        return;
+    u8 packet[6];
+    packet[0] = 1;
+    INT_TO(packet + 1, frame);
+    packet[5] = sentInput[index];
+    nifiSendPacket(NIFI_CMD_INPUT, packet, sizeof(packet), false);
+}
+
+u32 nifiGetLocalRomId() {
+    if (!localRomId && gameboy && gameboy->getRomFile()) {
+        const char* title = gameboy->getRomFile()->getRomTitle();
+        localRomId = nifi::romIdentifier((const u8*)title, strlen(title));
+        if (!localRomId)
+            localRomId = 1;
+    }
+    return localRomId;
+}
+
+static int nifiSendSinglePacket(u8 command, const u8* data, u32 dataLen,
+        bool acknowledge, u16 ackSequence)
+{
+    if (!nifiEnabled || !nifiInitialized)
+        return 1;
+    if (dataLen > FRAGMENT_SIZE)
+        return 1;
+
+    int errcode = 0;
+    u8* buffer = (u8*)malloc(dataLen + nifi::HEADER_SIZE);
+    if (!buffer) {
+        printLog("Nifi out of memory\n");
+        return 1;
+    }
+
+    nifi::PacketHeader header;
+    memset(&header, 0, sizeof(header));
+    header.command = command;
+    header.flags = acknowledge ? nifi::FLAG_ACK_REQUIRED : 0;
+    header.hostId = hostId;
+    header.sequence = nextSequence++;
+    header.ackSequence = ackSequence;
+    header.payloadSize = dataLen;
+    header.fragmentCount = 1;
+    header.totalSize = dataLen;
+    header.romId = nifiGetLocalRomId();
+
+    const size_t packetSize = nifi::encodePacket(buffer,
+            dataLen + nifi::HEADER_SIZE, header, data);
+    if (!packetSize) {
+        free(buffer);
+        return 1;
+    }
+
+    if (acknowledge) {
+        packetAcknowledged = false;
+        acknowledgedSequence = 0xffff;
+    }
+    if (Wifi_RawTxFrame(packetSize, 0x0014, (unsigned short *)buffer) != 0) {
+        printLog("Nifi send error\n");
+        errcode = 1;
+    }
+    if (acknowledge) {
+        int attemptCounter = 0;
+        while (acknowledgedSequence != header.sequence) {
+            int frameCounter = 0;
+            while (acknowledgedSequence != header.sequence && frameCounter < 10) {
+                swiWaitForVBlank();
+                frameCounter++;
+            }
+            if (acknowledgedSequence != header.sequence) {
+                if (attemptCounter >= 10) {
+                    errcode = 1;
+                    printLog("Connection lost.\n");
+                    nifiStop();
+                    break;
+                }
+                if (Wifi_RawTxFrame(packetSize, 0x0014,
+                            (unsigned short *)buffer) != 0) {
+                    printLog("Nifi send error\n");
+                    errcode = 1;
+                    break;
+                }
+            }
+            attemptCounter++;
+        }
+    }
+    free(buffer);
+    return errcode;
+}
+
+static void nifiSendAcknowledge(u16 sequence) {
+    nifiSendSinglePacket(NIFI_CMD_ACKNOWLEDGE, NULL, 0, false, sequence);
 }
 
 int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
 {
-    if (!nifiEnabled || !nifiInitialized)
-        return 1;
+    if (command == NIFI_CMD_FRAGMENT || dataLen <= FRAGMENT_SIZE)
+        return nifiSendSinglePacket(command, data, dataLen, acknowledge, 0xffff);
 
     int errcode = 0;
-
-    if (command == NIFI_CMD_FRAGMENT || dataLen <= FRAGMENT_SIZE) {
-        u8* buffer = (u8*)malloc(dataLen + PACKET_HEADER_SIZE);
-        if (!buffer) {
-            printLog("Nifi out of memory\n");
-            return 1;
-        }
-
-        buffer[0] = 'Y';
-        buffer[1] = 'O';
-        buffer[2] = 'B';
-        buffer[3] = 'P';
-
-        INT_TO(buffer+HEADER_HOSTID, hostId);
-        buffer[HEADER_COMMAND] = command;
-        INT_TO(buffer+HEADER_DATASIZE, dataLen);
-        buffer[HEADER_ACKNOWLEDGE] = (acknowledge ? 1 : 0);
-
-        memcpy(buffer+PACKET_HEADER_SIZE, data, dataLen);
-
-        buffer[HEADER_CHECKSUM] = nifiGetChecksum(buffer, dataLen);
-
-        packetAcknowledged = false;
-        if (Wifi_RawTxFrame(dataLen+PACKET_HEADER_SIZE, 0x0014, (unsigned short *)buffer) != 0) {
-            printLog("Nifi send error\n");
-            errcode = 1;
-        }
-        if (acknowledge) {
-            int attemptCounter = 0;
-            while (!packetAcknowledged) {
-                int frameCounter = 0;
-                while (!packetAcknowledged && frameCounter < 10) {
-                    swiWaitForVBlank();
-                    frameCounter++;
-                }
-                if (!packetAcknowledged) {
-                    if (attemptCounter > 10) {
-                        errcode = 1;
-                        printLog("Connection lost.\n");
-                        nifiStop();
-                        break;
-                    }
-                    else
-                        Wifi_RawTxFrame(dataLen+PACKET_HEADER_SIZE, 0x0014,
-                                (unsigned short *)buffer);
-                }
-                attemptCounter++;
-            }
-        }
-
-        free(buffer);
-    }
-    else {
+    {
         u8* buffer = (u8*)malloc(FRAGMENT_SIZE + 0x10);
+        if (!buffer)
+            return 1;
 
         u8 numFragments = (dataLen+(FRAGMENT_SIZE-1))/FRAGMENT_SIZE;
+        if (!numFragments || numFragments > nifi::MAX_FRAGMENT_COUNT) {
+            free(buffer);
+            return 1;
+        }
 
         for (int i=0; i<numFragments; i++) {
             int fragmentSize = FRAGMENT_SIZE;
@@ -184,17 +262,12 @@ int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
             buffer[6] = i;
             memcpy(buffer+0x10, data+i*FRAGMENT_SIZE, fragmentSize);
 
-            printLog("SEND %d\n", i);
             if (nifiSendPacket(NIFI_CMD_FRAGMENT, buffer,
                         fragmentSize+0x10, acknowledge)) {
                 errcode = 1;
                 break;
             }
-            swiWaitForVBlank(); // Excessive?
-            // Send it twice for safety
-//             nifiSendPacket(NIFI_CMD_FRAGMENT, buffer,
-//                     fragmentSize+0x10, acknowledge);
-//             swiWaitForVBlank();
+            swiWaitForVBlank();
         }
 
         free(buffer);
@@ -203,47 +276,18 @@ int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
     return errcode;
 }
 
-u32 packetHostId(u8* packet) {
-    return (u32)INT_AT(packet+32+HEADER_HOSTID);
-}
-bool verifyPacket(u8* packet, int len) {
-    if (len >= 32+PACKET_HEADER_SIZE &&
-            packet[32+0] == 'Y' &&
-            packet[32+1] == 'O' &&
-            packet[32+2] == 'B' &&
-            packet[32+3] == 'P' &&
-            ((isClient && status == CLIENT_WAITING) ||
-             packetHostId(packet) == hostId)) {
-
-         u8 checksum =
-             nifiGetChecksum(packet+32, INT_AT(packet+32+HEADER_DATASIZE));
-         if (checksum == packet[32+HEADER_CHECKSUM])
-             return true;
-         else
-             printLog("Nifi bad packet checksum\n");
-    }
-    return false;
-}
-u8 packetCommand(u8* packet) {
-    return packet[32+HEADER_COMMAND];
-}
-u8* packetData(u8* packet) {
-    return packet+32+PACKET_HEADER_SIZE;
-}
-
-void handlePacketCommand(int command, u8* data) {
+void handlePacketCommand(int command, u8* data, u32 dataLen) {
     switch(command) {
-        case NIFI_CMD_ACKNOWLEDGE:
-            packetAcknowledged = true;
-            break;
         case NIFI_CMD_CLIENT:
             if (isHost && status == HOST_WAITING) {
+                u8 ignoredLinkType = 0;
+                if (!nifi::decodeIdentity(data, dataLen, &ignoredLinkType,
+                            &linkedRomId, linkedFilename, sizeof(linkedFilename),
+                            linkedRomTitle, sizeof(linkedRomTitle))) {
+                    printLog("Nifi invalid client identity\n");
+                    break;
+                }
                 foundClient = true;
-
-                char* filename = (char*)(data+8);
-                char* romTitle = (char*)(data+8+strlen(filename)+1);
-                strcpy(linkedFilename, filename);
-                strcpy(linkedRomTitle, romTitle);
 
                 printLog("Link romTitle: %s\n", linkedRomTitle);
                 printLog("Link filename: %s\n", linkedFilename);
@@ -251,9 +295,11 @@ void handlePacketCommand(int command, u8* data) {
             break;
 
         case NIFI_CMD_INPUT:
-            if (true || isClient) {
+            if (dataLen >= 5) {
                 int num = data[0];
                 int frame1 = INT_AT(data+1);
+                if (num < 0 || (u32)num > dataLen - 5)
+                    break;
 
                 if (nifiConsecutiveWaitingFrames >= 60)
                     printLog("Received packet: %x\n", frame1);
@@ -261,25 +307,52 @@ void handlePacketCommand(int command, u8* data) {
                 for (int i=0; i<num; i++) {
                     int frame = frame1+i;
 
-                    if (frame >= mgr_frameCounter) {
-                        if (receivedInputReady[frame&31]) {
-                            if (receivedInput[frame&31] != data[5+i])
+                    if (frame >= mgr_frameCounter &&
+                            frame < mgr_frameCounter + INPUT_BUFFER_SIZE) {
+                        int index = frame & (INPUT_BUFFER_SIZE - 1);
+                        if (receivedInputReady[index] &&
+                                receivedInputFrame[index] == (u32)frame) {
+                            if (receivedInput[index] != data[5+i])
                                 printLog("MISMATCH %x\n", frame);
                         }
                         else {
-                            receivedInputReady[frame&31] = true;
-                            receivedInput[frame&31] = data[5+i];
+                            receivedInputReady[index] = true;
+                            receivedInputFrame[index] = frame;
+                            receivedInput[index] = data[5+i];
                         }
                     }
                 }
             }
             break;
+        case NIFI_CMD_INPUT_REQUEST:
+            if (dataLen == 4)
+                nifiSendInputFrame(INT_AT(data));
+            break;
+        case NIFI_CMD_STATE_HASH:
+            if (dataLen == 8) {
+                const u32 frame = INT_AT(data);
+                const u32 remoteHash = INT_AT(data + 4);
+                StateHashEntry& local = localStateHashes[(frame / 60) & 3];
+                if (local.frame == frame && local.hash != remoteHash)
+                    printLog("Nifi desync at frame %x (%x != %x)\n",
+                            frame, local.hash, remoteHash);
+            }
+            break;
         case NIFI_CMD_TRANSFER_SRAM:
             {
+                u32 expectedSize = 0;
                 if (nifiLinkType == LINK_SGB)
-                    memcpy(gameboy->externRam, data, gameboy->getNumSramBanks()*0x2000);
+                    expectedSize = gameboy->getNumSramBanks()*0x2000;
                 else if (gb2)
-                    memcpy(gb2->externRam, data, gb2->getNumSramBanks()*0x2000);
+                    expectedSize = gb2->getNumSramBanks()*0x2000;
+                if (dataLen != expectedSize) {
+                    printLog("Nifi bad SRAM size\n");
+                    break;
+                }
+                if (nifiLinkType == LINK_SGB)
+                    memcpy(gameboy->externRam, data, expectedSize);
+                else if (gb2)
+                    memcpy(gb2->externRam, data, expectedSize);
                 else
                     printLog("GB2 NOT INITIALIZED!\n");
                 printLog("Received SRAM.\n");
@@ -290,10 +363,16 @@ void handlePacketCommand(int command, u8* data) {
             // A command broken up into multiple packets
         case NIFI_CMD_FRAGMENT:
             {
+                if (dataLen < 0x10)
+                    return;
                 u32 totalSize = INT_AT(data);
                 u8 command = data[4];
                 u8 numFragments = data[5];
                 u8 fragment = data[6];
+                if (!totalSize || !numFragments || fragment >= numFragments ||
+                        totalSize > (u32)numFragments * FRAGMENT_SIZE ||
+                        totalSize <= (u32)(numFragments - 1) * FRAGMENT_SIZE)
+                    return;
 
                 int fragmentSize = FRAGMENT_SIZE;
                 if (fragment == numFragments-1) {
@@ -301,6 +380,8 @@ void handlePacketCommand(int command, u8* data) {
                     if (fragmentSize == 0)
                         fragmentSize = FRAGMENT_SIZE;
                 }
+                if ((u32)fragmentSize + 0x10 != dataLen)
+                    return;
 
                 if (fragmentBuffer == NULL && fragment != 0) {
                     printLog("NULL Buffer.\n");
@@ -315,7 +396,7 @@ void handlePacketCommand(int command, u8* data) {
                         return;
                     }
                 }
-                else if (lastFragment > fragment) {
+                else if ((u8)(lastFragment + 1) != fragment) {
                     if (fragmentBuffer != NULL) {
                         free(fragmentBuffer);
                         fragmentBuffer = NULL;
@@ -331,7 +412,7 @@ void handlePacketCommand(int command, u8* data) {
                 lastFragment = fragment;
 
                 if (fragment == numFragments-1) {
-                    handlePacketCommand(command, fragmentBuffer);
+                    handlePacketCommand(command, fragmentBuffer, totalSize);
                     free(fragmentBuffer);
                     fragmentBuffer = NULL;
                     lastFragment = -1;
@@ -345,7 +426,8 @@ void packetHandler(int packetID, int readlength)
 {
     static u32 pkt[4096/2];
     static u8* packet = (u8*)pkt;
-    // static int bytesRead = 0; // Not used
+    if (readlength < 32 + nifi::HEADER_SIZE || readlength > (int)sizeof(pkt))
+        return;
 
     // Wifi_RxRawReadPacket:  Allows user code to read a packet from within the WifiPacketHandler function
     //  long packetID:		a non-unique identifier which locates the packet specified in the internal buffer
@@ -354,27 +436,47 @@ void packetHandler(int packetID, int readlength)
     
 	// bytesRead = Wifi_RxRawReadPacket(packetID, readlength, (unsigned short *)data); // Not used
 	Wifi_RxRawReadPacket(packetID, readlength, (unsigned short *)packet);
-	
-    if (verifyPacket(packet, readlength)) {
-        if (*(packet+32+HEADER_ACKNOWLEDGE))
-            nifiSendPacket(NIFI_CMD_ACKNOWLEDGE, 0, 0, false);
-        u8* data = packetData(packet);
 
-        if (packetCommand(packet) == NIFI_CMD_HOST) {
-            if (isClient && status == CLIENT_WAITING) {
-                foundHost = true;
-                hostId = packetHostId(packet);
-                nifiLinkType = data[0];
-
-                char* filename = (char*)(data+8);
-                char* romTitle = (char*)(data+8+strlen(filename)+1);
-                strcpy(linkedFilename, filename);
-                strcpy(linkedRomTitle, romTitle);
-            }
-        }
-        else
-            handlePacketCommand(packetCommand(packet), data);
+    nifi::PacketView view;
+    nifi::DecodeResult decodeResult = nifi::decodePacket(packet + 32,
+            readlength - 32, &view);
+    if (decodeResult != nifi::DECODE_OK) {
+        if (decodeResult == nifi::DECODE_BAD_CHECKSUM)
+            printLog("Nifi bad packet checksum\n");
+        return;
     }
+    if (!((isClient && status == CLIENT_WAITING) ||
+            view.header.hostId == hostId))
+        return;
+
+    if (view.header.command == NIFI_CMD_ACKNOWLEDGE) {
+        acknowledgedSequence = view.header.ackSequence;
+        packetAcknowledged = true;
+        return;
+    }
+    if (view.header.flags & nifi::FLAG_ACK_REQUIRED)
+        nifiSendAcknowledge(view.header.sequence);
+
+    u8* data = (u8*)view.payload;
+    if (view.header.command == NIFI_CMD_HOST) {
+        if (isClient && status == CLIENT_WAITING) {
+            u8 receivedLinkType = 0;
+            if (!nifi::decodeIdentity(data, view.header.payloadSize,
+                        &receivedLinkType, &linkedRomId,
+                        linkedFilename, sizeof(linkedFilename),
+                        linkedRomTitle, sizeof(linkedRomTitle))) {
+                printLog("Nifi invalid host identity\n");
+                return;
+            }
+            if (receivedLinkType > LINK_SGB)
+                return;
+            hostId = view.header.hostId;
+            nifiLinkType = receivedLinkType;
+            foundHost = true;
+        }
+    }
+    else
+        handlePacketCommand(view.header.command, data, view.header.payloadSize);
 }
 
 
@@ -516,7 +618,7 @@ void nifiLinkTypeMenu() {
 
 void nifiSendSram() {
     nifiSendPacket(NIFI_CMD_TRANSFER_SRAM, gameboy->externRam,
-            gameboy->getNumSramBanks()*0x2000, false);
+            gameboy->getNumSramBanks()*0x2000, true);
     printLog("Sent SRAM.\n");
 }
 
@@ -559,6 +661,10 @@ int nifiStartLink() {
     bool sendSram = false;
 
     nifiFrameCounter = -1;
+    memset((void*)receivedInputReady, 0, sizeof(receivedInputReady));
+    memset(sentInputFrame, 0xff, sizeof(sentInputFrame));
+    memset(localStateHashes, 0, sizeof(localStateHashes));
+    memset(oldInputs, 0xff, sizeof(oldInputs));
 
     mgr_reset();
     if (nifiLinkType == LINK_CABLE) {
@@ -577,6 +683,7 @@ int nifiStartLink() {
         // Fill in first few frames of client's input
         for (int i=0; i<CLIENT_FRAME_LAG; i++) {
             receivedInputReady[i] = true;
+            receivedInputFrame[i] = i;
             receivedInput[i] = 0xff;
         }
 
@@ -598,10 +705,6 @@ int nifiStartLink() {
     else if (isClient) {
         if (nifiLinkType == LINK_CABLE)
             mgr_setInternalClockGb(gb2);
-
-        // First few frames of input are skipped, so fill them in
-        for (int i=0; i<OLD_INPUTS_BUFFER_SIZE; i++)
-            oldInputs[i] = 0xff;
 
         // Set input destinations
         if (nifiLinkType == LINK_SGB) {
@@ -650,6 +753,8 @@ void nifiHostMenu() {
     isClient = false;
     status = HOST_WAITING;
     hostId = rand();
+    localRomId = 0;
+    nextSequence = 1;
 
     printf("Waiting for client...\n");
     printf("Host ID: %d\n\n", hostId);
@@ -665,13 +770,12 @@ void nifiHostMenu() {
             break;
 
         const char* filename = gameboy->getRomFile()->getFilename();
-        int bufferSize = 8 + 20 + strlen(filename) + 1;
-        u8 buffer[bufferSize];
-
-        buffer[0] = nifiLinkType;
-        strcpy((char*)(buffer+8), filename);
-        strcpy((char*)(buffer+8+strlen(filename)+1), gameboy->getRomFile()->getRomTitle());
-        nifiSendPacket(NIFI_CMD_HOST, buffer, bufferSize, false);
+        u8 buffer[MAX_FILENAME_LEN + 64];
+        size_t bufferSize = nifi::encodeIdentity(buffer, sizeof(buffer),
+                nifiLinkType, nifiGetLocalRomId(), filename,
+                gameboy->getRomFile()->getRomTitle());
+        if (bufferSize)
+            nifiSendPacket(NIFI_CMD_HOST, buffer, bufferSize, false);
     }
 
     if (foundClient) {
@@ -706,6 +810,8 @@ void nifiClientMenu() {
     isClient = true;
     isHost = false;
     status = CLIENT_WAITING;
+    localRomId = 0;
+    nextSequence = 1;
 
     while (!foundHost) {
         swiWaitForVBlank();
@@ -734,12 +840,16 @@ void nifiClientMenu() {
 
             if (keyJustPressed(KEY_A)) {
                 const char* filename = gameboy->getRomFile()->getFilename();
-                int bufferSize = 8 + 20 + strlen(filename) + 1;
-                u8 buffer[bufferSize];
-
-                strcpy((char*)(buffer+8), filename);
-                strcpy((char*)(buffer+8+strlen(filename)+1), gameboy->getRomFile()->getRomTitle());
-                nifiSendPacket(NIFI_CMD_CLIENT, buffer, bufferSize, false);
+                u8 buffer[MAX_FILENAME_LEN + 64];
+                size_t bufferSize = nifi::encodeIdentity(buffer, sizeof(buffer),
+                        nifiLinkType, nifiGetLocalRomId(), filename,
+                        gameboy->getRomFile()->getRomTitle());
+                if (!bufferSize ||
+                        nifiSendPacket(NIFI_CMD_CLIENT, buffer, bufferSize, true)) {
+                    printf("Connection handshake failed.\n");
+                    willConnect = false;
+                    break;
+                }
 
                 willConnect = true;
 
@@ -808,7 +918,7 @@ void nifiUpdateInput() {
     if (nifiFrameCounter == -1)
         printf("Start at %d", mgr_frameCounter);
     if (frameHasPassed && nifiFrameCounter > 0)
-        receivedInputReady[(nifiFrameCounter-1)&31] = false;
+        receivedInputReady[(nifiFrameCounter-1)&(INPUT_BUFFER_SIZE-1)] = false;
     nifiFrameCounter = mgr_frameCounter;
 
     if (nifiIsClient())
@@ -823,6 +933,10 @@ void nifiUpdateInput() {
             oldInputs[OLD_INPUTS_BUFFER_SIZE-1] = buttonsPressed;
         }
 
+        int sentIndex = inputFrame & (INPUT_BUFFER_SIZE - 1);
+        sentInputFrame[sentIndex] = inputFrame;
+        sentInput[sentIndex] = buttonsPressed;
+
         // Send input to other ds
         INT_TO(buffer+1, inputFrame-OLD_INPUTS_BUFFER_SIZE+1);
         for (int i=0; i<OLD_INPUTS_BUFFER_SIZE; i++)
@@ -831,14 +945,23 @@ void nifiUpdateInput() {
         nifiSendPacket(NIFI_CMD_INPUT, buffer, 5+OLD_INPUTS_BUFFER_SIZE, false);
 
         // Set other controller's input
-        if (receivedInputReady[actualFrame&31]) {
-            *otherInputDest = receivedInput[actualFrame&31];
+        int receiveIndex = actualFrame & (INPUT_BUFFER_SIZE - 1);
+        if (receivedInputReady[receiveIndex] &&
+                receivedInputFrame[receiveIndex] == actualFrame) {
+            *otherInputDest = receivedInput[receiveIndex];
             nifiUnpause();
             nifiConsecutiveWaitingFrames = 0;
         }
         else {
             nifiConsecutiveWaitingFrames++;
             printLog("NIFI NOT READY %x\n", nifiFrameCounter);
+            if (nifiConsecutiveWaitingFrames == 1 ||
+                    (nifiConsecutiveWaitingFrames % 10) == 0) {
+                u8 request[4];
+                INT_TO(request, actualFrame);
+                nifiSendPacket(NIFI_CMD_INPUT_REQUEST, request,
+                        sizeof(request), false);
+            }
             nifiPause();
         }
         if (nifiConsecutiveWaitingFrames >= 120) {
@@ -846,6 +969,17 @@ void nifiUpdateInput() {
             printLog("Connection lost!\n");
             nifiStop();
             printLog("Nifi turned off.\n");
+        }
+
+        if (frameHasPassed && (actualFrame % 60) == 0) {
+            u8 statePacket[8];
+            StateHashEntry& entry = localStateHashes[(actualFrame / 60) & 3];
+            entry.frame = actualFrame;
+            entry.hash = nifiStateHash();
+            INT_TO(statePacket, entry.frame);
+            INT_TO(statePacket + 4, entry.hash);
+            nifiSendPacket(NIFI_CMD_STATE_HASH, statePacket,
+                    sizeof(statePacket), false);
         }
     }
 

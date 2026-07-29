@@ -12,6 +12,8 @@ Super Game Boy enhanced games.
 - Centered 256x224 border output on either 3DS screen
 - Screen-position SGB palettes for the 160x144 Game Boy picture
 - `MASK_EN` cancel, freeze, black, and color-zero modes
+- Safe handling for `SOUND`, `SOU_TRN`, `ATRC_EN`, `TEST_EN`, `ICON_EN`,
+  `DATA_SND`, and `DATA_TRN`
 
 The decoder is platform-independent and covered by
 `tests/sgbborder_test.cpp`.
@@ -21,10 +23,31 @@ The decoder is platform-independent and covered by
 - Automatic SGB-border probing for games started in Game Boy Color mode
   remains disabled because the existing reset/probe path is unreliable.
 - Custom PNG/BMP borders in the old native 3DS port are still unfinished.
-- SGB sound and the less commonly used SNES-side commands are outside this
-  change.
+- SNES-side SGB audio is parsed and its transfer state is retained, but it is
+  not mixed into GameYob audio because the emulator does not emulate the SNES
+  APU.
 - A real 3DS hardware compatibility pass is still required before this can
   be called release-ready.
+
+## Azahar validation
+
+The 3DSX built from commit `35f9887` was run with Azahar 2125.1.3
+(artifact SHA-256
+`300222B9797E6DB3F471A2666C0C4D22B91F188F76EC5EFE954D83B17416D8E9`).
+The test cartridge was `Tales of Phantasia Narikiri Dungeon_[AN6J][J].gbc`
+(SHA-1 `EF322F4160CEEBD8DA67758EBD73225190AF6D23`). No cartridge image is stored
+in this repository.
+
+Observed result:
+
+- the game-provided 256x224 SGB border was decoded and displayed;
+- the 160x144 Game Boy picture was centered at the SGB opening
+  (48 pixels from the left and 40 pixels from the top);
+- the inner picture continued updating after the initial white boot frame and
+  displayed the Namco boot screen;
+- Azahar reported approximately 59-60 application frames per second.
+
+This is emulator validation, not a replacement for testing on a Nintendo 3DS.
 
 ## Host-side decoder test
 

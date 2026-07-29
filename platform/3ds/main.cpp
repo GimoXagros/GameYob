@@ -20,7 +20,7 @@ int main(int argc, char* argv[])
 
 	aptInit();
 	hidInit(NULL);
-	gfxInit();
+	gfxInitDefault();
     fsInit();
 
     consoleInitBottom();

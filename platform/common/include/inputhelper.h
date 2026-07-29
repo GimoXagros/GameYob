@@ -3,6 +3,10 @@
 #include "io.h"
 #include "config.h"
 
+#ifdef _3DS
+#include <3ds/services/hid.h>
+#endif
+
 #define FAT_CACHE_SIZE 16
 
 #define GB_A		    0x01

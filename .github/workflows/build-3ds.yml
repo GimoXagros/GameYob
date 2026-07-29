@@ -1,0 +1,56 @@
+name: Native 3DS build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "platform/3ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-3ds.yml"
+  pull_request:
+    paths:
+      - "platform/3ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-3ds.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build 3DSX
+        run: |
+          docker run --rm \
+          --volume "$GITHUB_WORKSPACE:/workspace" \
+          --workdir /workspace/platform/3ds \
+          devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a \
+          bash -euo pipefail -c '
+            git clone --quiet https://github.com/devkitPro/libctru.git /tmp/libctru &&
+            git -C /tmp/libctru checkout --quiet 8087dc8aea1878a938d0e69631e66be350b53c24 &&
+            git clone --quiet https://github.com/devkitPro/devkitarm-crtls.git /tmp/devkitarm-crtls &&
+            git -C /tmp/devkitarm-crtls checkout --quiet 8ff298208d2c8bf30cdffb6d3f8cbe3ede8c3c2a &&
+            mkdir -p /tmp/devkitarm-crtls/armv6k/fpu &&
+            make -C /tmp/devkitarm-crtls 3dsx_crt0 &&
+            rm -rf /tmp/libctru/libctru/source/services/soc &&
+            rm -f /tmp/libctru/libctru/source/console.c /tmp/libctru/libctru/include/sys/*.h &&
+            sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
+            make -C /tmp/libctru/libctru &&
+            make CTRULIB=/tmp/libctru/libctru \
+              CRT0DIR=/tmp/devkitarm-crtls/armv6k/fpu 3dsx
+          '
+
+      - name: Record artifact checksum
+        run: sha256sum platform/3ds/gameyob.3dsx > platform/3ds/SHA256SUMS.txt
+
+      - name: Upload native 3DS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameyob-3ds-${{ github.sha }}
+          path: |
+            platform/3ds/gameyob.3dsx
+            platform/3ds/SHA256SUMS.txt
+          if-no-files-found: error
