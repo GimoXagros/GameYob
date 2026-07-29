@@ -31,8 +31,10 @@ The decoder is platform-independent and covered by
 
 ## Azahar validation
 
-The 3DSX built from commit `b70ee20` was run with Azahar 2125.1.3. The test
-cartridge was `Tales of Phantasia Narikiri Dungeon_[AN6J][J].gbc`
+The 3DSX built from commit `35f9887` was run with Azahar 2125.1.3
+(artifact SHA-256
+`300222B9797E6DB3F471A2666C0C4D22B91F188F76EC5EFE954D83B17416D8E9`).
+The test cartridge was `Tales of Phantasia Narikiri Dungeon_[AN6J][J].gbc`
 (SHA-1 `EF322F4160CEEBD8DA67758EBD73225190AF6D23`). No cartridge image is stored
 in this repository.
 
@@ -41,7 +43,8 @@ Observed result:
 - the game-provided 256x224 SGB border was decoded and displayed;
 - the 160x144 Game Boy picture was centered at the SGB opening
   (48 pixels from the left and 40 pixels from the top);
-- the inner picture continued updating after the initial white boot frame;
+- the inner picture continued updating after the initial white boot frame and
+  displayed the Namco boot screen;
 - Azahar reported approximately 59-60 application frames per second.
 
 This is emulator validation, not a replacement for testing on a Nintendo 3DS.
