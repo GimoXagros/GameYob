@@ -90,6 +90,10 @@ MIT 및 OFL-1.1 라이선스 전문은 저장소와 `gameyob.zip`에 포함되�
 - Gameboy Printer emulation
 - GBS music playback
 
+## Feature development
+
+- [Native 3DS Super Game Boy borders](docs/features/sgb-borders.md) (experimental; hardware validation pending)
+
 ## More info
 
 See the GBAtemp thread for more information:

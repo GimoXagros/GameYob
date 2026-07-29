@@ -1,0 +1,32 @@
+name: SGB border tests
+
+on:
+  push:
+    paths:
+      - "platform/common/include/sgbborder.h"
+      - "platform/common/sgbborder.cpp"
+      - "tests/sgbborder_test.cpp"
+      - ".github/workflows/sgb-border-tests.yml"
+  pull_request:
+    paths:
+      - "platform/common/include/sgbborder.h"
+      - "platform/common/sgbborder.cpp"
+      - "tests/sgbborder_test.cpp"
+      - ".github/workflows/sgb-border-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build decoder tests
+        run: >-
+          g++ -std=c++11 -Wall -Wextra -Werror
+          -Iplatform/common/include
+          tests/sgbborder_test.cpp platform/common/sgbborder.cpp
+          -o sgbborder_test
+      - name: Run decoder tests
+        run: ./sgbborder_test

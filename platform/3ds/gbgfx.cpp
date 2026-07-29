@@ -12,6 +12,7 @@
 #include "3dsgfx.h"
 #include "menu.h"
 #include "inputhelper.h"
+#include "sgbborder.h"
 
 // public variables
 
@@ -30,6 +31,7 @@ bool sgbBorderLoaded;
 // private variables
 
 int lastGameScreen = -1;
+SgbBorderData sgbBorderData;
 
 u32 gbColors[4];
 u32 pixels[32*32*64];
@@ -70,6 +72,8 @@ void updateBgPalette(int paletteid);
 void updateBgPaletteDMG();
 void updateSprPalette(int paletteid);
 void updateSprPaletteDMG(int paletteid);
+void drawSgbBorder(u8* framebuffer, int screenWidth);
+void drawMaskedScanline(int scanline, u32 color);
 
 
 // Function definitions
@@ -79,6 +83,11 @@ void doAtVBlank(void (*func)(void)) {
 }
 void initGFX()
 {
+    sgbBorderReset(&sgbBorderData);
+    loadedBorderType = BORDER_NONE;
+    sgbBorderLoaded = false;
+    gfxMask = 0;
+
 	bgPalettes[0][0] = RGB24(255, 255, 255);
 	bgPalettes[0][1] = RGB24(192, 192, 192);
 	bgPalettes[0][2] = RGB24(94, 94, 94);
@@ -144,6 +153,20 @@ void drawScanline_P2(int scanline) {
                 updateSprPalette(i);
             sprPalettesModified[i] = false;
         }
+    }
+
+    if (gameboy->sgbMode && scanline == 0)
+        refreshSgbPalette();
+
+    if (gfxMask == 1)
+        return;
+    if (gfxMask == 2) {
+        drawMaskedScanline(scanline, RGB24(0, 0, 0));
+        return;
+    }
+    if (gfxMask == 3) {
+        drawMaskedScanline(scanline, *bgPalettesRef[0][0]);
+        return;
     }
 
 	if (gameboy->ioRam[0x40] & 0x10) {	// Tile Data location
@@ -244,6 +267,8 @@ void drawScanline_P2(int scanline) {
 				}
 				// The x position to write to pixels[].
 				u32 writeX = ((i*8)+x-scrollX)&0xFF;
+                if (gameboy->sgbMode && writeX < 160)
+                    paletteid = gameboy->sgbMap[(scanline / 8) * 20 + (writeX / 8)] & 3;
 
 				color = *bgPalettesRef[paletteid][colorid];
 				if (priority) {
@@ -310,6 +335,8 @@ void drawScanline_P2(int scanline) {
 				}
 
 				int writeX = (i*8)+x+winX;
+                if (gameboy->sgbMode && writeX >= 0 && writeX < 160)
+                    paletteid = gameboy->sgbMap[(scanline / 8) * 20 + (writeX / 8)] & 3;
 
 				color = *bgPalettesRef[paletteid][colorid];
 				if (priority)
@@ -377,6 +404,7 @@ void drawSprite(int scanline, int spriteNum)
 	int flipY = (gameboy->hram[spriteNum+3] & 0x40);
 	int priority = !(gameboy->hram[spriteNum+3] & 0x80);
 	int paletteid;
+    int dmgPalette = 0;
 
 	if (gameboy->gbMode == CGB)
 	{
@@ -385,8 +413,8 @@ void drawSprite(int scanline, int spriteNum)
 	}
 	else
 	{
-		//paletteid = gameboy->hram[spriteNum+3] & 0x7;
-		paletteid = (gameboy->hram[spriteNum+3] & 0x10)>>4;
+        dmgPalette = (gameboy->hram[spriteNum+3] & 0x10) ? 4 : 0;
+		paletteid = dmgPalette;
 	}
 
     if (height == 16) {
@@ -416,6 +444,10 @@ void drawSprite(int scanline, int spriteNum)
         color |= !!(gameboy->vram[bank][(tileNum<<4)+(pixelY<<1)+1] & (0x80>>j))<<1;
         if (color != 0)
         {
+            const int writeX = flipX ? x + (7-j) : x + j;
+            if (gameboy->sgbMode && writeX >= 0 && writeX < 160)
+                paletteid = dmgPalette +
+                    (gameboy->sgbMap[(scanline / 8) * 20 + (writeX / 8)] & 3);
             trueColor = *sprPalettesRef[paletteid][color];
 
             if (flipX)
@@ -449,20 +481,30 @@ void selectBorder() {
 }
 
 int loadBorder(const char* filename) {
-
+    return 1;
 }
 
 void checkBorder() {
-    if (lastGameScreen != gameScreen) {
-        lastGameScreen = gameScreen;
-        u8** buffers;
-        if (gameScreen == 0)
-            buffers = gfxTopLeftFramebuffers;
-        else
-            buffers = gfxBottomFramebuffers;
-        for (int fb=0; fb<2; fb++) {
-            memset(buffers[fb], 0, framebufferSizes[gameScreen]);
-        }
+    lastGameScreen = gameScreen;
+
+    u8** buffers;
+    int screenWidth;
+    if (gameScreen == 0) {
+        buffers = gfxTopLeftFramebuffers;
+        screenWidth = TOP_SCREEN_WIDTH;
+    }
+    else {
+        buffers = gfxBottomFramebuffers;
+        screenWidth = BOTTOM_SCREEN_WIDTH;
+    }
+
+    loadedBorderType =
+        sgbBordersEnabled && sgbBorderLoaded ? BORDER_SGB : BORDER_NONE;
+
+    for (int fb=0; fb<2; fb++) {
+        memset(buffers[fb], 0, framebufferSizes[gameScreen]);
+        if (loadedBorderType == BORDER_SGB)
+            drawSgbBorder(buffers[fb], screenWidth);
     }
 }
 
@@ -471,18 +513,75 @@ void refreshScaleMode() {
 }
 
 
-// SGB stub functions
 void refreshSgbPalette() {
+    for (int i=0; i<4; i++)
+        updateBgPalette(i);
+    for (int i=0; i<4; i++)
+        updateSprPalette(i);
+    for (int i=0; i<4; i++) {
+        for (int color=0; color<4; color++)
+            sprPalettes[i+4][color] = sprPalettes[i][color];
+    }
 
+    updateBgPaletteDMG();
+    for (int i=0; i<8; i++)
+        updateSprPaletteDMG(i);
 }
 void setSgbMask(int mask) {
-
+    gfxMask = mask & 3;
+    if (gfxMask == 1) {
+        const gfxScreen_t screen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
+        memcpy(gfxGetInactiveFramebuffer(screen, GFX_LEFT),
+            gfxGetActiveFramebuffer(screen, GFX_LEFT),
+            framebufferSizes[gameScreen]);
+    }
 }
 void setSgbTiles(u8* src, u8 flags) {
-
+    if (!sgbBorderLoaded && sgbBorderData.mapLoaded)
+        sgbBorderReset(&sgbBorderData);
+    sgbBorderDecodeTiles(&sgbBorderData, src, (flags & 1) != 0);
 }
 void setSgbMap(u8* src) {
+    sgbBorderDecodeMap(&sgbBorderData, src);
+    sgbBorderLoaded = true;
+    checkBorder();
+}
 
+void drawSgbBorder(u8* framebuffer, int screenWidth) {
+    const int offsetX = (screenWidth - SGB_BORDER_WIDTH) / 2;
+    const int offsetY = (TOP_SCREEN_HEIGHT - SGB_BORDER_HEIGHT) / 2;
+
+    for (int y=0; y<SGB_BORDER_HEIGHT; y++) {
+        for (int x=0; x<SGB_BORDER_WIDTH; x++) {
+            // The Game Boy picture is drawn separately and always has priority
+            // over the SGB border on GameYob's renderer.
+            if (x >= 48 && x < 48+160 && y >= 40 && y < 40+144)
+                continue;
+
+            u8 palette;
+            const u8 color = sgbBorderGetPixel(&sgbBorderData, x, y, &palette);
+            drawPixel(framebuffer, offsetX+x, offsetY+y,
+                sgbBorderColorToRgb24(sgbBorderData.palettes[palette][color]));
+        }
+    }
+}
+
+void drawMaskedScanline(int scanline, u32 color) {
+    u8* framebuffer;
+    int offsetX;
+    const int offsetY = TOP_SCREEN_HEIGHT / 2 - 144/2;
+    if (gameScreen == 0) {
+        framebuffer = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
+        offsetX = TOP_SCREEN_WIDTH / 2 - 160/2;
+    }
+    else {
+        framebuffer = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
+        offsetX = BOTTOM_SCREEN_WIDTH / 2 - 160/2;
+    }
+
+    const int y = offsetY + scanline;
+    for (int x=0; x<160; x++)
+        drawPixel(framebuffer, offsetX+x, y, color);
 }
 
 
@@ -539,10 +638,13 @@ void updateBgPalette(int paletteid)
 void updateBgPaletteDMG()
 {
 	u8 val = gameboy->ioRam[0x47];
-	u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
+	int palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
 
-	for (int i=0; i<4; i++)
-		bgPalettesRef[0][i] = &bgPalettes[0][palette[i]];
+    const int paletteCount = gameboy->sgbMode ? 4 : 1;
+    for (int paletteid=0; paletteid<paletteCount; paletteid++) {
+        for (int i=0; i<4; i++)
+            bgPalettesRef[paletteid][i] = &bgPalettes[paletteid][palette[i]];
+    }
 }
 
 void updateSprPalette(int paletteid)
@@ -561,8 +663,9 @@ void updateSprPalette(int paletteid)
 
 void updateSprPaletteDMG(int paletteid)
 {
-	int val = gameboy->ioRam[0x48+paletteid];
-	u8 palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
+    const int registerIndex = gameboy->sgbMode ? (paletteid >= 4 ? 1 : 0) : paletteid;
+	int val = gameboy->ioRam[0x48+registerIndex];
+	int palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
 
 	for (int i=0; i<4; i++)
 		sprPalettesRef[paletteid][i] = &sprPalettes[paletteid][palette[i]];
