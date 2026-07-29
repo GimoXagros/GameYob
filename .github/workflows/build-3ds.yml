@@ -31,6 +31,9 @@ jobs:
           bash -euo pipefail -c '
             git clone --quiet https://github.com/devkitPro/libctru.git /tmp/libctru &&
             git -C /tmp/libctru checkout --quiet 8087dc8aea1878a938d0e69631e66be350b53c24 &&
+            rm -rf /tmp/libctru/libctru/source/services/soc &&
+            rm -f /tmp/libctru/libctru/source/console.c /tmp/libctru/libctru/include/sys/*.h &&
+            sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
             make -C /tmp/libctru/libctru &&
             make CTRULIB=/tmp/libctru/libctru 3dsx
           '
