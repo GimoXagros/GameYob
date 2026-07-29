@@ -19,13 +19,16 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container:
-      image: devkitpro/devkitarm:latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Build 3DSX
-        run: make -C platform/3ds 3dsx
+        run: >-
+          docker run --rm
+          --volume "$GITHUB_WORKSPACE:/workspace"
+          --workdir /workspace/platform/3ds
+          devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a
+          make 3dsx
 
       - name: Record artifact checksum
         run: sha256sum platform/3ds/gameyob.3dsx > platform/3ds/SHA256SUMS.txt
