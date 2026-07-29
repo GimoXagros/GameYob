@@ -39,8 +39,8 @@ jobs:
             rm -f /tmp/libctru/libctru/source/console.c /tmp/libctru/libctru/include/sys/*.h &&
             sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
             make -C /tmp/libctru/libctru &&
-            COMPILER_PATH=/tmp/devkitarm-crtls/armv6k/fpu \
-              make CTRULIB=/tmp/libctru/libctru 3dsx
+            make CTRULIB=/tmp/libctru/libctru \
+              CRT0DIR=/tmp/devkitarm-crtls/armv6k/fpu 3dsx
           '
 
       - name: Record artifact checksum

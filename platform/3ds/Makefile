@@ -70,6 +70,10 @@ ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) \
 			-Wl,-d,-q,--use-blx,-Map,$(TARGET).map
 
+ifneq ($(strip $(CRT0DIR)),)
+LDFLAGS	+=	-B$(CRT0DIR)/
+endif
+
 LIBS	:= -lctru
 
 #---------------------------------------------------------------------------------
