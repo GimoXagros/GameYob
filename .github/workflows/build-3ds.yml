@@ -36,7 +36,7 @@ jobs:
             mkdir -p /tmp/devkitarm-crtls/armv6k/fpu &&
             make -C /tmp/devkitarm-crtls 3dsx_crt0 &&
             cp /tmp/devkitarm-crtls/armv6k/fpu/3dsx_crt0.o \
-              "$(dirname "$(arm-none-eabi-gcc -march=armv6k -mfpu=vfp -print-file-name=libc.a)")/" &&
+              "$(dirname "$(arm-none-eabi-gcc -print-file-name=libc.a)")/" &&
             rm -rf /tmp/libctru/libctru/source/services/soc &&
             rm -f /tmp/libctru/libctru/source/console.c /tmp/libctru/libctru/include/sys/*.h &&
             sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
