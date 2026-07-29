@@ -1,0 +1,56 @@
+name: Core regression tests
+
+on:
+  push:
+    paths:
+      - "platform/common/**"
+      - "platform/3ds/gbgfx.cpp"
+      - "platform/3ds/soundengine.cpp"
+      - "platform/ds/arm9/source/nifi.cpp"
+      - "tests/**"
+      - ".github/workflows/core-regression-tests.yml"
+  pull_request:
+    paths:
+      - "platform/common/**"
+      - "platform/3ds/gbgfx.cpp"
+      - "platform/3ds/soundengine.cpp"
+      - "platform/ds/arm9/source/nifi.cpp"
+      - "tests/**"
+      - ".github/workflows/core-regression-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  portable:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run NiFi protocol tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/nifi_protocol_test.cpp platform/common/nifi_protocol.cpp \
+            -o /tmp/nifi_protocol_test
+          /tmp/nifi_protocol_test
+      - name: Build and run rendering rule tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/gb_render_rules_test.cpp platform/common/gb_render_rules.cpp \
+            -o /tmp/gb_render_rules_test
+          /tmp/gb_render_rules_test
+      - name: Build and run noise LFSR tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/gb_noise_test.cpp platform/common/gb_noise.cpp \
+            -o /tmp/gb_noise_test
+          /tmp/gb_noise_test
+      - name: Build and run SGB border tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/sgbborder_test.cpp platform/common/sgbborder.cpp \
+            -o /tmp/sgbborder_test
+          /tmp/sgbborder_test

@@ -151,9 +151,16 @@ void Gameboy::init()
     sgbNumControllers=1;
     sgbSelectedController=0;
     sgbButtonsChecked = 0;
+    sgbAttractionDisabled = 0;
+    sgbTestSpeed = 0;
+    sgbIconDisable = 0;
+    sgbDataAddress = 0;
+    sgbDataLength = 0;
 
     memset(sgbPacket, 0, sizeof(sgbPacket));
     memset(sgbMap, 0, sizeof(sgbMap));
+    memset(sgbSoundState, 0, sizeof(sgbSoundState));
+    memset(sgbData, 0, sizeof(sgbData));
     memset(&sgbCmdData, 0, sizeof(sgbCmdData));
 
     initGFXPalette();
