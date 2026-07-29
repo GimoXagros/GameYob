@@ -273,7 +273,6 @@ int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
         free(buffer);
     }
 
-    }
     return errcode;
 }
 
