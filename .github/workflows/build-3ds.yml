@@ -1,0 +1,40 @@
+name: Native 3DS build
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "platform/3ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-3ds.yml"
+  pull_request:
+    paths:
+      - "platform/3ds/**"
+      - "platform/common/**"
+      - ".github/workflows/build-3ds.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitarm:latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build 3DSX
+        run: make -C platform/3ds 3dsx
+
+      - name: Record artifact checksum
+        run: sha256sum platform/3ds/gameyob.3dsx > platform/3ds/SHA256SUMS.txt
+
+      - name: Upload native 3DS build
+        uses: actions/upload-artifact@v4
+        with:
+          name: gameyob-3ds-${{ github.sha }}
+          path: |
+            platform/3ds/gameyob.3dsx
+            platform/3ds/SHA256SUMS.txt
+          if-no-files-found: error
