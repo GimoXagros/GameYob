@@ -1,3 +1,11 @@
+Version 0.5.2-ko.1:
+
+- Added UTF-8 initialization for FAT long filenames.
+- Added modern Korean filename, folder and cheat-name rendering.
+- Added UTF-8/CP949 cheat-name decoding and UTF-8 BOM handling.
+- Expanded save, cheat, state and printer paths for long Korean names.
+- Fixed extensionless directory entries and unsafe cheat-name formatting.
+
 Version 0.5.1:
 
 - Savegame management has been modified to prevent corruption as reported by some.

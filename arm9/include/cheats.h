@@ -1,7 +1,8 @@
 #pragma once
 #include <vector>
 
-#define MAX_CHEAT_NAME_LEN  24
+#define MAX_CHEAT_NAME_COLUMNS  25
+#define MAX_CHEAT_NAME_LEN      96
 
 typedef struct cheat_t {
     char name[MAX_CHEAT_NAME_LEN+1];

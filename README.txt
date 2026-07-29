@@ -19,3 +19,7 @@ Basic list of features:
 See the GBAtemp thread for more information:
 
 http://gbatemp.net/threads/gameyob-a-gameboy-emulator-for-ds.343407/
+
+Korean filename build documentation:
+
+README-KO.md

@@ -253,7 +253,7 @@ void printerSaveFile() {
     }
 
     // Find the first available "print number".
-    char filename[300];
+    char filename[1032];
     while (true) {
         siprintf(filename, "%s-%d.bmp", getRomBasename(), numPrinted);
         if (appending ||                        // If appending, the last file written to is already selected.

@@ -60,7 +60,7 @@ void selectRom() {
     unloadRom();
 
     loadFileChooserState(&romChooserState);
-    const char* extraExtensions[] = {"gbs"};
+    const char* extraExtensions[] = {"gbs", NULL};
     char* filename = startFileChooser(extraExtensions, true);
     saveFileChooserState(&romChooserState);
 

@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 #include <dirent.h>
 #include <unistd.h>
 
@@ -23,14 +24,15 @@
 #include "gbs.h"
 #include "common.h"
 #include "filechooser.h"
+#include "utf8font.h"
 
 #define FAT_CACHE_SIZE 16
 
 FILE* romFile=NULL;
 FILE* saveFile=NULL;
-char filename[100];
-char savename[100];
-char basename[100];
+char filename[1024];
+char savename[1032];
+char basename[1024];
 char romTitle[20];
 
 char* romPath = NULL;
@@ -63,6 +65,9 @@ bool suspendStateExists;
 
 void initInput()
 {
+    // libfat converts FAT long filenames between UTF-16 and the active
+    // multibyte locale. Without this, non-ASCII directory entries fail.
+    setlocale(LC_CTYPE, "C.UTF-8");
     fatInit(FAT_CACHE_SIZE, true);
     //fatInitDefault();
 
@@ -95,7 +100,7 @@ const int NUM_GB_KEYS = sizeof(gbKeyNames)/sizeof(char*);
 int keys[NUM_GB_KEYS];
 
 struct KeyConfig {
-    char name[32];
+    char name[97];
     int gbKeys[13];
 };
 KeyConfig defaultKeyConfig = {
@@ -132,8 +137,9 @@ void loadKeyConfig() {
 }
 
 void controlsParseConfig(const char* line2) {
-    char line[100];
-    strncpy(line, line2, 100);
+    char line[256];
+    strncpy(line, line2, sizeof(line));
+    line[sizeof(line)-1] = '\0';
     while (strlen(line) > 0 && (line[strlen(line)-1] == '\n' || line[strlen(line)-1] == ' '))
         line[strlen(line)-1] = '\0';
     if (line[0] == '(') {
@@ -144,8 +150,7 @@ void controlsParseConfig(const char* line2) {
 
             keyConfigs.push_back(KeyConfig());
             KeyConfig* config = &keyConfigs.back();
-            strncpy(config->name, name, 32);
-            config->name[31] = '\0';
+            utf8CopyText(config->name, sizeof(config->name), name, 20);
             for (int i=0; i<NUM_DS_KEYS; i++)
                 config->gbKeys[i] = KEY_NONE;
         }
@@ -199,12 +204,13 @@ void redrawKeyConfigChooser() {
     KeyConfig* config = &keyConfigs[selectedKeyConfig];
 
     consoleClear();
+    utf8FontResetCache();
 
     iprintf("Config: ");
     if (option == -1)
         iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* %s *\n\n", config->name);
     else
-        iprintf("  %s  \n\n", config->name);
+        iprintfColored(CONSOLE_COLOR_WHITE, "  %s  \n\n", config->name);
 
     iprintf("       Button   Function\n\n");
 
@@ -365,7 +371,7 @@ void generalPrintConfig(FILE* file) {
 
 bool readConfigFile() {
     FILE* file = fopen("/gameyobds.ini", "r");
-    char line[100];
+    char line[256];
     void (*configParser)(const char*) = generalParseConfig;
 
     if (file == NULL)
@@ -416,8 +422,8 @@ void writeConfigFile() {
     controlsPrintConfig(file);
     fclose(file);
 
-    char nameBuf[100];
-    siprintf(nameBuf, "%s.cht", basename);
+    char nameBuf[1032];
+    snprintf(nameBuf, sizeof(nameBuf), "%s.cht", basename);
     saveCheats(nameBuf);
 }
 
@@ -433,10 +439,11 @@ int loadRom(char* f)
 {
     if (romFile != NULL)
         fclose(romFile);
-    strcpy(filename, f);
+    snprintf(filename, sizeof(filename), "%s", f);
 
     // Check if this is a GBS file
-    gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
+    const char* extension = strrchr(filename, '.');
+    gbsMode = extension && (strcasecmp(extension, ".gbs") == 0);
 
     romFile = fopen(filename, "rb");
     if (romFile == NULL)
@@ -497,10 +504,11 @@ int loadRom(char* f)
         lastBanksUsed.push_back(i);
     }
 
-    strcpy(basename, filename);
-    *(strrchr(basename, '.')) = '\0';
-    strcpy(savename, basename);
-    strcat(savename, ".sav");
+    snprintf(basename, sizeof(basename), "%s", filename);
+    char* basenameExtension = strrchr(basename, '.');
+    if (basenameExtension)
+        *basenameExtension = '\0';
+    snprintf(savename, sizeof(savename), "%s.sav", basename);
 
     cgbFlag = romSlot0[0x143];
     romSize = romSlot0[0x148];
@@ -573,8 +581,8 @@ int loadRom(char* f)
         suspendStateExists = checkStateExists(-1);
 
         // Load cheats
-        char nameBuf[100];
-        siprintf(nameBuf, "%s.cht", basename);
+        char nameBuf[1032];
+        snprintf(nameBuf, sizeof(nameBuf), "%s.cht", basename);
         loadCheats(nameBuf);
 
     } // !gbsMode
@@ -904,7 +912,7 @@ struct StateStruct {
 void saveState(int stateNum) {
     FILE* outFile;
     StateStruct state;
-    char statename[100];
+    char statename[1032];
 
     if (stateNum == -1)
         siprintf(statename, "%s.yss", basename);
@@ -970,7 +978,7 @@ void saveState(int stateNum) {
 int loadState(int stateNum) {
     FILE *inFile;
     StateStruct state;
-    char statename[100];
+    char statename[1032];
     int version;
 
     memset(&state, 0, sizeof(StateStruct));
@@ -1089,7 +1097,7 @@ void deleteState(int stateNum) {
     if (!checkStateExists(stateNum))
         return;
 
-    char statename[100];
+    char statename[1032];
 
     if (stateNum == -1)
         siprintf(statename, "%s.yss", basename);
@@ -1099,7 +1107,7 @@ void deleteState(int stateNum) {
 }
 
 bool checkStateExists(int stateNum) {
-    char statename[256];
+    char statename[1032];
 
     if (stateNum == -1)
         siprintf(statename, "%s.yss", basename);
@@ -1116,5 +1124,3 @@ bool checkStateExists(int stateNum) {
     return true;
     */
 }
-
-

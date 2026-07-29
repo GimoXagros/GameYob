@@ -7,6 +7,7 @@
 #include "filechooser.h"
 #include "inputhelper.h"
 #include "console.h"
+#include "utf8font.h"
 
 #define FLAG_DIRECTORY  1
 #define FLAG_SUSPENDED  2
@@ -19,7 +20,6 @@ FileChooserState romChooserState = {0,"/lameboy"};
 FileChooserState borderChooserState = {0,"/"};
 
 // Private stuff
-const int MAX_FILENAME_LEN = 100;
 int filesPerPage = 24;
 int numFiles;
 int scrollY=0;
@@ -210,11 +210,13 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     fileChooserOn = true;
     updateScreens(true); // Screen may need to be enabled
 
-    int numExtensions = sizeof(extensions)/sizeof(const char*);
+    int numExtensions = 0;
+    while (extensions[numExtensions] != NULL)
+        numExtensions++;
     char* retval;
-    char buffer[256];
-    char cwd[256];
-    getcwd(cwd, 256);
+    char buffer[1024];
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
     DIR* dp = opendir(cwd);
     struct dirent *entry;
     if (dp == NULL) {
@@ -229,7 +231,8 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
 
         // Read file list
         while ((entry = readdir(dp)) != NULL) {
-            char* ext = strrchr(entry->d_name, '.')+1;
+            char* dot = strrchr(entry->d_name, '.');
+            const char* ext = dot ? dot + 1 : "";
             bool isValidExtension = false;
             bool isRomFile = false;
             if (!(entry->d_type & DT_DIR)) {
@@ -278,7 +281,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             }
             else if (strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
                 bool matched = false;
-                char buffer2[256];
+                char buffer2[1024];
                 strcpy(buffer2, entry->d_name);
                 *(strrchr(buffer2, '.')) = '\0';
                 for (int i=0; i<numFiles; i++) {
@@ -321,6 +324,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
         while (!readDirectory) {
             // Draw the screen
             consoleClear();
+            utf8FontResetCache();
             for (int i=scrollY; i<scrollY+filesPerPage && i<numFiles; i++) {
                 if (i == fileSelection)
                     iprintf("* ");
@@ -334,15 +338,17 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 int maxLen = 30;
                 if (flags[i] & FLAG_DIRECTORY)
                     maxLen--;
-                strncpy(buffer, filenames[i], maxLen);
-                buffer[maxLen] = '\0';
+                const int color =
+                    (flags[i] & FLAG_DIRECTORY) ? CONSOLE_COLOR_LIGHT_YELLOW :
+                    (flags[i] & FLAG_SUSPENDED) ? CONSOLE_COLOR_LIGHT_MAGENTA :
+                                                  CONSOLE_COLOR_WHITE;
+                utf8PrintColored(color, filenames[i], maxLen);
+                unsigned int displayed = utf8TextColumns(filenames[i]);
+                if (displayed > (unsigned int)maxLen)
+                    displayed = maxLen;
                 if (flags[i] & FLAG_DIRECTORY)
-                    iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "%s/", buffer);
-                else if (flags[i] & FLAG_SUSPENDED)
-                    iprintfColored(CONSOLE_COLOR_LIGHT_MAGENTA, "%s", buffer);
-                else
-                    iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
-                for (uint j=0; j<maxLen-strlen(buffer); j++)
+                    iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "/");
+                for (uint j=displayed; j<(unsigned int)maxLen; j++)
                     iprintfColored(CONSOLE_COLOR_WHITE, " ");
 
                 if (i == fileSelection) {
@@ -388,7 +394,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     if (numFiles >= 1 && strcmp(filenames[0], "..") == 0) {
 lowerDirectory:
                         // Select this directory when going up
-                        getcwd(cwd, 256);
+                        getcwd(cwd, sizeof(cwd));
                         *(strrchr(cwd, '/')) = '\0';
                         matchFile = string(strrchr(cwd, '/')+1);
 
@@ -455,8 +461,8 @@ void setFileChooserMatchFile(const char* filename) {
 
 
 void saveFileChooserState(FileChooserState* state) {
-    char cwd[256];
-    getcwd(cwd, 256);
+    char cwd[1024];
+    getcwd(cwd, sizeof(cwd));
     state->selection = fileSelection;
     state->directory = cwd;
 }

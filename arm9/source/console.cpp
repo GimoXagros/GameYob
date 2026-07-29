@@ -13,6 +13,7 @@
 #include "gbs.h"
 #include "common.h"
 #include "3in1.h"
+#include "utf8font.h"
 
 
 void printVersionInfo(); // Defined in version.cpp
@@ -482,6 +483,7 @@ void redrawMenu() {
     PrintConsole* oldConsole = getPrintConsole();
     setPrintConsole(menuConsole);
     consoleClear();
+    utf8FontResetCache();
 
     // Top line: submenu
     int pos=0;
@@ -658,7 +660,8 @@ void updateMenu() {
 // right away.
 void printMenuMessage(const char* s) {
     bool hadPreviousMessage = printMessage[0] != '\0';
-    strncpy(printMessage, s, 33);
+    strncpy(printMessage, s, sizeof(printMessage)-1);
+    printMessage[sizeof(printMessage)-1] = '\0';
 
     if (hadPreviousMessage) {
         iprintf("\r");
@@ -928,31 +931,11 @@ void iprintfColored(int palette, const char *format, ...) {
     va_list args;
     va_start(args, format);
 
-    PrintConsole* console = getPrintConsole();
-    int x = console->cursorX;
-    int y = console->cursorY;
-
-    char s[100];
-    vsiprintf(s, format, args);
-
-    u16* dest = BG_MAP_RAM_SUB(22)+y*32+x;
-    for (uint i=0; i<strlen(s); i++) {
-        if (s[i] == '\n') {
-            x = 0;
-            y++;
-        }
-        else {
-            *(dest++) = s[i] | TILE_PALETTE(palette);
-            x++;
-            if (x == 32) {
-                x = 0;
-                y++;
-            }
-        }
-    }
-    console->cursorX = x;
-    console->cursorY = y;
-    //iprintf(s);
+    char s[512];
+    vsnprintf(s, sizeof(s), format, args);
+    s[sizeof(s)-1] = '\0';
+    utf8PrintColored(palette, s);
+    va_end(args);
 }
 
 

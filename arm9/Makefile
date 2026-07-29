@@ -18,7 +18,7 @@ TARGET :=	gameyob
 BUILD		:=	build
 SOURCES		:=	source
 INCLUDES	:=	include ../include
-DATA		:=
+DATA		:=	data
 GFX			:= gfx/
 
 #---------------------------------------------------------------------------------
@@ -29,7 +29,7 @@ ARCH	:=	# -mthumb -mthumb-interwork	#This may cause some problem when there are 
 CFLAGS	:=	-Wall -Wno-psabi -DNO_VIZ\
  			-march=armv5te -mtune=arm946e-s -fomit-frame-pointer\
 			-ffast-math -O3 $(ARCH) \
-			-DVERSION_STRING=\"`git describe --always --abbrev=4`\"
+			-DVERSION_STRING=\"v0.5.2-ko.1\"
 			#-O3 -fpeel-loops -fno-pic -finline -fearly-inlining \
 
 CFLAGS	+=	$(INCLUDE) -DARM9 -DDS

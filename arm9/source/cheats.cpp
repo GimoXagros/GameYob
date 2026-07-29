@@ -8,6 +8,7 @@
 #include "cheats.h"
 #include "inputhelper.h"
 #include "gbgfx.h"
+#include "utf8font.h"
 
 #define TO_INT(a) ( (a) >= 'a' ? (a) - 'a' + 10 : (a) >= 'A' ? (a) - 'A' + 10 : (a) - '0')
 
@@ -165,9 +166,11 @@ void loadCheats(const char* filename) {
         for (int i=0; i<numCheats; i++)
             unapplyGGCheat(i);
     }
-    else
+    else {
         // Rom has been changed
-        strncpy(cheatsRomTitle, getRomTitle(), 20);
+        strncpy(cheatsRomTitle, getRomTitle(), sizeof(cheatsRomTitle)-1);
+        cheatsRomTitle[sizeof(cheatsRomTitle)-1] = '\0';
+    }
     numCheats = 0;
 
     // Begin loading new cheat file
@@ -177,22 +180,34 @@ void loadCheats(const char* filename) {
         return;
     }
 
+    bool firstLine = true;
     while (!feof(file)) {
         int i = numCheats;
 
-        char line[100];
-        fgets(line, 100, file);
+        char line[256] = "";
+        if (!fgets(line, sizeof(line), file))
+            break;
 
-        if (*line != '\0') {
-            char* spacePos = strchr(line, ' ');
+        char* lineStart = line;
+        if (firstLine && (unsigned char)line[0] == 0xEF &&
+                (unsigned char)line[1] == 0xBB &&
+                (unsigned char)line[2] == 0xBF) {
+            lineStart += 3;
+        }
+        firstLine = false;
+
+        if (*lineStart != '\0') {
+            char* spacePos = strchr(lineStart, ' ');
             if (spacePos != NULL) {
                 *spacePos = '\0';
-                if (strlen(spacePos+1) >= 1 && addCheat(line)) {
-                    strncpy(cheats[i].name, spacePos+2, MAX_CHEAT_NAME_LEN);
-                    cheats[i].name[MAX_CHEAT_NAME_LEN] = '\0';
-                    char c;
-                    while ((c = cheats[i].name[strlen(cheats[i].name)-1]) == '\n' || c == '\r')
-                        cheats[i].name[strlen(cheats[i].name)-1] = '\0';
+                char* name = spacePos + 2;
+                size_t nameLength = strlen(name);
+                while (nameLength &&
+                        (name[nameLength-1] == '\n' || name[nameLength-1] == '\r'))
+                    name[--nameLength] = '\0';
+                if (strlen(spacePos+1) >= 1 && addCheat(lineStart)) {
+                    utf8CopyText(cheats[i].name, sizeof(cheats[i].name), name,
+                                 MAX_CHEAT_NAME_COLUMNS);
                     toggleCheat(i, *(spacePos+1) == '1');
                 }
             }
@@ -213,12 +228,14 @@ void redrawCheatMenu() {
 
     int page = cheatMenuSelection/cheatsPerPage;
     consoleClear();
+    utf8FontResetCache();
     iprintf("          Cheat Menu      ");
     iprintf("%d/%d\n\n", page+1, numPages);
     for (int i=page*cheatsPerPage; i<numCheats && i < (page+1)*cheatsPerPage; i++) {
         int nameColor = (cheatMenuSelection == i ? CONSOLE_COLOR_LIGHT_YELLOW : CONSOLE_COLOR_WHITE);
-        iprintfColored(nameColor, cheats[i].name);
-        for (unsigned int j=0; j<25-strlen(cheats[i].name); j++)
+        iprintfColored(nameColor, "%s", cheats[i].name);
+        const unsigned int nameColumns = utf8TextColumns(cheats[i].name);
+        for (unsigned int j=nameColumns; j<MAX_CHEAT_NAME_COLUMNS; j++)
             iprintf(" ");
         if (cheats[i].flags & FLAG_ENABLED) {
             if (cheatMenuSelection == i) {

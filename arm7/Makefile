@@ -129,6 +129,8 @@ DEPENDS	:=	$(OFILES:.o=.d)
 #---------------------------------------------------------------------------------
 
 $(OUTPUT).elf	:	$(OFILES) $(LIBNDS)/lib/libnds7.a
+	@echo linking $(notdir $@)
+	@$(LD) $(LDFLAGS) $(OFILES) $(LIBPATHS) $(LIBS) -o $@
  
 -include $(DEPENDS)
 
