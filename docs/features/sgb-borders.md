@@ -33,9 +33,9 @@ The decoder is platform-independent and covered by
 
 ## Azahar validation
 
-The 3DSX built from commit `35f9887` was run with Azahar 2125.1.3
+The 3DSX built from commit `e2f8bf3` was run with Azahar 2125.1.3
 (artifact SHA-256
-`300222B9797E6DB3F471A2666C0C4D22B91F188F76EC5EFE954D83B17416D8E9`).
+`6D40B70BDE8CE70A33D891239086A4FD2F1F1C386F271913848C9D7EECAB3027`).
 The test cartridge was `Tales of Phantasia Narikiri Dungeon_[AN6J][J].gbc`
 (SHA-1 `EF322F4160CEEBD8DA67758EBD73225190AF6D23`). No cartridge image is stored
 in this repository.
@@ -46,8 +46,9 @@ Observed result:
 - the 160x144 Game Boy picture was centered at the SGB opening
   (48 pixels from the left and 40 pixels from the top);
 - the inner picture continued updating after the initial white boot frame and
-  displayed the Namco boot screen;
-- Azahar reported approximately 59-60 application frames per second.
+  displayed the Namco boot screen and Japanese title screen;
+- the GameYob settings screen remained responsive and rendered the selected
+  Korean language name inside the SGB layout.
 
 This is emulator validation, not a replacement for testing on a Nintendo 3DS.
 
