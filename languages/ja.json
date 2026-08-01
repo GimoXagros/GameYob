@@ -127,6 +127,7 @@
     "Room found.": "ルームを検出",
     "No room found.": "ルームが見つかりません",
     "Network unavailable.": "ネットワークを利用できません",
-    "Disconnected.": "切断しました"
+    "Disconnected.": "切断しました",
+    "Language template could not be created.": "言語テンプレートを作成できません"
   }
 }

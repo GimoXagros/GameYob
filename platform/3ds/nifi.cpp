@@ -56,6 +56,7 @@ const int INPUT_BUFFER_SIZE = 64;
 const int OLD_INPUTS_BUFFER_SIZE = CLIENT_FRAME_LAG + 2;
 const int FRAGMENT_SIZE = 0x400;
 const int RECEIVE_BUFFER_SIZE = FRAGMENT_SIZE + nifi::HEADER_SIZE + 0x10;
+const int DISCOVERY_TIMEOUT_FRAMES = 60 * 10;
 const u32 MAX_REASSEMBLY_SIZE = nifi::MAX_FRAGMENT_COUNT * FRAGMENT_SIZE;
 
 inline u32 read32(const u8* data) {
@@ -76,6 +77,7 @@ sockaddr_in broadcastAddress;
 sockaddr_in peerAddress;
 bool peerAddressKnown = false;
 bool nifiInitialized = false;
+bool socInitialized = false;
 
 bool isHost = false;
 bool isClient = false;
@@ -525,22 +527,44 @@ bool nifiEnabled = true;
 void nifiHostMenu();
 void nifiClientMenu();
 
+void releaseNetworkResources() {
+    if (udpSocket >= 0)
+        closesocket(udpSocket);
+    udpSocket = -1;
+    if (socInitialized) {
+        SOC_Shutdown();
+        socInitialized = false;
+    }
+    free(socBuffer);
+    socBuffer = NULL;
+    peerAddressKnown = false;
+    nifiInitialized = false;
+}
+
 void enableNifi() {
     if (nifiInitialized)
         return;
     socBuffer = static_cast<u32*>(memalign(0x1000, SOC_BUFFER_SIZE));
     if (!socBuffer || SOC_Initialize(socBuffer, SOC_BUFFER_SIZE) != 0) {
-        free(socBuffer);
-        socBuffer = NULL;
+        releaseNetworkResources();
         printLog("%s\n", tr("Network unavailable."));
+        printMenuMessage("Network unavailable.");
+        return;
+    }
+    socInitialized = true;
+
+    const long hostAddress = gethostid();
+    if (hostAddress == 0 || hostAddress == -1L) {
+        releaseNetworkResources();
+        printLog("%s\n", tr("Network unavailable."));
+        printMenuMessage("Network unavailable.");
         return;
     }
 
     udpSocket = socket(AF_INET, SOCK_DGRAM, 0);
     if (udpSocket < 0) {
-        SOC_Shutdown();
-        free(socBuffer);
-        socBuffer = NULL;
+        releaseNetworkResources();
+        printMenuMessage("Network unavailable.");
         return;
     }
     int enabled = 1;
@@ -555,11 +579,8 @@ void enableNifi() {
     localAddress.sin_addr.s_addr = INADDR_ANY;
     if (bind(udpSocket, reinterpret_cast<sockaddr*>(&localAddress),
              sizeof(localAddress)) < 0) {
-        closesocket(udpSocket);
-        udpSocket = -1;
-        SOC_Shutdown();
-        free(socBuffer);
-        socBuffer = NULL;
+        releaseNetworkResources();
+        printMenuMessage("Network unavailable.");
         return;
     }
 
@@ -572,16 +593,7 @@ void enableNifi() {
 }
 
 void disableNifi() {
-    if (!nifiInitialized)
-        return;
-    if (udpSocket >= 0)
-        closesocket(udpSocket);
-    udpSocket = -1;
-    SOC_Shutdown();
-    free(socBuffer);
-    socBuffer = NULL;
-    peerAddressKnown = false;
-    nifiInitialized = false;
+    releaseNetworkResources();
 }
 
 int nifiSendPacket(u8 command, u8* data, u32 dataLength, bool acknowledge) {
@@ -652,8 +664,12 @@ void nifiInterLinkMenu() {
 
 void nifiHostMenu() {
     enableNifi();
-    if (!nifiInitialized)
+    if (!nifiInitialized) {
+        isHost = false;
+        isClient = false;
+        status = HOST_IDLE;
         return;
+    }
     clearConsole();
     iprintfColored(CONSOLE_COLOR_WHITE, "%s\n%s\n", tr("Waiting for client..."),
                    tr("Press B to give up."));
@@ -668,7 +684,8 @@ void nifiHostMenu() {
     nextSequence = 1;
 
     int announceTimer = 0;
-    while (!foundClient) {
+    nifi::FrameDeadline discoveryDeadline(DISCOVERY_TIMEOUT_FRAMES);
+    while (!foundClient && !discoveryDeadline.expired()) {
         pumpPackets();
         if (announceTimer-- <= 0) {
             u8 identity[MAX_FILENAME_LEN + 64];
@@ -684,8 +701,10 @@ void nifiHostMenu() {
         inputUpdateVBlank();
         if (keyJustPressed(mapMenuKey(MENU_KEY_B)))
             break;
+        discoveryDeadline.advance();
     }
     if (!foundClient) {
+        printMenuMessage("Couldn't find client.");
         nifiStop();
         return;
     }
@@ -698,8 +717,12 @@ void nifiHostMenu() {
 
 void nifiClientMenu() {
     enableNifi();
-    if (!nifiInitialized)
+    if (!nifiInitialized) {
+        isHost = false;
+        isClient = false;
+        status = CLIENT_IDLE;
         return;
+    }
     clearConsole();
     iprintfColored(CONSOLE_COLOR_WHITE, "%s\n%s\n", tr("Waiting for host..."),
                    tr("Press B to give up."));
@@ -711,14 +734,17 @@ void nifiClientMenu() {
     localRomId = 0;
     nextSequence = 1;
 
-    while (!foundHost) {
+    nifi::FrameDeadline discoveryDeadline(DISCOVERY_TIMEOUT_FRAMES);
+    while (!foundHost && !discoveryDeadline.expired()) {
         pumpPackets();
         system_waitForVBlank();
         inputUpdateVBlank();
         if (keyJustPressed(mapMenuKey(MENU_KEY_B)))
             break;
+        discoveryDeadline.advance();
     }
     if (!foundHost) {
+        printMenuMessage("Couldn't find host.");
         nifiStop();
         return;
     }
@@ -777,7 +803,9 @@ void nifiPause() {
 }
 
 void nifiUnpause() {
-    if (nifiWasPaused == -1 || !nifiWasPaused)
+    if (nifiWasPaused == -1)
+        return;
+    if (!nifiWasPaused)
         mgr_unpause();
     nifiWasPaused = -1;
 }

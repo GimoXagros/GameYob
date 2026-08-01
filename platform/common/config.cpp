@@ -17,8 +17,10 @@
 
 #ifdef SDL
 #define INI_PATH "gameyobds.ini"
+#define LANGUAGE_TEMPLATE_PATH "gameyob_language.ini"
 #else
 #define INI_PATH "/gameyobds.ini"
+#define LANGUAGE_TEMPLATE_PATH "/gameyob_language.ini"
 #endif
 
 
@@ -145,6 +147,10 @@ void writeConfigFile() {
     file_printf(file, "[controls]\n");
     controlsPrintConfig(file);
     file_close(file);
+}
+
+bool createCustomLanguageTemplate() {
+    return languageCreateEnglishTemplate(LANGUAGE_TEMPLATE_PATH);
 }
 
 

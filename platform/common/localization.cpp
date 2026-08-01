@@ -19,6 +19,19 @@ struct LanguageEntry {
     std::string value;
 };
 
+struct BuiltinLanguageEntry {
+    const char* key;
+    const char* value;
+};
+
+struct BuiltinLanguage {
+    const char* code;
+    const BuiltinLanguageEntry* entries;
+    size_t count;
+};
+
+#include "builtin_languages.inc"
+
 std::vector<LanguageEntry> entries;
 char currentCode[16] = "en";
 char currentFile[MAX_FILENAME_LEN] = "";
@@ -52,6 +65,53 @@ void setEntry(const std::string& key, const std::string& value) {
     entry.key = key;
     entry.value = value;
     entries.push_back(entry);
+}
+
+void setCurrentLanguage(const char* code, const char* filename) {
+    strncpy(currentCode, code, sizeof(currentCode));
+    currentCode[sizeof(currentCode) - 1] = '\0';
+    strncpy(currentFile, filename ? filename : "", sizeof(currentFile));
+    currentFile[sizeof(currentFile) - 1] = '\0';
+}
+
+bool loadBuiltinLanguage(const char* code) {
+    if (strcasecmp(code, "en") == 0) {
+        entries.clear();
+        setCurrentLanguage("en", "");
+        return true;
+    }
+    for (size_t language = 0;
+            language < sizeof(kBuiltinLanguages) / sizeof(kBuiltinLanguages[0]);
+            ++language) {
+        if (strcasecmp(code, kBuiltinLanguages[language].code) != 0)
+            continue;
+        entries.clear();
+        for (size_t entry = 0; entry < kBuiltinLanguages[language].count;
+                ++entry) {
+            setEntry(kBuiltinLanguages[language].entries[entry].key,
+                     kBuiltinLanguages[language].entries[entry].value);
+        }
+        std::sort(entries.begin(), entries.end(), entryLess);
+        setCurrentLanguage(kBuiltinLanguages[language].code, "");
+        return true;
+    }
+    return false;
+}
+
+void writeIniQuoted(FileHandle* file, const char* text) {
+    file_putc('"', file);
+    for (const unsigned char* cursor =
+            reinterpret_cast<const unsigned char*>(text); *cursor; ++cursor) {
+        switch (*cursor) {
+            case '\\': file_printf(file, "\\\\"); break;
+            case '"': file_printf(file, "\\\""); break;
+            case '\n': file_printf(file, "\\n"); break;
+            case '\r': file_printf(file, "\\r"); break;
+            case '\t': file_printf(file, "\\t"); break;
+            default: file_putc(*cursor, file); break;
+        }
+    }
+    file_putc('"', file);
 }
 
 void appendUtf8(std::string& output, unsigned int codepoint) {
@@ -304,8 +364,7 @@ const char* tr(const char* englishKey) {
 
 void languageReset() {
     entries.clear();
-    strcpy(currentCode, "en");
-    currentFile[0] = '\0';
+    setCurrentLanguage("en", "");
 }
 
 bool languageParseText(LanguageFileFormat format, const char* text) {
@@ -330,17 +389,26 @@ bool languageLoadFile(const char* filename) {
     const LanguageFileFormat format = formatFromFilename(filename);
     if (format == LANGUAGE_FORMAT_AUTO || !readWholeFile(filename, contents))
         return false;
-    if (!languageParseText(format, &contents[0]))
+    const std::vector<LanguageEntry> previousEntries = entries;
+    char previousCode[sizeof(currentCode)];
+    char previousFile[sizeof(currentFile)];
+    memcpy(previousCode, currentCode, sizeof(previousCode));
+    memcpy(previousFile, currentFile, sizeof(previousFile));
+    if (!languageParseText(format, &contents[0])) {
+        entries = previousEntries;
+        memcpy(currentCode, previousCode, sizeof(currentCode));
+        memcpy(currentFile, previousFile, sizeof(currentFile));
         return false;
-    strncpy(currentFile, filename, sizeof(currentFile));
-    currentFile[sizeof(currentFile) - 1] = '\0';
-    strcpy(currentCode, "custom");
+    }
+    setCurrentLanguage("custom", filename);
     return true;
 }
 
 bool languageLoadCode(const char* code) {
     if (!code || !*code)
         code = "en";
+    if (loadBuiltinLanguage(code))
+        return true;
     static const char* roots[] = {
         "/gameyob/languages", "/languages", "languages"
     };
@@ -352,17 +420,31 @@ bool languageLoadCode(const char* code) {
             snprintf(filename, sizeof(filename), "%s/%s.%s", roots[root], code,
                      extensions[extension]);
             if (languageLoadFile(filename)) {
-                strncpy(currentCode, code, sizeof(currentCode));
-                currentCode[sizeof(currentCode) - 1] = '\0';
+                setCurrentLanguage(code, filename);
                 return true;
             }
         }
     }
-    entries.clear();
-    strncpy(currentCode, code, sizeof(currentCode));
-    currentCode[sizeof(currentCode) - 1] = '\0';
-    currentFile[0] = '\0';
-    return strcasecmp(code, "en") == 0;
+    return false;
+}
+
+bool languageCreateEnglishTemplate(const char* filename) {
+    if (!filename || !*filename)
+        return false;
+    if (file_exists(filename))
+        return true;
+    FileHandle* file = file_open(filename, "w");
+    if (!file)
+        return false;
+    file_printf(file, "[language]\ncode=custom\nname=Custom\n\n[strings]\n");
+    for (size_t index = 0;
+            index < sizeof(kEnglishKeys) / sizeof(kEnglishKeys[0]); ++index) {
+        file_printf(file, "%s=", kEnglishKeys[index]);
+        writeIniQuoted(file, kEnglishKeys[index]);
+        file_putc('\n', file);
+    }
+    file_close(file);
+    return true;
 }
 
 const char* languageGetCode() {

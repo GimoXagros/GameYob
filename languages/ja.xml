@@ -124,5 +124,6 @@
     <string key="No room found.">ルームが見つかりません</string>
     <string key="Network unavailable.">ネットワークを利用できません</string>
     <string key="Disconnected.">切断しました</string>
+    <string key="Language template could not be created.">言語テンプレートを作成できません</string>
   </strings>
 </language>

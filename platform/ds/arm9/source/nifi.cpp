@@ -881,7 +881,9 @@ void nifiPause() {
     mgr_pause();
 }
 void nifiUnpause() {
-    if (nifiWasPaused == -1 || !nifiWasPaused) {
+    if (nifiWasPaused == -1)
+        return;
+    if (!nifiWasPaused) {
         mgr_unpause();
     }
     nifiWasPaused = -1;

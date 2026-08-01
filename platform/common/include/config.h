@@ -22,6 +22,7 @@ enum {
 
 bool readConfigFile();
 void writeConfigFile();
+bool createCustomLanguageTemplate();
 
 extern char languagePath[256];
 

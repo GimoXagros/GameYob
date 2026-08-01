@@ -5,6 +5,24 @@
 
 namespace nifi {
 
+class FrameDeadline {
+public:
+    explicit FrameDeadline(uint32_t frameLimit)
+        : elapsedFrames(0), limit(frameLimit) {}
+
+    bool expired() const { return limit != 0 && elapsedFrames >= limit; }
+    bool advance() {
+        if (elapsedFrames != ~static_cast<uint32_t>(0))
+            ++elapsedFrames;
+        return expired();
+    }
+    uint32_t elapsed() const { return elapsedFrames; }
+
+private:
+    uint32_t elapsedFrames;
+    uint32_t limit;
+};
+
 enum {
     PROTOCOL_VERSION = 2,
     HEADER_SIZE = 32,

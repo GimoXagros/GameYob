@@ -74,6 +74,14 @@ static void testIdentityBounds() {
 }
 
 int main() {
+    nifi::FrameDeadline deadline(3);
+    assert(!deadline.expired());
+    assert(!deadline.advance());
+    assert(!deadline.advance());
+    assert(deadline.advance());
+    assert(deadline.expired());
+    assert(deadline.elapsed() == 3);
+
     testRoundTrip();
     testKnownCrc32Vector();
     testRejectsTruncationAndCorruption();

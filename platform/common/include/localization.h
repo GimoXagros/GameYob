@@ -13,6 +13,7 @@ const char* tr(const char* englishKey);
 bool languageLoadCode(const char* code);
 bool languageLoadFile(const char* filename);
 bool languageParseText(LanguageFileFormat format, const char* text);
+bool languageCreateEnglishTemplate(const char* filename);
 void languageReset();
 
 const char* languageGetCode();

@@ -207,6 +207,7 @@ void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
     muteSND();
     writeConfigFile();
+    const bool languageTemplateReady = createCustomLanguageTemplate();
 
     // Also save cheats
     if (gameboy != NULL) {
@@ -218,7 +219,8 @@ void saveSettingsFunc(int value) {
 
     if (!mgr_isPaused())
         unmuteSND();
-    printMenuMessage("Settings saved.");
+    printMenuMessage(languageTemplateReady ? "Settings saved." :
+                     "Language template could not be created.");
 }
 
 void stateSelectFunc(int value) {

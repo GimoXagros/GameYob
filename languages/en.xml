@@ -124,5 +124,6 @@
     <string key="No room found.">No room found.</string>
     <string key="Network unavailable.">Network unavailable.</string>
     <string key="Disconnected.">Disconnected.</string>
+    <string key="Language template could not be created.">Language template could not be created.</string>
   </strings>
 </language>
