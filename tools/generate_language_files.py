@@ -39,7 +39,7 @@ ENGLISH_KEYS = (
     "Please restart GameYob.", "Error opening border.", "Invalid border image.",
     "Waiting for room...", "Searching for rooms...", "Room found.",
     "No room found.", "Network unavailable.", "Disconnected.",
-    "Language template could not be created."
+    "Language template could not be created.", "Local link started."
 )
 
 
@@ -100,7 +100,8 @@ JA = {
     "Waiting for room...": "ルーム待機中…", "Searching for rooms...": "ルーム検索中…",
     "Room found.": "ルームを検出", "No room found.": "ルームが見つかりません",
     "Network unavailable.": "ネットワークを利用できません", "Disconnected.": "切断しました",
-    "Language template could not be created.": "言語テンプレートを作成できません"
+    "Language template could not be created.": "言語テンプレートを作成できません",
+    "Local link started.": "本体内通信を開始しました"
 }
 
 
@@ -153,7 +154,8 @@ KO = {
     "Waiting for room...": "방을 기다리는 중…", "Searching for rooms...": "방을 찾는 중…",
     "Room found.": "방을 찾았습니다", "No room found.": "방을 찾지 못했습니다",
     "Network unavailable.": "네트워크를 사용할 수 없습니다", "Disconnected.": "연결을 해제했습니다",
-    "Language template could not be created.": "언어 템플릿을 만들 수 없습니다"
+    "Language template could not be created.": "언어 템플릿을 만들 수 없습니다",
+    "Local link started.": "로컬 링크를 시작했습니다"
 }
 
 

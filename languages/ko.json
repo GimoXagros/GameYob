@@ -128,6 +128,7 @@
     "No room found.": "방을 찾지 못했습니다",
     "Network unavailable.": "네트워크를 사용할 수 없습니다",
     "Disconnected.": "연결을 해제했습니다",
-    "Language template could not be created.": "언어 템플릿을 만들 수 없습니다"
+    "Language template could not be created.": "언어 템플릿을 만들 수 없습니다",
+    "Local link started.": "로컬 링크를 시작했습니다"
   }
 }

@@ -33,9 +33,9 @@ The decoder is platform-independent and covered by
 
 ## Azahar validation
 
-The 3DSX built from commit `e2f8bf3` was run with Azahar 2125.1.3
+The 3DSX built from commit `e8ddd6d` was run with Azahar 2125.1.3
 (artifact SHA-256
-`6D40B70BDE8CE70A33D891239086A4FD2F1F1C386F271913848C9D7EECAB3027`).
+`1978AA3C87DF9358EEEDCB28A4D2DDF2AE0131D46B719298DC383E6DB2FFAA06`).
 The test cartridge was `Tales of Phantasia Narikiri Dungeon_[AN6J][J].gbc`
 (SHA-1 `EF322F4160CEEBD8DA67758EBD73225190AF6D23`). No cartridge image is stored
 in this repository.
@@ -47,8 +47,8 @@ Observed result:
   (48 pixels from the left and 40 pixels from the top);
 - the inner picture continued updating after the initial white boot frame and
   displayed the Namco boot screen and Japanese title screen;
-- the GameYob settings screen remained responsive and rendered the selected
-  Korean language name inside the SGB layout.
+- the GameYob settings screen remained responsive and rendered the complete
+  Korean menu directly from the language data embedded in the 3DSX.
 
 This is emulator validation, not a replacement for testing on a Nintendo 3DS.
 

@@ -125,6 +125,7 @@ static const char* const kEnglishKeys[] = {
     "Network unavailable.",
     "Disconnected.",
     "Language template could not be created.",
+    "Local link started.",
 };
 
 static const BuiltinLanguageEntry kBuiltinJa[] = {
@@ -251,6 +252,7 @@ static const BuiltinLanguageEntry kBuiltinJa[] = {
     {"Network unavailable.", "ネットワークを利用できません"},
     {"Disconnected.", "切断しました"},
     {"Language template could not be created.", "言語テンプレートを作成できません"},
+    {"Local link started.", "本体内通信を開始しました"},
 };
 
 static const BuiltinLanguageEntry kBuiltinKo[] = {
@@ -377,6 +379,7 @@ static const BuiltinLanguageEntry kBuiltinKo[] = {
     {"Network unavailable.", "네트워크를 사용할 수 없습니다"},
     {"Disconnected.", "연결을 해제했습니다"},
     {"Language template could not be created.", "언어 템플릿을 만들 수 없습니다"},
+    {"Local link started.", "로컬 링크를 시작했습니다"},
 };
 
 static const BuiltinLanguage kBuiltinLanguages[] = {

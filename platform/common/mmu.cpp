@@ -319,8 +319,14 @@ void Gameboy::writeIO(u8 ioReg, u8 val) {
                 ioRam[ioReg] = val;
                 if ((val & 0x81) == 0x81) { // Internal clock
                     if (serialCounter == 0) {
-                        // DS can't handle high speed
+                        // Native 3DS can accurately schedule the CGB 262144 Hz
+                        // serial clock. The legacy DS scheduler retains its
+                        // original normal-speed fallback.
+#ifdef _3DS
+                        if (gbMode == CGB && (val & 0x02)) {
+#else
                         if (false && gbMode == CGB && (val & 0x02)) {
+#endif
                             serialCounter = clockSpeed/(1024*32);
                         }
                         else

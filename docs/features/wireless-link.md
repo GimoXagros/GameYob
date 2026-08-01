@@ -39,6 +39,18 @@ link-cable and SGB multiplayer modes, fragmented initial SRAM transfer,
 ACK/retry, missing-input requests, state hashes, and connection timeout.
 Separate local and remote Game Boy instances are retained as in the DS design.
 
+If the console/emulator has no local network address, link setup now returns to
+the menu immediately with `Network unavailable.` instead of entering discovery.
+When a network exists but no peer answers, host and client discovery return
+after ten seconds. Cancelling or timing out no longer changes an emulator pause
+state that the link subsystem did not create.
+
+Starting **Local Link** now closes any active wireless transport first, clears
+stale secondary-ROM/save state, and selects a deterministic internal-clock
+instance. Native 3DS local and LAN cable sessions also use the CGB fast serial
+clock when the cartridge requests it. A translated confirmation message makes
+the otherwise background-only second Game Boy instance visible to the user.
+
 This is LAN communication, not Nintendo UDS. Both systems must be on the same
 IPv4 network and the access point/firewall must permit UDP broadcast and port
 35553. The `.nds` raw-802.11 NiFi transport cannot directly join a native 3DS

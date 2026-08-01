@@ -422,8 +422,16 @@ void setAutoSaveFunc(int value) {
 }
 
 void localLinkFunc(int value) {
+#ifdef NIFI
+    // Local and wireless links are mutually exclusive. A completed wireless
+    // session otherwise keeps routing input through NiFi and makes a
+    // subsequently selected local link appear unresponsive.
+    nifiStop();
+#endif
     mgr_startGb2(NULL);
     gb2->loadSave(2);
+    mgr_setInternalClockGb(gameboy);
+    printMenuMessage("Local link started.");
 }
 
 struct MenuOption {

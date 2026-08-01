@@ -27,15 +27,19 @@ existing licenses. No ROM image or BIOS is included.
 
 ### Completed work
 
-- Extensible UTF-8 localization with a menu language setting, English fallback,
-  custom file selection, and bundled English, Japanese, and Korean files in
-  INI, JSON, XML, and YAML
+- Extensible UTF-8 localization with embedded English, Japanese, and Korean
+  menus, English fallback, custom file selection, and editable examples in
+  INI, JSON, XML, and YAML; saving settings creates a non-destructive English
+  `gameyob_language.ini` template beside `gameyobds.ini`
 - Full Galmuri BMP Unicode UI font plus UTF-8/CP949 Korean filename and cheat
   list handling on DS/DSi and native 3DS; native 3DS UTF-16 directory entries
   are converted to UTF-8 without lossy narrowing
 - Native 3DS LAN link backend with room discovery, host/client connection,
   link-cable and SGB multiplayer modes, ACK/retry, fragmentation, buffered
-  input, state hashes, timeout handling, and initial SRAM synchronization
+  input, state hashes, timeout handling, initial SRAM synchronization, and a
+  bounded offline/no-peer return path
+- Reliable local-link restart after a wireless session, isolated secondary
+  save state, and native 3DS CGB fast-serial timing
 - Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
   attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
 - Independent DS NR50 SO1/SO2 volume/routing behavior and GameShark `0x8x`
@@ -50,13 +54,17 @@ See [language-file documentation](languages/README.md),
 
 ### 완료된 작업
 
-- 메뉴 언어 설정, 영어 원문 대체, 사용자 파일 선택을 갖춘 UTF-8 다국어
-  기능과 INI·JSON·XML·YAML 형식의 영어·일본어·한국어 기본 파일
+- 파일 없이도 작동하는 내장 영어·일본어·한국어 메뉴, 영어 원문 대체,
+  사용자 파일 선택을 갖춘 UTF-8 다국어 기능과 INI·JSON·XML·YAML 예제;
+  설정 저장 시 기존 파일을 덮어쓰지 않는 영어 기본
+  `gameyob_language.ini`를 `gameyobds.ini` 옆에 생성
 - DS/DSi 및 네이티브 3DS의 전체 Galmuri BMP 유니코드 UI 글꼴,
   UTF-8/CP949 한글 파일명·치트 목록, 3DS UTF-16 파일명의 무손실 UTF-8 변환
 - 방 검색, 호스트/클라이언트 연결, 링크 케이블·SGB 멀티플레이, 재전송,
   분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM 동기화를 갖춘
-  네이티브 3DS LAN 링크
+  네이티브 3DS LAN 링크와 네트워크 없음·상대 기기 없음 상태의 제한 시간 복귀
+- 무선 링크 사용 뒤에도 정상적으로 다시 시작되는 로컬 링크, 분리된 두 번째
+  세이브 상태 및 네이티브 3DS GBC 고속 직렬 통신 타이밍
 - 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
   명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
 - DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기

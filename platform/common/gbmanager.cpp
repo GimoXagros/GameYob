@@ -127,6 +127,16 @@ void mgr_runFrame() {
 void mgr_startGb2(const char* filename) {
     if (gb2 == NULL)
         gb2 = new Gameboy();
+
+    // A previous wireless or local-link session may have left the secondary
+    // instance attached to another ROM/save file. Detach it before reusing the
+    // object so the new local session cannot inherit stale link state.
+    RomFile* oldRomFile = gb2->getRomFile();
+    if (oldRomFile != NULL) {
+        gb2->unloadRom();
+        if (oldRomFile != gameboy->getRomFile())
+            delete oldRomFile;
+    }
     gb2->setRomFile(gameboy->getRomFile());
     if (filename == 0)
         gb2->loadSave(-1);

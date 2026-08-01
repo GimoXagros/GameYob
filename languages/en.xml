@@ -125,5 +125,6 @@
     <string key="Network unavailable.">Network unavailable.</string>
     <string key="Disconnected.">Disconnected.</string>
     <string key="Language template could not be created.">Language template could not be created.</string>
+    <string key="Local link started.">Local link started.</string>
   </strings>
 </language>
