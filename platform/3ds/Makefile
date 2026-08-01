@@ -29,8 +29,8 @@ endif
 export TARGET		:=	gameyob
 BUILD		:=	build
 SOURCES		:=	. ../common
-DATA		:=	data
-INCLUDES	:=	include ../common/include
+DATA		:=	data ../../assets/fonts
+INCLUDES	:=	include ../common/include ../../third_party/stb
 
 
 APP_TITLE		:= GameYob 3DS `git describe --always --abbrev=4`
@@ -48,7 +48,7 @@ export	OUTPUT_FORMAT ?= 3dsx
 #---------------------------------------------------------------------------------
 ARCH	:=	-marm
 
-CFLAGS	:=	-Wall -O3 -mthumb-interwork -save-temps \
+CFLAGS	:=	-Wall -O3 -mthumb-interwork \
 			-mcpu=mpcore -mtune=mpcore -fomit-frame-pointer \
 			-mfpu=vfp -ffast-math -mword-relocations \
 			$(ARCH)
@@ -56,7 +56,7 @@ CFLAGS	:=	-Wall -O3 -mthumb-interwork -save-temps \
 CFLAGS	+=	-DVERSION_STRING=\"`git describe --always --abbrev=4`\"\
 			-include "3ds/types.h"
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS
+CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DNIFI
 
 ifeq ($(EMBEDDED_ROM), true)
 # Embedded rom from file "data/rom.gb"

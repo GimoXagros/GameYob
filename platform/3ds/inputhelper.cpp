@@ -150,6 +150,7 @@ void system_waitForVBlank() {
 }
 
 void system_cleanup() {
+    nifiStop();
     mgr_save();
     mgr_exit();
 

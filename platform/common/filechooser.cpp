@@ -8,6 +8,8 @@
 #include "io.h"
 #include "menu.h"
 #include "error.h"
+#include "localization.h"
+#include "text.h"
 #ifdef _3DS
 #include <3ds.h>
 #include "3dsgfx.h"
@@ -218,7 +220,8 @@ template <class Data, class Metadata> void quickSort(std::vector<Data>& data, st
  * Returns a pointer to a newly-allocated string. The caller is responsible
  * for free()ing it.
  */
-char* startFileChooser(const char* extensions[], bool romExtensions, bool canQuit) {
+char* startFileChooser(const char* extensions[], int numExtensions,
+                       bool romExtensions, bool canQuit) {
 #ifdef _3DS
     filesPerPage = TOP_SCREEN_HEIGHT / CHAR_HEIGHT;
 #else
@@ -239,7 +242,6 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
     consoleSetScreen(GFX_TOP);
 #endif
 */
-    int numExtensions = sizeof(extensions)/sizeof(const char*);
     char* retval;
     char buffer[MAX_FILENAME_LEN];
     char cwd[MAX_FILENAME_LEN];
@@ -333,7 +335,8 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             }
         }
 
-        quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
+        if (numFiles > 1)
+            quickSort(filenames, flags, nameSortFunction, 0, numFiles - 1);
 
         if (fileSelection >= numFiles)
             fileSelection = 0;
@@ -358,10 +361,9 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
             int screenLen = consoleGetWidth();
             // Draw the screen
             clearConsole();
-            strncpy(buffer, cwd, screenLen);
-            buffer[screenLen] = '\0';
+            textCopyColumns(buffer, sizeof(buffer), cwd, screenLen);
             iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
-            for (uint j=0; j<screenLen-strlen(buffer); j++)
+            for (uint j=0; j<screenLen-textColumns(buffer); j++)
                 iprintfColored(CONSOLE_COLOR_WHITE, " ");
 
             for (int i=scrollY; i<scrollY+filesPerPage && i<numFiles; i++) {
@@ -377,8 +379,8 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 int stringLen = screenLen - 2;
                 if (flags[i] & FLAG_DIRECTORY)
                     stringLen--;
-                strncpy(buffer, filenames[i].c_str(), stringLen);
-                buffer[stringLen] = '\0';
+                textCopyColumns(buffer, sizeof(buffer), filenames[i].c_str(),
+                                stringLen);
                 if (flags[i] & FLAG_DIRECTORY) {
                     iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "%s/", buffer);
                 }
@@ -386,7 +388,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     iprintfColored(CONSOLE_COLOR_LIGHT_MAGENTA, "%s", buffer);
                 else
                     iprintfColored(CONSOLE_COLOR_WHITE, "%s", buffer);
-                for (uint j=0; j<stringLen-strlen(buffer); j++)
+                for (uint j=0; j<stringLen-textColumns(buffer); j++)
                     iprintfColored(CONSOLE_COLOR_WHITE, " ");
 
 #ifdef DS
@@ -400,7 +402,7 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                     for (int i=numFiles; i<filesPerPage; i++)
                         iprintfColored(CONSOLE_COLOR_WHITE, "\n");
                 }
-                iprintfColored(CONSOLE_COLOR_WHITE, "                Press Y to exit");
+                iprintfColored(CONSOLE_COLOR_WHITE, "%s", tr("Press Y to exit"));
             }
 
             // Wait for input
@@ -410,6 +412,8 @@ char* startFileChooser(const char* extensions[], bool romExtensions, bool canQui
                 inputUpdateVBlank();
 
                 if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+                    if (numFiles == 0)
+                        continue;
                     if (flags[fileSelection] & FLAG_DIRECTORY) {
                         if (strcmp(filenames[fileSelection].c_str(), "..") == 0)
                             goto lowerDirectory;
@@ -446,18 +450,22 @@ lowerDirectory:
                     }
                 }
                 else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_DOWN))) {
-                    if (fileSelection < numFiles-1) {
+                    if (numFiles > 0 && fileSelection < numFiles-1) {
                         fileSelection++;
                         updateScrollDown();
                         break;
                     }
                 }
                 else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
+                    if (numFiles == 0)
+                        continue;
                     fileSelection += filesPerPage/2;
                     updateScrollDown();
                     break;
                 }
                 else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
+                    if (numFiles == 0)
+                        continue;
                     fileSelection -= filesPerPage/2;
                     updateScrollUp();
                     break;

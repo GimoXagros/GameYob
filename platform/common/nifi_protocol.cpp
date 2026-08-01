@@ -36,18 +36,33 @@ size_t boundedLength(const char* text, size_t maximum) {
     return length;
 }
 
+uint32_t crc32Update(uint32_t crc, const uint8_t* data, size_t length) {
+    // The old bit-at-a-time loop performed eight branches for every byte.
+    // A 1 KiB table is a good speed/size trade-off on both DS and 3DS and is
+    // generated once so the protocol stays independent of host libraries.
+    static uint32_t table[256];
+    static bool initialized = false;
+    if (!initialized) {
+        for (uint32_t i = 0; i < 256; ++i) {
+            uint32_t value = i;
+            for (int bit = 0; bit < 8; ++bit)
+                value = (value >> 1) ^
+                    (0xedb88320U & (uint32_t)-(int)(value & 1));
+            table[i] = value;
+        }
+        initialized = true;
+    }
+    for (size_t i = 0; i < length; ++i)
+        crc = table[(crc ^ data[i]) & 0xff] ^ (crc >> 8);
+    return crc;
+}
+
 } // namespace
 
 namespace nifi {
 
 uint32_t crc32(const uint8_t* data, size_t length) {
-    uint32_t crc = 0xffffffffU;
-    for (size_t i = 0; i < length; ++i) {
-        crc ^= data[i];
-        for (int bit = 0; bit < 8; ++bit)
-            crc = (crc >> 1) ^ (0xedb88320U & (uint32_t)-(int)(crc & 1));
-    }
-    return ~crc;
+    return ~crc32Update(0xffffffffU, data, length);
 }
 
 uint32_t romIdentifier(const uint8_t* header, size_t length) {
@@ -63,6 +78,8 @@ size_t encodePacket(uint8_t* output, size_t outputCapacity,
         const PacketHeader& header, const uint8_t* payload) {
     const size_t packetSize = HEADER_SIZE + header.payloadSize;
     if (!output || outputCapacity < packetSize)
+        return 0;
+    if (header.payloadSize > MAX_PACKET_PAYLOAD)
         return 0;
     if (header.payloadSize && !payload)
         return 0;
@@ -119,6 +136,8 @@ DecodeResult decodePacket(const uint8_t* packet, size_t packetLength,
     header.totalSize = read32(packet + 20);
     header.romId = read32(packet + 24);
 
+    if (header.payloadSize > MAX_PACKET_PAYLOAD)
+        return DECODE_BAD_LENGTH;
     if ((size_t)header.payloadSize != packetLength - HEADER_SIZE)
         return DECODE_BAD_LENGTH;
     if (!header.fragmentCount || header.fragmentIndex >= header.fragmentCount)
@@ -132,17 +151,9 @@ DecodeResult decodePacket(const uint8_t* packet, size_t packetLength,
     const uint32_t expectedCrc = read32(headerCopy + 28);
     memset(headerCopy + 28, 0, 4);
 
-    uint32_t crc = 0xffffffffU;
-    for (size_t i = 0; i < HEADER_SIZE; ++i) {
-        crc ^= headerCopy[i];
-        for (int bit = 0; bit < 8; ++bit)
-            crc = (crc >> 1) ^ (0xedb88320U & (uint32_t)-(int)(crc & 1));
-    }
-    for (size_t i = HEADER_SIZE; i < packetLength; ++i) {
-        crc ^= packet[i];
-        for (int bit = 0; bit < 8; ++bit)
-            crc = (crc >> 1) ^ (0xedb88320U & (uint32_t)-(int)(crc & 1));
-    }
+    uint32_t crc = crc32Update(0xffffffffU, headerCopy, HEADER_SIZE);
+    crc = crc32Update(crc, packet + HEADER_SIZE,
+                      packetLength - HEADER_SIZE);
     if (~crc != expectedCrc)
         return DECODE_BAD_CHECKSUM;
 

@@ -1,8 +1,7 @@
 # DS/DSi wireless link protocol
 
 The legacy raw NiFi backend now uses a versioned, bounds-checked packet format.
-This work applies to the `.nds` build. Native 3DS networking remains a separate
-future backend.
+The native 3DS build also exposes a LAN backend using the same protocol model.
 
 ## Protocol v2
 
@@ -32,6 +31,19 @@ identity strings use explicit lengths and capacity checks instead of
   logged with the first detected frame.
 - Initial SRAM transfer is length-checked and reliable.
 
+## Native Nintendo 3DS LAN backend
+
+The 3DSX build initializes the 3DS SOC service and uses non-blocking UDP on
+port 35553. It supports broadcast room discovery, host/client confirmation,
+link-cable and SGB multiplayer modes, fragmented initial SRAM transfer,
+ACK/retry, missing-input requests, state hashes, and connection timeout.
+Separate local and remote Game Boy instances are retained as in the DS design.
+
+This is LAN communication, not Nintendo UDS. Both systems must be on the same
+IPv4 network and the access point/firewall must permit UDP broadcast and port
+35553. The `.nds` raw-802.11 NiFi transport cannot directly join a native 3DS
+LAN room; a transport bridge would be a separate project.
+
 ## Remaining validation
 
 The protocol and its portable encoder/decoder have automated regression tests,
@@ -41,5 +53,6 @@ but the following radio matrix still requires physical systems:
 - DSi to DSi;
 - Nintendo 3DS in DS mode to DS/DSi.
 
-The native 3DS build does not expose this raw NiFi backend. A 3DS UDS or LAN
-implementation, including any bridge to `.nds` peers, remains deferred.
+Native 3DS-to-3DS LAN play also requires a physical two-system validation pass.
+Native 3DS-to-`.nds` interoperability remains deferred because the transports
+are different even though their packet semantics are related.

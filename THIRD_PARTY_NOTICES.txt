@@ -1,0 +1,18 @@
+GameYob v0.5.4-ko third-party notices
+
+Galmuri
+Source: https://github.com/quiple/galmuri
+Source revision: 71e1cacf1437a11220307120e63e30bc275312d4
+Copyright (c) 2019-2025 Lee Minseo (quiple@quiple.dev)
+License: SIL Open Font License 1.1
+Full text: assets/fonts/OFL.txt
+
+stb_image
+Source: https://github.com/nothings/stb
+Source revision: 31c1ad37456438565541f4919958214b6e762fb4
+Copyright (c) 2017 Sean Barrett
+License used by this distribution: MIT alternative
+Full text: third_party/stb/LICENSE.txt
+
+No game ROM, cartridge dump, or BIOS is included in the source-generated
+assets or release archive.

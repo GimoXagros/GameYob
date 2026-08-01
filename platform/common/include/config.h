@@ -23,6 +23,8 @@ enum {
 bool readConfigFile();
 void writeConfigFile();
 
+extern char languagePath[256];
+
 void startKeyConfigChooser();
 
 int mapFuncKey(int gbKey); // Maps a functional key to a physical key.

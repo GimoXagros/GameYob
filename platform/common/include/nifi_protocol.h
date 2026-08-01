@@ -9,7 +9,8 @@ enum {
     PROTOCOL_VERSION = 2,
     HEADER_SIZE = 32,
     FLAG_ACK_REQUIRED = 1,
-    MAX_PACKET_PAYLOAD = 0x200,
+    // A fragment packet contains 0x400 data bytes plus a 0x10 wrapper.
+    MAX_PACKET_PAYLOAD = 0x410,
     MAX_FRAGMENT_COUNT = 255
 };
 

@@ -54,3 +54,17 @@ jobs:
             tests/sgbborder_test.cpp platform/common/sgbborder.cpp \
             -o /tmp/sgbborder_test
           /tmp/sgbborder_test
+      - name: Build and run localization tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -DC_IO_FUNCTIONS \
+            -Iplatform/common/include \
+            tests/localization_test.cpp platform/common/localization.cpp \
+            platform/common/io.cpp -o /tmp/localization_test
+          /tmp/localization_test
+      - name: Build and run Unicode text tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/text_test.cpp platform/common/text.cpp \
+            -o /tmp/text_test
+          /tmp/text_test

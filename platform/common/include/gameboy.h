@@ -451,11 +451,14 @@ class Gameboy {
         void sgbDataSnd(int block);
         void sgbDataTrn(int block);
         void sgbMltReq(int block);
+        void sgbJump(int block);
         void sgbChrTrn(int block);
         void sgbPctTrn(int block);
         void sgbAttrTrn(int block);
         void sgbAttrSet(int block);
         void sgbMask(int block);
+        void sgbObjTrn(int block);
+        void sgbPalPriority(int block);
 
     private:
 
@@ -475,6 +478,11 @@ class Gameboy {
         u32 sgbDataAddress;
         u8 sgbDataLength;
         u8 sgbData[0x1000];
+        u32 sgbHostProgramCounter;
+        u32 sgbHostNmiHandler;
+        u8 sgbObjMode;
+        u16 sgbObjPalettes[4];
+        u8 sgbPalettePriority;
 
         // Data for various different sgb commands
         struct SgbCmdData {

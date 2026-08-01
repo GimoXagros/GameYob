@@ -14,20 +14,22 @@ Super Game Boy enhanced games.
 - `MASK_EN` cancel, freeze, black, and color-zero modes
 - Safe handling for `SOUND`, `SOU_TRN`, `ATRC_EN`, `TEST_EN`, `ICON_EN`,
   `DATA_SND`, and `DATA_TRN`
+- Automatic SGB probing with a bounded fallback when a CGB-capable game does
+  not provide a border
+- Safe state capture for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
+- Custom PNG/BMP borders on native 3DS, scaled with aspect ratio preserved
 
 The decoder is platform-independent and covered by
 `tests/sgbborder_test.cpp`.
 
 ## Current limitations
 
-- Automatic SGB-border probing for games started in Game Boy Color mode
-  remains disabled because the existing reset/probe path is unreliable.
-- Custom PNG/BMP borders in the old native 3DS port are still unfinished.
 - SNES-side SGB audio is parsed and its transfer state is retained, but it is
   not mixed into GameYob audio because the emulator does not emulate the SNES
   APU.
-- A real 3DS hardware compatibility pass is still required before this can
-  be called release-ready.
+- `JUMP` cannot execute SNES machine code and `OBJ_TRN` cannot render
+  host-SNES objects because GameYob does not emulate a host SNES CPU/PPU.
+- A real 3DS hardware compatibility pass is still required.
 
 ## Azahar validation
 

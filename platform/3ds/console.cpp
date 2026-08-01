@@ -7,6 +7,7 @@
 #include "3dsgfx.h"
 #include "gbgfx.h"
 #include "inputhelper.h"
+#include "text.h"
 
 volatile int consoleSelectedRow;
 
@@ -17,6 +18,7 @@ bool isConsoleOn() {
 
 void clearConsole() {
 	iprintf("\x1b[2J");
+    textResetGlyphCache();
 }
 
 PrintConsole* getDefaultConsole() {
@@ -41,7 +43,10 @@ void iprintfColored(int palette, const char* format, ...) {
     va_list args;
     va_start(args, format);
 
-    vprintf(format, args);
+    char buffer[512];
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    buffer[sizeof(buffer)-1] = '\0';
+    textPrintColored(palette, buffer);
     va_end(args);
 }
 void printLog(const char* format, ...) {

@@ -13,6 +13,7 @@
 #include "gbs.h"
 #include "common.h"
 #include "3in1.h"
+#include "text.h"
 
 
 const int screenTileWidth = 32;
@@ -29,6 +30,7 @@ bool isConsoleOn() {
 
 void clearConsole() {
     consoleClear();
+    textResetGlyphCache();
 }
 
 PrintConsole* getDefaultConsole() {
@@ -219,32 +221,11 @@ void iprintfColored(int palette, const char *format, ...) {
     va_list args;
     va_start(args, format);
 
-    PrintConsole* console = getPrintConsole();
-    int x = console->cursorX;
-    int y = console->cursorY;
-
-    char s[100];
-    vsiprintf(s, format, args);
+    char s[512];
+    vsnprintf(s, sizeof(s), format, args);
+    s[sizeof(s)-1] = '\0';
     va_end(args);
-
-    u16* dest = BG_MAP_RAM_SUB(22)+y*32+x;
-    for (uint i=0; i<strlen(s); i++) {
-        if (s[i] == '\n') {
-            x = 0;
-            y++;
-        }
-        else {
-            *(dest++) = s[i] | TILE_PALETTE(palette);
-            x++;
-            if (x == 32) {
-                x = 0;
-                y++;
-            }
-        }
-    }
-    console->cursorX = x;
-    console->cursorY = y;
-    //iprintf(s);
+    textPrintColored(palette, s);
 }
 
 

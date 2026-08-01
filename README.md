@@ -19,6 +19,51 @@ The 3DS version had its own kinks, which means you may still prefer to use the
 DS version even on a 3DS. It is recommended to install it using the DSiWare CIA
 file provided with the newer releases of GameYob DS.
 
+## GameYob v0.5.4-ko
+
+This unofficial homebrew release completes the next repository milestone and
+keeps the emulator core and its redistributable homebrew binaries under their
+existing licenses. No ROM image or BIOS is included.
+
+### Completed work
+
+- Extensible UTF-8 localization with a menu language setting, English fallback,
+  custom file selection, and bundled English, Japanese, and Korean files in
+  INI, JSON, XML, and YAML
+- Full Galmuri BMP Unicode UI font plus UTF-8/CP949 Korean filename and cheat
+  list handling on DS/DSi and native 3DS; native 3DS UTF-16 directory entries
+  are converted to UTF-8 without lossy narrowing
+- Native 3DS LAN link backend with room discovery, host/client connection,
+  link-cable and SGB multiplayer modes, ACK/retry, fragmentation, buffered
+  input, state hashes, timeout handling, and initial SRAM synchronization
+- Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
+  attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
+- Independent DS NR50 SO1/SO2 volume/routing behavior and GameShark `0x8x`
+  external-SRAM bank writes
+- 2026 maintenance pass: table-driven CRC32, allocation-free DS packet sends,
+  hashed DS glyph caching, bounded formatting/path handling, strict cheat-code
+  validation, and removal of unnecessary 3DS compiler temporary output
+
+See [language-file documentation](languages/README.md),
+[wireless-link design](docs/features/wireless-link.md), and the
+[v0.5.4-ko release record](docs/releases/v0.5.4-ko.md).
+
+### 완료된 작업
+
+- 메뉴 언어 설정, 영어 원문 대체, 사용자 파일 선택을 갖춘 UTF-8 다국어
+  기능과 INI·JSON·XML·YAML 형식의 영어·일본어·한국어 기본 파일
+- DS/DSi 및 네이티브 3DS의 전체 Galmuri BMP 유니코드 UI 글꼴,
+  UTF-8/CP949 한글 파일명·치트 목록, 3DS UTF-16 파일명의 무손실 UTF-8 변환
+- 방 검색, 호스트/클라이언트 연결, 링크 케이블·SGB 멀티플레이, 재전송,
+  분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM 동기화를 갖춘
+  네이티브 3DS LAN 링크
+- 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
+  명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
+- DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기
+- 2026년 유지보수 최적화: 테이블 CRC32, DS 패킷 송신 힙 할당 제거,
+  DS 글리프 해시 캐시, 경계가 있는 문자열·경로 처리, 엄격한 치트 코드 검사,
+  불필요한 3DS 컴파일 임시 파일 제거
+
 ## GameYob v0.5.3-ko
 
 This unofficial homebrew release carries the Korean filename and cheat-list
@@ -147,41 +192,40 @@ MIT 및 OFL-1.1 라이선스 전문은 저장소와 `gameyob.zip`에 포함되�
 
 ## TODO
 
-The following work is not included in `v0.5.3-ko`.
+The following work is not completed by `v0.5.4-ko`.
 
-1. Validate DS/DSi wireless link on physical DS-to-DS, DSi-to-DSi, and
-   Nintendo 3DS-in-DS-mode-to-DS/DSi combinations.
-2. Implement a native Nintendo 3DS UDS or LAN link backend: room discovery,
-   host/client connection, link menu integration, 3DS-to-3DS testing, and a
-   separately designed bridge to `.nds` peers.
-3. Run renderer and sound regression tests on physical Nintendo 3DS hardware,
-   and finish native 3DS custom PNG/BMP border loading.
-4. Finish the remaining SGB behavior: reliable automatic border probing for
-   games started in CGB mode, unhandled SNES-side commands such as `JUMP`,
-   `OBJ_TRN`, and `PAL_PRI`, and SNES-side SGB audio mixing.
-5. Expand the per-game compatibility matrix, especially for games that change
-   WX during a scanline, and test more SGB command/audio cases.
-6. Implement independent DS ARM7 SO1/SO2 volume mixing and the remaining
-   unsupported `0x80` cheat-code type.
+1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
+   mode-to-DS/DSi combinations.
+2. Validate native LAN link play on two physical Nintendo 3DS systems. A bridge
+   between native 3DS UDP and the `.nds` raw-802.11 transport remains a separate
+   design and implementation task.
+3. Run the renderer, custom-border, sound-routing, cheat, and long-session
+   performance matrix on physical DS/DSi/3DS hardware.
+4. Expand the game compatibility matrix, especially games that change WX during
+   a scanline, rare cartridge hardware, and more SGB command cases.
+5. SNES-side SGB machine code, objects, and audio cannot be fully executed or
+   mixed without adding a host-SNES CPU/PPU/APU implementation, which is outside
+   GameYob's current Game Boy emulator architecture.
+6. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
+   hardware validation of MBC7/HuC behavior.
 
 ## 할 일
 
-다음 작업은 `v0.5.3-ko`에 포함되지 않았습니다.
+다음 작업은 `v0.5.4-ko`에서 완료되지 않았습니다.
 
-1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서
-   DS/DSi 무선 링크를 실기로 검증합니다.
-2. 방 검색, 호스트/클라이언트 연결, 링크 메뉴, 3DS↔3DS 시험 및
-   `.nds` 상대와 연결하기 위한 별도 브리지를 포함하는 네이티브 3DS
-   UDS 또는 LAN 링크 백엔드를 구현합니다.
-3. 실제 Nintendo 3DS에서 렌더러와 사운드 회귀 시험을 진행하고,
-   네이티브 3DS의 사용자 PNG/BMP 보더 불러오기를 완성합니다.
-4. CGB 모드로 시작한 게임의 안정적인 자동 보더 탐지, 아직 처리하지 않는
-   `JUMP`, `OBJ_TRN`, `PAL_PRI` 같은 SNES 측 명령 및 SNES 측 SGB
-   사운드 믹싱을 완성합니다.
-5. 주사선 도중 WX를 변경하는 게임과 SGB 명령·사운드 사례를 중심으로
-   게임별 호환성 목록을 확대합니다.
-6. DS ARM7의 SO1/SO2 독립 음량 믹싱과 아직 지원하지 않는 `0x80`
-   치트 코드 형식을 구현합니다.
+1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
+   실기로 검증합니다.
+2. 실제 Nintendo 3DS 두 대에서 네이티브 LAN 링크를 검증합니다. 네이티브
+   3DS UDP와 `.nds` raw-802.11 사이의 브리지는 별도 설계·구현 작업입니다.
+3. 실제 DS/DSi/3DS에서 렌더러, 사용자 보더, 사운드 라우팅, 치트 및 장시간
+   성능 시험표를 수행합니다.
+4. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
+   명령을 포함하도록 게임별 호환성 목록을 확대합니다.
+5. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
+   CPU/PPU/APU가 필요하며, 이는 현재 Game Boy 에뮬레이터 구조의 범위를
+   벗어납니다.
+6. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
+   불완전한 실기 검증이 남아 있습니다.
 
 ## More info
 

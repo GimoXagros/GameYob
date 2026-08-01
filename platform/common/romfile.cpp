@@ -27,10 +27,16 @@ RomFile::RomFile(const char* f, bool halfMemory) {
     romFile=NULL;
     maxLoadedRomBanks = 0;
 
-    strcpy(filename, f);
+    if (!f)
+        fatalerr("ROM filename is missing.");
+    strncpy(filename, f, sizeof(filename));
+    filename[sizeof(filename)-1] = '\0';
 
-    strcpy(basename, filename);
-    *(strrchr(basename, '.')) = '\0';
+    strncpy(basename, filename, sizeof(basename));
+    basename[sizeof(basename)-1] = '\0';
+    char* extension = strrchr(basename, '.');
+    if (extension)
+        *extension = '\0';
 
     if (halfMemory)
         halfMemoryMode();
@@ -245,7 +251,8 @@ void RomFile::fullMemoryMode() {
 
 void RomFile::loadBanks() {
     // Check if this is a GBS file
-    gbsMode = (strcasecmp(strrchr(filename, '.'), ".gbs") == 0);
+    const char* extension = strrchr(filename, '.');
+    gbsMode = extension && strcasecmp(extension, ".gbs") == 0;
 
     if (romFile == NULL)
         romFile = file_open(filename, "rb");

@@ -456,7 +456,7 @@ void SoundEngine::handleSoundRegister(u8 ioReg, u8 val)
             break;
             // GENERAL REGISTERS
         case 0x24:
-            if ((sharedPtr->volControl&0x7) != (val&0x7)) {
+            if ((sharedPtr->volControl&0x77) != (val&0x77)) {
                 sharedPtr->volControl = val;
                 sendGlobalVolumeMessage();
             }

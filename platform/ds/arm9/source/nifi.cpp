@@ -17,7 +17,8 @@ void nifiHostMenu();
 void nifiClientMenu();
 
 inline int INT_AT(u8* ptr) {
-    return *ptr | *(ptr+1)<<8 | *(ptr+2)<<16 | *(ptr+3)<<24;
+    return (u32)ptr[0] | ((u32)ptr[1] << 8) |
+        ((u32)ptr[2] << 16) | ((u32)ptr[3] << 24);
 }
 inline void INT_TO(u8* ptr, int i) {
     *ptr = i&0xff;
@@ -161,15 +162,14 @@ static int nifiSendSinglePacket(u8 command, const u8* data, u32 dataLen,
 {
     if (!nifiEnabled || !nifiInitialized)
         return 1;
-    if (dataLen > FRAGMENT_SIZE)
+    if (dataLen > nifi::MAX_PACKET_PAYLOAD ||
+            (command != NIFI_CMD_FRAGMENT && dataLen > FRAGMENT_SIZE))
         return 1;
 
     int errcode = 0;
-    u8* buffer = (u8*)malloc(dataLen + nifi::HEADER_SIZE);
-    if (!buffer) {
-        printLog("Nifi out of memory\n");
-        return 1;
-    }
+    // Packets are bounded by FRAGMENT_SIZE. Keeping this scratch storage on
+    // the stack avoids heap churn and fragmentation during link play.
+    u8 buffer[nifi::MAX_PACKET_PAYLOAD + nifi::HEADER_SIZE];
 
     nifi::PacketHeader header;
     memset(&header, 0, sizeof(header));
@@ -186,7 +186,6 @@ static int nifiSendSinglePacket(u8 command, const u8* data, u32 dataLen,
     const size_t packetSize = nifi::encodePacket(buffer,
             dataLen + nifi::HEADER_SIZE, header, data);
     if (!packetSize) {
-        free(buffer);
         return 1;
     }
 
@@ -223,7 +222,6 @@ static int nifiSendSinglePacket(u8 command, const u8* data, u32 dataLen,
             attemptCounter++;
         }
     }
-    free(buffer);
     return errcode;
 }
 
@@ -238,13 +236,10 @@ int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
 
     int errcode = 0;
     {
-        u8* buffer = (u8*)malloc(FRAGMENT_SIZE + 0x10);
-        if (!buffer)
-            return 1;
+        u8 buffer[FRAGMENT_SIZE + 0x10];
 
         u8 numFragments = (dataLen+(FRAGMENT_SIZE-1))/FRAGMENT_SIZE;
         if (!numFragments || numFragments > nifi::MAX_FRAGMENT_COUNT) {
-            free(buffer);
             return 1;
         }
 
@@ -270,7 +265,6 @@ int nifiSendPacket(u8 command, u8* data, u32 dataLen, bool acknowledge)
             swiWaitForVBlank();
         }
 
-        free(buffer);
     }
 
     return errcode;
@@ -657,9 +651,6 @@ int loadOtherRom() {
 }
 
 int nifiStartLink() {
-    bool waitForSram = false;
-    bool sendSram = false;
-
     nifiFrameCounter = -1;
     memset((void*)receivedInputReady, 0, sizeof(receivedInputReady));
     memset(sentInputFrame, 0xff, sizeof(sentInputFrame));
@@ -697,10 +688,6 @@ int nifiStartLink() {
             nifiOtherInputDest = &gb2->controllers[0];
         }
 
-        // Sram transfers
-        sendSram = true;
-        if (nifiLinkType == LINK_CABLE)
-            waitForSram = true;
     }
     else if (isClient) {
         if (nifiLinkType == LINK_CABLE)
@@ -716,27 +703,26 @@ int nifiStartLink() {
             nifiOtherInputDest = &gb2->controllers[0];
         }
 
-        // Sram transfers
-        waitForSram = true;
-        if (nifiLinkType == LINK_CABLE)
-            sendSram = true;
     }
 
+    const bool localHasSram = gameboy->getNumSramBanks() != 0;
+    const bool remoteHasSram = nifiLinkType == LINK_CABLE && gb2 &&
+        gb2->getNumSramBanks() != 0;
     if (isHost) {
-        if (sendSram && gameboy->getNumSramBanks())
+        if (localHasSram)
             nifiSendSram();
         swiWaitForVBlank();
-        if (waitForSram && gameboy->getNumSramBanks()) {
+        if (remoteHasSram) {
             if (nifiReceiveSram())
                 return 1;
         }
     }
     else {
-        if (waitForSram && gameboy->getNumSramBanks()) {
+        if (nifiLinkType == LINK_SGB ? localHasSram : remoteHasSram) {
             if (nifiReceiveSram())
                 return 1;
         }
-        if (sendSram && gameboy->getNumSramBanks())
+        if (nifiLinkType == LINK_CABLE && localHasSram)
             nifiSendSram();
     }
 

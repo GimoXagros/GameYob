@@ -11,6 +11,11 @@
 | LCD off | native 3DS game area is cleared to white | 3DS build plus manual test required |
 | Noise channel | hardware-form 15-bit and 7-bit LFSR, periods 32767/127 | `gb_noise_test.cpp` |
 | DS NiFi | packet length, CRC, identity bounds and corruption rejection | `nifi_protocol_test.cpp` |
+| Localization | INI/JSON/XML/YAML, UTF-8 Korean/Japanese and English fallback | `localization_test.cpp` |
+| Unicode UI | UTF-8 column count and boundary-safe clipping | `text_test.cpp` |
+| DS audio | independent NR50 SO1/SO2 volume/routing model | build plus hardware test required |
+| Cheats | GameShark `0x8x` external-SRAM bank writes and hexadecimal validation | build plus game test required |
+| 3DS LAN | shared packet protocol, discovery/link backend | protocol test plus two-system test required |
 
 ## Game-level checks
 
@@ -25,6 +30,6 @@ recorded so a lawful local copy can be matched to the test result.
 
 - real DS/DSi/3DS-in-DS-mode wireless-link tests;
 - real Nintendo 3DS regression pass for the renderer and sound changes;
-- native 3DS UDS/LAN link backend;
+- native 3DS-to-3DS LAN link testing and a native-3DS/`.nds` bridge;
 - a larger per-game compatibility matrix, especially games that change WX
   during a scanline or depend on SNES-side SGB audio.

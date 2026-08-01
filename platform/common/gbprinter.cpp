@@ -260,7 +260,8 @@ void printerSaveFile() {
     // Find the first available "print number".
     char filename[300];
     while (true) {
-        printf(filename, "%s-%d.bmp", gameboy->getRomFile()->getBasename(), numPrinted);
+        snprintf(filename, sizeof(filename), "%s-%d.bmp",
+                 gameboy->getRomFile()->getBasename(), numPrinted);
         if (appending ||                        // If appending, the last file written to is already selected.
                 access(filename, R_OK) != 0) {  // Else, if the file doesn't exist, we're done searching.
 
@@ -307,6 +308,11 @@ void printerSaveFile() {
     }
 
     u16* pixelData = (u16*)malloc(pixelArraySize);
+    if (!pixelData) {
+        printLog("Not enough memory to save printer image.\n");
+        printerGfxIndex = 0;
+        return;
+    }
 
     // Convert the gameboy's tile-based 2bpp into a linear 4bpp format.
     for (int i=0; i<printerGfxIndex; i+=2) {
@@ -335,6 +341,11 @@ void printerSaveFile() {
     FileHandle* file;
     if (appending) {
         file = file_open(filename, "r+b");
+        if (!file) {
+            free(pixelData);
+            printLog("Could not open printer image for appending.\n");
+            return;
+        }
         int temp;
 
         // Update height
@@ -361,6 +372,11 @@ void printerSaveFile() {
     }
     else { // Not appending; making a file from scratch
         file = file_open(filename, "ab");
+        if (!file) {
+            free(pixelData);
+            printLog("Could not create printer image.\n");
+            return;
+        }
         WRITE_32(bmpHeader+2, sizeof(bmpHeader) + pixelArraySize);
         WRITE_32(bmpHeader+0x22, pixelArraySize);
         WRITE_32(bmpHeader+0x12, width);
@@ -368,6 +384,11 @@ void printerSaveFile() {
         file_write(bmpHeader, 1, sizeof(bmpHeader), file);
     }
 
+    if (!file) {
+        free(pixelData);
+        printLog("Could not reopen printer image.\n");
+        return;
+    }
     file_write(pixelData, 1, pixelArraySize, file);
 
     file_close(file);

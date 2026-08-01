@@ -18,6 +18,9 @@
 #include "gbgfx.h"
 #include "gbs.h"
 #include "gbmanager.h"
+#include "config.h"
+#include "localization.h"
+#include "text.h"
 
 const int MENU_DS   = 1;
 const int MENU_3DS  = 2;
@@ -37,13 +40,18 @@ void printVersionInfo(); // Defined in version.cpp
 
 void subMenuGenericUpdateFunc(); // Private function here
 
+void printSpaces(int count) {
+    while (count-- > 0)
+        printf(" ");
+}
+
 
 bool consoleDebugOutput = false;
 bool menuOn = false;
 bool consoleInitialized = false;
 int menu=0;
 int option = -1;
-char printMessage[33];
+char printMessage[256];
 int gameScreen=0;
 int singleScreenMode=0;
 int stateNum=0;
@@ -160,6 +168,41 @@ void keyConfigFunc(int value) {
     startKeyConfigChooser();
 }
 
+void languageFunc(int value) {
+    static const char* codes[] = {"en", "ja", "ko"};
+    if (value >= 0 && value < 3) {
+        languagePath[0] = '\0';
+        languageLoadCode(codes[value]);
+    }
+    else if (value == 3 && languagePath[0]) {
+        languageLoadFile(languagePath);
+    }
+}
+
+void selectLanguageFileFunc(int value) {
+    static FileChooserState languageChooserState = {0, "/"};
+    const char* extensions[] = {"ini", "json", "xml", "yaml", "yml"};
+    loadFileChooserState(&languageChooserState);
+    char* filename = startFileChooser(extensions, 5, false, true);
+    if (filename) {
+        char cwd[MAX_FILENAME_LEN];
+        fs_getcwd(cwd, sizeof(cwd));
+        const bool needsSlash = cwd[0] && cwd[strlen(cwd) - 1] != '/';
+        snprintf(languagePath, sizeof(languagePath), "%s%s%s", cwd,
+                 needsSlash ? "/" : "", filename);
+        free(filename);
+        if (languageLoadFile(languagePath)) {
+            setMenuOption("Language", 3);
+            printMenuMessage("Language loaded.");
+        }
+        else {
+            printMenuMessage("Invalid language file.");
+        }
+    }
+    saveFileChooserState(&languageChooserState);
+    loadFileChooserState(&romChooserState);
+}
+
 void saveSettingsFunc(int value) {
     printMenuMessage("Saving settings...");
     muteSND();
@@ -168,7 +211,8 @@ void saveSettingsFunc(int value) {
     // Also save cheats
     if (gameboy != NULL) {
         char nameBuf[MAX_FILENAME_LEN];
-        sprintf(nameBuf, "%s.cht", gameboy->getRomFile()->getBasename());
+        snprintf(nameBuf, sizeof(nameBuf), "%s.cht",
+                 gameboy->getRomFile()->getBasename());
         gameboy->getCheatEngine()->saveCheats(nameBuf);
     }
 
@@ -418,10 +462,12 @@ SubMenu menuList[] = {
     },
     {
         "Settings",
-        8,
+        10,
         {
             {"Button Mapping", keyConfigFunc, 0, {}, 0, MENU_ALL},
             {"Manage Cheats", cheatFunc, 0, {}, 0, MENU_ALL},
+            {"Language", languageFunc, 4, {"English","日本語","한국어","Custom"}, 0, MENU_ALL},
+            {"Select Language File", selectLanguageFileFunc, 0, {}, 0, MENU_ALL},
             {"Rumble Pak", setRumbleFunc, 4, {"Off","Low","Mid","High"}, 2, MENU_DS},
             {"GB Camera", setCamera, 3, {"Off", "Inner","Outer"}, 0, MENU_DS},
             {"Console Output", consoleOutputFunc, 4, {"Off","Time","FPS+Time","Debug"}, 0, MENU_ALL},
@@ -480,8 +526,8 @@ SubMenu menuList[] = {
         "Linking",
         3,
         {
-#ifdef DS
-            {"Link to DS", (void (*)(int))nifiInterLinkMenu, 0, {}, 0, MENU_DS},
+#if defined(DS) || defined(_3DS)
+            {"Wireless Link", (void (*)(int))nifiInterLinkMenu, 0, {}, 0, MENU_DS | MENU_3DS},
 #else
             {"Stub", NULL, 0, {}, 0, 0},
 #endif
@@ -611,7 +657,9 @@ void redrawMenu() {
 
     // Top line: submenu
     int pos=0;
-    int nameStart = (width-strlen(menuList[menu].name)-2)/2;
+    const char* translatedMenuName = tr(menuList[menu].name);
+    int menuNameColumns = textColumns(translatedMenuName);
+    int nameStart = (width-menuNameColumns-2)/2;
     if (option == -1) {
         nameStart-=2;
         iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "<");
@@ -627,9 +675,9 @@ void redrawMenu() {
     }
     {
         int color = (option == -1 ? CONSOLE_COLOR_LIGHT_YELLOW : CONSOLE_COLOR_WHITE);
-        iprintfColored(color, "[%s]", menuList[menu].name);
+        iprintfColored(color, "[%s]", translatedMenuName);
     }
-    pos += 2 + strlen(menuList[menu].name);
+    pos += 2 + menuNameColumns;
     if (option == -1) {
         iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " *");
         pos += 2;
@@ -647,6 +695,9 @@ void redrawMenu() {
         if (!(menuList[menu].options[i].platforms & MENU_BITMASK))
             continue;
 
+        const char* translatedOption = tr(menuList[menu].options[i].name);
+        const int optionColumns = textColumns(translatedOption);
+
         int option_color;
         if (!menuList[menu].options[i].enabled)
             option_color = CONSOLE_COLOR_GREY;
@@ -656,28 +707,28 @@ void redrawMenu() {
             option_color = CONSOLE_COLOR_WHITE;
 
         if (menuList[menu].options[i].numValues == 0) {
-            for (unsigned int j=0; j<(width-strlen(menuList[menu].options[i].name))/2-2; j++)
-                printf(" ");
+            printSpaces((width-optionColumns)/2-2);
             if (i == option) {
-                iprintfColored(option_color, "* %s *\n\n", menuList[menu].options[i].name);
+                iprintfColored(option_color, "* %s *\n\n", translatedOption);
             }
             else
-                iprintfColored(option_color, "  %s  \n\n", menuList[menu].options[i].name);
+                iprintfColored(option_color, "  %s  \n\n", translatedOption);
         }
         else {
-            for (unsigned int j=0; j<width/2-strlen(menuList[menu].options[i].name); j++)
-                printf(" ");
+            printSpaces(width/2-optionColumns);
+            const char* translatedValue = tr(menuList[menu].options[i].values[
+                menuList[menu].options[i].selection]);
             if (i == option) {
                 iprintfColored(option_color, "* ");
-                iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
+                iprintfColored(option_color, "%s  ", translatedOption);
                 iprintfColored(menuList[menu].options[i].enabled ? CONSOLE_COLOR_LIGHT_GREEN : option_color,
-                        "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                        "%s", translatedValue);
                 iprintfColored(option_color, " *");
             }
             else {
                 printf("  ");
-                iprintfColored(option_color, "%s  ", menuList[menu].options[i].name);
-                iprintfColored(option_color, "%s", menuList[menu].options[i].values[menuList[menu].options[i].selection]);
+                iprintfColored(option_color, "%s  ", translatedOption);
+                iprintfColored(option_color, "%s", translatedValue);
             }
             printf("\n\n");
         }
@@ -689,10 +740,8 @@ void redrawMenu() {
         int newlines = height-1-(rows*2+2)-1;
         for (int i=0; i<newlines; i++)
             printf("\n");
-        int spaces = width-1-strlen(printMessage);
-        for (int i=0; i<spaces; i++)
-            printf(" ");
-        printf("%s\n", printMessage);
+        printSpaces(width-1-textColumns(printMessage));
+        iprintfColored(CONSOLE_COLOR_WHITE, "%s\n", printMessage);
 
         printMessage[0] = '\0';
     }
@@ -791,7 +840,7 @@ void printMenuMessage(const char* s) {
     int rows = menuGetNumRows();
 
     bool hadPreviousMessage = printMessage[0] != '\0';
-    strncpy(printMessage, s, 33);
+    textCopyColumns(printMessage, sizeof(printMessage), tr(s), width-1);
 
     if (hadPreviousMessage) {
         printf("\r");
@@ -801,10 +850,8 @@ void printMenuMessage(const char* s) {
         for (int i=0; i<newlines; i++)
             printf("\n");
     }
-    int spaces = width-1-strlen(printMessage);
-    for (int i=0; i<spaces; i++)
-        printf(" ");
-    printf("%s", printMessage);
+    printSpaces(width-1-textColumns(printMessage));
+    iprintfColored(CONSOLE_COLOR_WHITE, "%s", printMessage);
 
     consoleFlush();
 }

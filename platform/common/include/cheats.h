@@ -4,6 +4,7 @@
 class Gameboy;
 
 #define MAX_CHEAT_NAME_LEN  24
+#define MAX_CHEAT_NAME_BYTES (MAX_CHEAT_NAME_LEN * 4 + 1)
 
 #define MAX_CHEATS      900
 #define CHEAT_FLAG_ENABLED    (1<<0)
@@ -14,7 +15,7 @@ class Gameboy;
 
 
 typedef struct cheat_t {
-    char name[MAX_CHEAT_NAME_LEN+1];
+    char name[MAX_CHEAT_NAME_BYTES];
     char cheatString[12];
     u8 flags;
     u8  data;

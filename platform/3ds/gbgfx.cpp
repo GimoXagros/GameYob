@@ -6,6 +6,11 @@
 #include "3dsgfx.h"
 #include "menu.h"
 #include "inputhelper.h"
+#include "filechooser.h"
+#include "soundengine.h"
+#include "console.h"
+#include "localization.h"
+#include "image_loader.h"
 #include "sgbborder.h"
 #include "gb_render_rules.h"
 
@@ -40,6 +45,8 @@ u32* sprPalettesRef[8][4];
 
 int dmaLine;
 bool lineModified;
+
+static DecodedImage customBorderImage = {0, 0, NULL};
     
 
 // For drawScanline / drawSprite
@@ -68,6 +75,9 @@ void updateBgPaletteDMG();
 void updateSprPalette(int paletteid);
 void updateSprPaletteDMG(int paletteid);
 void drawSgbBorder(u8* framebuffer, int screenWidth);
+void drawCustomBorder(u8* framebuffer, int screenWidth);
+void drawSgbForegroundPixel(u8* framebuffer, int screenWidth,
+                           int gameX, int gameY);
 void drawMaskedScanline(int scanline, u32 color);
 void clearGameArea(u32 color);
 
@@ -380,6 +390,10 @@ void drawScanline_P2(int scanline) {
             else
                 drawPixel(framebuffer, offsetX+i, y, spritePixelsTrueLow[i]);
         }
+        if (loadedBorderType == BORDER_SGB)
+            drawSgbForegroundPixel(framebuffer,
+                gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH,
+                i, scanline);
     }
 }
 
@@ -480,11 +494,65 @@ void displayIcon(int iconid) {
 
 
 void selectBorder() {
+    muteSND();
 
+    if (borderChooserState.directory == "/" && borderPath[0] != '\0') {
+        char directory[MAX_FILENAME_LEN];
+        strncpy(directory, borderPath, sizeof(directory));
+        directory[sizeof(directory)-1] = '\0';
+        char* slash = strrchr(directory, '/');
+        if (slash) {
+            setFileChooserMatchFile(slash + 1);
+            if (slash == directory)
+                slash[1] = '\0';
+            else
+                *slash = '\0';
+            borderChooserState.directory = directory;
+        }
+    }
+
+    loadFileChooserState(&borderChooserState);
+    const char* extensions[] = {"png", "bmp"};
+    char* filename = startFileChooser(extensions, 2, false, true);
+    if (filename) {
+        char cwd[MAX_FILENAME_LEN];
+        fs_getcwd(cwd, sizeof(cwd));
+        const size_t cwdLength = strlen(cwd);
+        snprintf(borderPath, sizeof(borderPath), "%s%s%s", cwd,
+            cwdLength > 0 && cwd[cwdLength-1] == '/' ? "" : "/", filename);
+        borderPath[sizeof(borderPath)-1] = '\0';
+        free(filename);
+
+        borderPathExists = true;
+        if (loadBorder(borderPath) == 0) {
+            customBordersEnabled = true;
+            setMenuOption("Custom Border", 1);
+        }
+        checkBorder();
+    }
+
+    saveFileChooserState(&borderChooserState);
+    loadFileChooserState(&romChooserState);
+    unmuteSND();
 }
 
 int loadBorder(const char* filename) {
-    return 1;
+    if (!filename || !filename[0] || !borderPathExists)
+        return 1;
+
+    DecodedImage image = {0, 0, NULL};
+    if (!decodeImageFile(filename, &image)) {
+        printLog("%s: %s\n", tr("Error opening border."), filename);
+        borderPathExists = false;
+        customBorderExists = false;
+        return 1;
+    }
+
+    freeDecodedImage(&customBorderImage);
+    customBorderImage = image;
+    customBorderExists = true;
+    borderPathExists = true;
+    return 0;
 }
 
 void checkBorder() {
@@ -501,13 +569,23 @@ void checkBorder() {
         screenWidth = BOTTOM_SCREEN_WIDTH;
     }
 
-    loadedBorderType =
-        sgbBordersEnabled && sgbBorderLoaded ? BORDER_SGB : BORDER_NONE;
+    loadedBorderType = BORDER_NONE;
+    if (sgbBordersEnabled && sgbBorderLoaded) {
+        loadedBorderType = BORDER_SGB;
+    }
+    else if (customBordersEnabled) {
+        if (!customBorderExists)
+            loadBorder(borderPath);
+        if (customBorderExists)
+            loadedBorderType = BORDER_CUSTOM;
+    }
 
     for (int fb=0; fb<2; fb++) {
         memset(buffers[fb], 0, framebufferSizes[gameScreen]);
         if (loadedBorderType == BORDER_SGB)
             drawSgbBorder(buffers[fb], screenWidth);
+        else if (loadedBorderType == BORDER_CUSTOM)
+            drawCustomBorder(buffers[fb], screenWidth);
     }
 }
 
@@ -548,6 +626,10 @@ void setSgbMap(u8* src) {
     sgbBorderDecodeMap(&sgbBorderData, src);
     sgbBorderLoaded = true;
     checkBorder();
+    if (probingForBorder) {
+        probingForBorder = false;
+        gameboy->resetGameboy();
+    }
 }
 
 void drawSgbBorder(u8* framebuffer, int screenWidth) {
@@ -569,6 +651,51 @@ void drawSgbBorder(u8* framebuffer, int screenWidth) {
     }
 }
 
+void drawCustomBorder(u8* framebuffer, int screenWidth) {
+    if (!customBorderImage.pixels || customBorderImage.width <= 0 ||
+            customBorderImage.height <= 0)
+        return;
+
+    int drawWidth = customBorderImage.width;
+    int drawHeight = customBorderImage.height;
+    if (drawWidth > screenWidth || drawHeight > TOP_SCREEN_HEIGHT) {
+        const double xScale = (double)screenWidth / drawWidth;
+        const double yScale = (double)TOP_SCREEN_HEIGHT / drawHeight;
+        const double fitScale = xScale < yScale ? xScale : yScale;
+        drawWidth = (int)(drawWidth * fitScale);
+        drawHeight = (int)(drawHeight * fitScale);
+    }
+
+    const int offsetX = (screenWidth - drawWidth) / 2;
+    const int offsetY = (TOP_SCREEN_HEIGHT - drawHeight) / 2;
+    for (int y=0; y<drawHeight; ++y) {
+        const int sourceY = y * customBorderImage.height / drawHeight;
+        for (int x=0; x<drawWidth; ++x) {
+            const int sourceX = x * customBorderImage.width / drawWidth;
+            const unsigned char* pixel = customBorderImage.pixels +
+                (sourceY * customBorderImage.width + sourceX) * 3;
+            drawPixel(framebuffer, offsetX+x, offsetY+y,
+                RGB24(pixel[0], pixel[1], pixel[2]));
+        }
+    }
+}
+
+void drawSgbForegroundPixel(u8* framebuffer, int screenWidth,
+                            int gameX, int gameY) {
+    u8 palette;
+    const u8 color = sgbBorderGetPixel(&sgbBorderData,
+        gameX + 48, gameY + 40, &palette);
+    // Color zero is the transparent opening used for the Game Boy picture.
+    // Non-zero border pixels legitimately cover that picture on real SGB.
+    if (color != 0) {
+        const int borderX = (screenWidth - SGB_BORDER_WIDTH) / 2;
+        const int borderY = (TOP_SCREEN_HEIGHT - SGB_BORDER_HEIGHT) / 2;
+        drawPixel(framebuffer, borderX + gameX + 48,
+            borderY + gameY + 40,
+            sgbBorderColorToRgb24(sgbBorderData.palettes[palette][color]));
+    }
+}
+
 void drawMaskedScanline(int scanline, u32 color) {
     u8* framebuffer;
     int offsetX;
@@ -583,8 +710,13 @@ void drawMaskedScanline(int scanline, u32 color) {
     }
 
     const int y = offsetY + scanline;
-    for (int x=0; x<160; x++)
+    for (int x=0; x<160; x++) {
         drawPixel(framebuffer, offsetX+x, y, color);
+        if (loadedBorderType == BORDER_SGB)
+            drawSgbForegroundPixel(framebuffer,
+                gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH,
+                x, scanline);
+    }
 }
 
 void clearGameArea(u32 color) {

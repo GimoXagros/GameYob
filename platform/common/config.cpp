@@ -13,6 +13,7 @@
 #include "gameboy.h"
 #include "cheats.h"
 #include "romfile.h"
+#include "localization.h"
 
 #ifdef SDL
 #define INI_PATH "gameyobds.ini"
@@ -25,6 +26,8 @@ char biosPath[MAX_FILENAME_LEN] = "";
 char borderPath[MAX_FILENAME_LEN] = "";
 char romPath[MAX_FILENAME_LEN] = "";
 bool borderPathExists = true;
+char languagePath[MAX_FILENAME_LEN] = "";
+static char configuredLanguage[16] = "en";
 
 
 void controlsParseConfig(char* line);
@@ -41,15 +44,26 @@ void generalParseConfig(char* line) {
         const char* value = equalsPos+1;
 
         if (strcasecmp(parameter, "rompath") == 0) {
-            strcpy(romPath, value);
+            strncpy(romPath, value, sizeof(romPath));
+            romPath[sizeof(romPath)-1] = '\0';
             romChooserState.directory = romPath;
         }
         else if (strcasecmp(parameter, "biosfile") == 0) {
-            strcpy(biosPath, value);
+            strncpy(biosPath, value, sizeof(biosPath));
+            biosPath[sizeof(biosPath)-1] = '\0';
         }
         else if (strcasecmp(parameter, "borderfile") == 0) {
-            strcpy(borderPath, value);
+            strncpy(borderPath, value, sizeof(borderPath));
+            borderPath[sizeof(borderPath)-1] = '\0';
             borderPathExists = true;
+        }
+        else if (strcasecmp(parameter, "language") == 0) {
+            strncpy(configuredLanguage, value, sizeof(configuredLanguage));
+            configuredLanguage[sizeof(configuredLanguage)-1] = '\0';
+        }
+        else if (strcasecmp(parameter, "languagefile") == 0) {
+            strncpy(languagePath, value, sizeof(languagePath));
+            languagePath[sizeof(languagePath)-1] = '\0';
         }
     }
     if (*borderPath == '\0') {
@@ -61,11 +75,14 @@ void generalPrintConfig(FileHandle* file) {
         file_printf(file, "rompath=%s\n", romPath);
         file_printf(file, "biosfile=%s\n", biosPath);
         file_printf(file, "borderfile=%s\n", borderPath);
+        file_printf(file, "language=%s\n", languageGetCode());
+        if (*languagePath)
+            file_printf(file, "languagefile=%s\n", languagePath);
 }
 
 bool readConfigFile() {
     FileHandle* file = file_open(INI_PATH, "r");
-    char line[100];
+    char line[512];
     void (*configParser)(char*) = generalParseConfig;
 
     if (file == NULL) {
@@ -73,10 +90,11 @@ bool readConfigFile() {
     }
 
     while (file_tell(file) < file_getSize(file)) {
-        file_gets(line, 100, file);
-        char c=0;
-        while (*line != '\0' && ((c = line[strlen(line)-1]) == ' ' || c == '\n' || c == '\r'))
-            line[strlen(line)-1] = '\0';
+        file_gets(line, sizeof(line), file);
+        size_t lineLength = strlen(line);
+        while (lineLength && (line[lineLength - 1] == ' ' ||
+                line[lineLength - 1] == '\n' || line[lineLength - 1] == '\r'))
+            line[--lineLength] = '\0';
         if (line[0] == '[') {
             char* endBrace;
             if ((endBrace = strrchr(line, ']')) != 0) {
@@ -98,6 +116,14 @@ bool readConfigFile() {
     }
     file_close(file);
 end:
+    if (*languagePath && languageLoadFile(languagePath))
+        setMenuOption("Language", 3);
+    else if (strcasecmp(configuredLanguage, "ja") == 0)
+        setMenuOption("Language", 1);
+    else if (strcasecmp(configuredLanguage, "ko") == 0)
+        setMenuOption("Language", 2);
+    else
+        setMenuOption("Language", 0);
     controlsCheckConfig();
 
     if (file == NULL)
@@ -305,8 +331,11 @@ void updateKeyConfigChooser() {
         keyConfigs.push_back(KeyConfig(*config));
         selectedKeyConfig = keyConfigs.size()-1;
         char name[32];
-        sprintf(name, "Custom %d", keyConfigs.size()-1);
-        strcpy(keyConfigs.back().name, name);
+        snprintf(name, sizeof(name), "Custom %u",
+                 (unsigned int)keyConfigs.size()-1);
+        strncpy(keyConfigs.back().name, name,
+                sizeof(keyConfigs.back().name) - 1);
+        keyConfigs.back().name[sizeof(keyConfigs.back().name) - 1] = '\0';
         option = -1;
         redraw = true;
     }

@@ -29,6 +29,11 @@ static void testRoundTrip() {
     assert(memcmp(view.payload, payload, sizeof(payload)) == 0);
 }
 
+static void testKnownCrc32Vector() {
+    static const uint8_t input[] = "123456789";
+    assert(nifi::crc32(input, sizeof(input) - 1) == 0xcbf43926U);
+}
+
 static void testRejectsTruncationAndCorruption() {
     uint8_t packet[64];
     const uint8_t payload[] = {9, 8, 7};
@@ -70,6 +75,7 @@ static void testIdentityBounds() {
 
 int main() {
     testRoundTrip();
+    testKnownCrc32Vector();
     testRejectsTruncationAndCorruption();
     testIdentityBounds();
     return 0;

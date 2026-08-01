@@ -713,20 +713,25 @@ void selectBorder() {
 
     if (borderChooserState.directory == "/") {
         char dest[MAX_FILENAME_LEN];
-        strcpy(dest, borderPath);
-        setFileChooserMatchFile(strrchr(dest, '/')+1);
-        *(strrchr(dest, '/')+1) = '\0';
-        borderChooserState.directory = dest;
+        strncpy(dest, borderPath, sizeof(dest) - 1);
+        dest[sizeof(dest) - 1] = '\0';
+        char* slash = strrchr(dest, '/');
+        if (slash) {
+            setFileChooserMatchFile(slash + 1);
+            slash[1] = '\0';
+            borderChooserState.directory = dest;
+        }
     }
     loadFileChooserState(&borderChooserState);
 
     const char* extensions[] = {"bmp"};
-    char* filename = startFileChooser(extensions, false, true);
+    char* filename = startFileChooser(extensions, 1, false, true);
     if (filename != NULL) {
         char cwd[MAX_FILENAME_LEN];
-        getcwd(cwd, MAX_FILENAME_LEN);
-        strcpy(borderPath, cwd);
-        strcat(borderPath, filename);
+        fs_getcwd(cwd, sizeof(cwd));
+        const size_t length = strlen(cwd);
+        snprintf(borderPath, sizeof(borderPath), "%s%s%s", cwd,
+                 length && cwd[length - 1] == '/' ? "" : "/", filename);
 
         free(filename);
 

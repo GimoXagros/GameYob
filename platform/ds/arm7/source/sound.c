@@ -56,21 +56,45 @@ void timerCallback() {
 }
 
 
+static void getChannelMix(int c, int* volume, int* pan) {
+    if (!(sharedData->chanOn & (1 << c)) ||
+            !sharedData->chanEnabled[c]) {
+        *volume = 0;
+        *pan = 64;
+        return;
+    }
+    const int rightMaster = (sharedData->volControl & 7) + 1;
+    const int leftMaster = ((sharedData->volControl >> 4) & 7) + 1;
+    const int master = rightMaster > leftMaster ? rightMaster : leftMaster;
+    const int right = (sharedData->chanOutput & (1 << c)) ? rightMaster : 0;
+    const int left = (sharedData->chanOutput & (1 << (c + 4))) ? leftMaster : 0;
+    const int total = left + right;
+
+    if (total == 0 || master == 0) {
+        *volume = 0;
+        *pan = 64;
+        return;
+    }
+
+    // SOUND_PAN linearly divides a DS channel between its two outputs. Sum
+    // the desired GB left/right gains so center-panned audio is not halved.
+    *volume = sharedData->chanRealVol[c] * 2 * total / master;
+    if (*volume > 127)
+        *volume = 127;
+    *pan = (right * 127 + total / 2) / total;
+}
+
 void setChannelVolume(int c, bool write) {
     int channel = channels[c];
 
-    int volume = sharedData->chanRealVol[c]*2;
-    if (sharedData->chanPan[c] >= 128)
-        volume = 0;
-    else if (sharedData->chanPan[c] == 64) {
-        volume *= 2;   // DS divides sound by 2 for each speaker; gameboy doesn't
-    }
+    int volume, pan;
+    getChannelMix(c, &volume, &pan);
 
-    schannelCR[c] &= ~0x7f;
-    schannelCR[c] |= volume;
+    schannelCR[c] &= ~(0x7f | SOUND_PAN(127));
+    schannelCR[c] |= volume | SOUND_PAN(pan);
     if (write) {
-        SCHANNEL_CR(channel) &= ~0x7f;
-        SCHANNEL_CR(channel) |= volume;
+        SCHANNEL_CR(channel) &= ~(0x7f | SOUND_PAN(127));
+        SCHANNEL_CR(channel) |= volume | SOUND_PAN(pan);
     }
 }
 void updateChannel(int c, bool write) {
@@ -84,22 +108,16 @@ void updateChannel(int c, bool write) {
 
     SCHANNEL_TIMER(channel) = SOUND_FREQ(sharedData->chanRealFreq[c]);
     if (c < 2) {
-        schannelCR[c] &= ~(SOUND_PAN(127) | 7<<24);
-        schannelCR[c] |= SOUND_PAN(sharedData->chanPan[c]) | (dutyIndex[sharedData->chanDuty[c]] << 24);
-    }
-    else if (c == 2) {
-        schannelCR[c] &= ~(SOUND_PAN(127));
-        schannelCR[c] |= SOUND_PAN(sharedData->chanPan[c]);
+        schannelCR[c] &= ~(7<<24);
+        schannelCR[c] |= dutyIndex[sharedData->chanDuty[c]] << 24;
     }
     else if (c == 3) {
         if (currentLfsr != sharedData->lfsr7Bit)
             startChannel(c);
-        schannelCR[c] &= ~(SOUND_PAN(127));
-        schannelCR[c] |= SOUND_PAN(sharedData->chanPan[c]);
     }
     if (write) {
-        SCHANNEL_CR(channel) &= ~(SOUND_PAN(127) | 7<<24);
-        SCHANNEL_CR(channel) |= (schannelCR[c] & (SOUND_PAN(127) | 7<<24));
+        SCHANNEL_CR(channel) &= ~(7<<24);
+        SCHANNEL_CR(channel) |= schannelCR[c] & (7<<24);
     }
     setChannelVolume(c, write);
 }
@@ -144,28 +162,39 @@ void startChannel(int c) {
 }
 
 void updateMasterVolume() {
-    // TODO: when SO1Vol != SO2Vol
-    int SO1Vol = sharedData->volControl & 7;
-    if (SO1Vol*18 != (REG_SOUNDCNT & 0x7f)) {
+    const int rightMaster = (sharedData->volControl & 7) + 1;
+    const int leftMaster = ((sharedData->volControl >> 4) & 7) + 1;
+    const int master = rightMaster > leftMaster ? rightMaster : leftMaster;
+    const int dsMaster = (master * 127 + 4) / 8;
+    if (dsMaster != (REG_SOUNDCNT & 0x7f)) {
         REG_SOUNDCNT &= ~0x7f;
-        REG_SOUNDCNT |= SO1Vol*18;
+        REG_SOUNDCNT |= dsMaster;
     }
+
+    // NR50 changes also alter the relative pan/volume of every routed channel.
+    for (int channel=0; channel<4; ++channel)
+        setChannelVolume(channel, true);
 
     // Each sound channel enabled in NR51 adds a bit of a "background tone".
     // I'm not really sure if this behaviour is correct.
     // I'm trying to strike a balance between the "Warlocked/Perfect Dark/Alone 
     // in the Dark" sound effects, and the annoying clicking in some games.
-    int vol=0;
+    int left=0, right=0;
     int i;
     for (i=0; i<4; i++) {
-        if (sharedData->chanOutput & ((1<<i) | (1<<(i+4))) )
-            vol += 0x20;
+        if (sharedData->chanOutput & (1<<i))
+            right += rightMaster;
+        if (sharedData->chanOutput & (1<<(i+4)))
+            left += leftMaster;
     }
-    if (vol == 0x80)
+    int total = left + right;
+    int vol = master ? total * 0x20 / master : 0;
+    int pan = total ? (right * 127 + total/2) / total : 64;
+    if (vol > 0x7f)
         vol = 0x7f;
-    SCHANNEL_CR(1) &= ~0x7f;
+    SCHANNEL_CR(1) &= ~(0x7f | SOUND_PAN(127));
     if (sharedData->chanOutput)
-        SCHANNEL_CR(1) |= vol;
+        SCHANNEL_CR(1) |= vol | SOUND_PAN(pan);
 }
 
 void setHyperSound(int enabled) {

@@ -156,11 +156,16 @@ void Gameboy::init()
     sgbIconDisable = 0;
     sgbDataAddress = 0;
     sgbDataLength = 0;
+    sgbHostProgramCounter = 0;
+    sgbHostNmiHandler = 0;
+    sgbObjMode = 0;
+    sgbPalettePriority = 0;
 
     memset(sgbPacket, 0, sizeof(sgbPacket));
     memset(sgbMap, 0, sizeof(sgbMap));
     memset(sgbSoundState, 0, sizeof(sgbSoundState));
     memset(sgbData, 0, sizeof(sgbData));
+    memset(sgbObjPalettes, 0, sizeof(sgbObjPalettes));
     memset(&sgbCmdData, 0, sizeof(sgbCmdData));
 
     initGFXPalette();
@@ -287,6 +292,7 @@ void Gameboy::updateVBlank() {
         }
 
         if (probingForBorder) {
+            gameboyFrameCounter++;
             if (gameboyFrameCounter >= 450) {
                 // Give up on finding a sgb border.
                 probingForBorder = false;
@@ -712,14 +718,12 @@ bool Gameboy::isRomLoaded() {
 
 int Gameboy::loadSave(int saveId)
 {
-    strcpy(savename, romFile->getBasename());
     if (saveId == 1)
-        strcat(savename, ".sav");
-    else {
-        char buf[10];
-        sprintf(buf, ".sa%d", saveId);
-        strcat(savename, buf);
-    }
+        snprintf(savename, sizeof(savename), "%s.sav",
+                 romFile->getBasename());
+    else
+        snprintf(savename, sizeof(savename), "%s.sa%d",
+                 romFile->getBasename(), saveId);
 
     if (externRam != NULL)
         free(externRam);
@@ -942,12 +946,14 @@ void Gameboy::saveState(int stateNum) {
 
     FileHandle* outFile;
     StateStruct state;
-    char statename[100];
+    char statename[MAX_FILENAME_LEN];
 
     if (stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getBasename());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getBasename(), stateNum);
     outFile = file_open(statename, "w");
 
     if (outFile == 0) {
@@ -1017,9 +1023,11 @@ int Gameboy::loadState(int stateNum) {
     memset(&state, 0, sizeof(StateStruct));
 
     if (stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getBasename());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getBasename(), stateNum);
     inFile = file_open(statename, "r");
 
     if (inFile == 0) {
@@ -1031,6 +1039,7 @@ int Gameboy::loadState(int stateNum) {
 
     if (version == 0 || version > STATE_VERSION) {
         printMenuMessage("State is incompatible.");
+        file_close(inFile);
         return 1;
     }
 
@@ -1134,9 +1143,11 @@ void Gameboy::deleteState(int stateNum) {
     char statename[MAX_FILENAME_LEN];
 
     if (stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getBasename());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getBasename(), stateNum);
     fs_deleteFile(statename);
 }
 
@@ -1147,9 +1158,11 @@ bool Gameboy::checkStateExists(int stateNum) {
     char statename[MAX_FILENAME_LEN];
 
     if (stateNum == -1)
-        sprintf(statename, "%s.yss", romFile->getBasename());
+        snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getBasename());
     else
-        sprintf(statename, "%s.ys%d", romFile->getBasename(), stateNum);
+        snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getBasename(), stateNum);
     return file_exists(statename);
     /*
     file = fopen(statename, "r");

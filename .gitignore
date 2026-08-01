@@ -14,3 +14,6 @@ gameyob
 gameyob.ini
 LOG
 .vscode
+.codex-tmp/
+release/
+__pycache__/

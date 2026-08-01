@@ -13,6 +13,8 @@ struct PrintConsole {
 void consoleInitBottom();
 void consoleSetScreen(gfxScreen_t screen);
 void consoleCheckFramebuffers();
+void consolePrintChar(char c);
+void consolePrintGlyph(const u8* bitmap);
 
 const int CHAR_WIDTH = 8;
 const int CHAR_HEIGHT = 8;

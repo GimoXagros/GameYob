@@ -112,6 +112,12 @@ void Gameboy::sgbAttrBlock(int block) {
             int y1=data[3];
             int x2=data[4];
             int y2=data[5];
+            if (x1 > 19) x1 = 19;
+            if (x2 > 19) x2 = 19;
+            if (y1 > 17) y1 = 17;
+            if (y2 > 17) y2 = 17;
+            if (x1 > x2) { int temp = x1; x1 = x2; x2 = temp; }
+            if (y1 > y2) { int temp = y1; y1 = y2; y2 = temp; }
             bool changeLine = data[0] & 2;
             if (!changeLine) {
                 if ((data[0] & 7) == 1) {
@@ -173,11 +179,15 @@ void Gameboy::sgbAttrLin(int block) {
         int pal = (dat>>5)&3;
 
         if (dat&0x80) { // Horizontal
+            if (line >= 18)
+                continue;
             for (int i=0; i<20; i++) {
                 sgbMap[i+line*20] = pal;
             }
         }
         else { // Vertical
+            if (line >= 20)
+                continue;
             for (int i=0; i<18; i++) {
                 sgbMap[line+i*20] = pal;
             }
@@ -332,22 +342,25 @@ void Gameboy::sgbMltReq(int block) {
         sgbSelectedController = 0;
 }
 
-void Gameboy::sgbChrTrn(int blonk) {
-    u8* data = (u8*)malloc(0x1000);
-    if (!data)
+void Gameboy::sgbJump(int block) {
+    if (block != 0)
         return;
-    sgbDoVramTransfer(data);
-    setSgbTiles(data, sgbPacket[1]);
-    free(data);
+    // GameYob does not emulate the host SNES CPU, but retaining both vectors
+    // accurately consumes the command and makes the state observable to tests.
+    sgbHostProgramCounter = sgbPacket[1] | (sgbPacket[2] << 8) |
+        (sgbPacket[3] << 16);
+    sgbHostNmiHandler = sgbPacket[4] | (sgbPacket[5] << 8) |
+        (sgbPacket[6] << 16);
+}
+
+void Gameboy::sgbChrTrn(int blonk) {
+    sgbDoVramTransfer(sgbData);
+    setSgbTiles(sgbData, sgbPacket[1]);
 }
 
 void Gameboy::sgbPctTrn(int block) {
-    u8* data = (u8*)malloc(0x1000);
-    if (!data)
-        return;
-    sgbDoVramTransfer(data);
-    setSgbMap(data);
-    free(data);
+    sgbDoVramTransfer(sgbData);
+    setSgbMap(sgbData);
 }
 
 void Gameboy::sgbAttrTrn(int block) {
@@ -364,11 +377,29 @@ void Gameboy::sgbMask(int block) {
     setSgbMask(sgbPacket[1]&3);
 }
 
+void Gameboy::sgbObjTrn(int block) {
+    if (block != 0)
+        return;
+    // OBJ_TRN is stubbed by retail SGB firmware revisions. Preserve the
+    // prototype control/palette fields without inventing host-SNES sprites.
+    sgbObjMode = sgbPacket[1] & 3;
+    if (sgbObjMode & 2) {
+        for (int i=0; i<4; ++i)
+            sgbObjPalettes[i] =
+                (sgbPacket[2+i*2] | (sgbPacket[3+i*2] << 8)) & 0x1ff;
+    }
+}
+
+void Gameboy::sgbPalPriority(int block) {
+    if (block == 0)
+        sgbPalettePriority = sgbPacket[1] & 1;
+}
+
 void (Gameboy::*sgbCommands[])(int) = {
     &Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbPalXX,&Gameboy::sgbAttrBlock,&Gameboy::sgbAttrLin,&Gameboy::sgbAttrDiv,&Gameboy::sgbAttrChr,
     &Gameboy::sgbSound,&Gameboy::sgbSoundTrn,&Gameboy::sgbPalSet,&Gameboy::sgbPalTrn,&Gameboy::sgbAttraction,&Gameboy::sgbTest,&Gameboy::sgbIcon,&Gameboy::sgbDataSnd,
-    &Gameboy::sgbDataTrn,&Gameboy::sgbMltReq,NULL,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMask,
-    NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL
+    &Gameboy::sgbDataTrn,&Gameboy::sgbMltReq,&Gameboy::sgbJump,&Gameboy::sgbChrTrn,&Gameboy::sgbPctTrn,&Gameboy::sgbAttrTrn,&Gameboy::sgbAttrSet,&Gameboy::sgbMask,
+    &Gameboy::sgbObjTrn,&Gameboy::sgbPalPriority,NULL,NULL,NULL,NULL,NULL,NULL
 };
 
 void Gameboy::sgbHandleP1(u8 val) {

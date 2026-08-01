@@ -11,8 +11,16 @@
 DIR* directory = 0;
 
 FileHandle* file_open(const char* filename, const char* params) {
+    if (!filename || !params)
+        return NULL;
     FileHandle* h = (FileHandle*)malloc(sizeof(FileHandle));
+    if (!h)
+        return NULL;
     h->filename = (char*)malloc(strlen(filename)+1);
+    if (!h->filename) {
+        free(h);
+        return NULL;
+    }
     strcpy(h->filename, filename);
     h->file = fopen(filename, params);
 
@@ -23,7 +31,8 @@ FileHandle* file_open(const char* filename, const char* params) {
         return NULL;
     }
 
-    strcpy(h->flags, params);
+    strncpy(h->flags, params, sizeof(h->flags) - 1);
+    h->flags[sizeof(h->flags) - 1] = '\0';
     return h;
 }
 
@@ -76,7 +85,7 @@ void file_printf(FileHandle* h, const char* s, ...) {
     va_start(args, s);
 
     char buf[512];
-    vsprintf(buf, s, args);
+    vsnprintf(buf, sizeof(buf), s, args);
     va_end(args);
 
     fputs(buf, h->file);

@@ -18,7 +18,7 @@ TARGET :=	gameyob
 BUILD		:=	build
 SOURCES		:=	source ../../common
 INCLUDES	:=	include ../include ../../common/include
-DATA		:=
+DATA		:=	../../../assets/fonts
 GFX			:= gfx/
 
 #---------------------------------------------------------------------------------

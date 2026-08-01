@@ -57,6 +57,26 @@ void consoleDrawChar(char c) {
     }
     currentConsole->redraw = true;
 }
+
+void consolePrintGlyph(const u8* bitmap) {
+    if (!currentConsole || !bitmap)
+        return;
+    if (currentConsole->cursorX >= currentConsole->consoleWidth) {
+        currentConsole->cursorX = 0;
+        newRow();
+    }
+    const int x = currentConsole->cursorX * CHAR_WIDTH;
+    const int y = currentConsole->cursorY * CHAR_HEIGHT;
+    for (int cy = 0; cy < CHAR_HEIGHT; cy++) {
+        for (int cx = 0; cx < CHAR_WIDTH; cx++) {
+            const u32 color = (bitmap[cy] & (1 << (7 - cx))) ?
+                TEXT_COLOR : BG_COLOR;
+            drawPixel(currentConsole->framebuffer, x + cx, y + cy, color);
+        }
+    }
+    currentConsole->cursorX++;
+    currentConsole->redraw = true;
+}
 void consolePrintChar(char c) {
 	if (c == 0)
         return;

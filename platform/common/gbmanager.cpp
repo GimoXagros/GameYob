@@ -200,11 +200,10 @@ void mgr_loadRom(const char* filename) {
 
     hostGb = gameboy;
 
-    // Border probing is broken
-#if 0
     if (sgbBordersEnabled)
-        probingForBorder = true; // This will be ignored if starting in sgb mode, or if there is no sgb mode.
-#endif
+        // Enhanced dual-mode cartridges are briefly booted as SGB so their
+        // border can be captured, then reset into the user's preferred mode.
+        probingForBorder = true;
 
     sgbBorderLoaded = false; // Effectively unloads any sgb border
 
@@ -271,7 +270,7 @@ void mgr_selectRom() {
 
     loadFileChooserState(&romChooserState);
     const char* extraExtensions[] = {"gbs"};
-    char* filename = startFileChooser(extraExtensions, true);
+    char* filename = startFileChooser(extraExtensions, 1, true);
     saveFileChooserState(&romChooserState);
 
     if (filename == NULL) {
