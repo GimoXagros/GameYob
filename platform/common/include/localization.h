@@ -18,4 +18,3 @@ void languageReset();
 const char* languageGetCode();
 const char* languageGetFile();
 int languageGetEntryCount();
-

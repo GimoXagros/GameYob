@@ -89,6 +89,9 @@ unsigned int decodeCp949Character(const unsigned char* text,
             return codepoint;
         }
     }
+#else
+    (void)text;
+    (void)remaining;
 #endif
     *byteCount = 1;
     return INVALID_CODEPOINT;

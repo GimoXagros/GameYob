@@ -8,4 +8,3 @@ struct DecodedImage {
 
 bool decodeImageFile(const char* filename, DecodedImage* image);
 void freeDecodedImage(DecodedImage* image);
-
