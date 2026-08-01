@@ -36,6 +36,7 @@ jobs:
             mkdir -p /tmp/devkitarm-crtls/armv6k/fpu &&
             make -C /tmp/devkitarm-crtls 3dsx_crt0 &&
             rm -f /tmp/libctru/libctru/source/console.c &&
+            rm -f /tmp/libctru/libctru/include/sys/select.h /tmp/libctru/libctru/include/sys/ioctl.h &&
             sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
             make -C /tmp/libctru/libctru &&
             make CTRULIB=/tmp/libctru/libctru \

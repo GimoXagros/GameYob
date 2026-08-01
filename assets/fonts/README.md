@@ -5,7 +5,8 @@ the DS/DSi and 3DS builds. `cp949_table.bin` provides the legacy Korean CP949
 fallback used for older filenames and cheat lists. Regenerate both files with:
 
 ```sh
-python tools/generate_unicode_assets.py --galmuri-root PATH_TO_GALMURI
+python tools/generate_unicode_assets.py \
+  --galmuri-dir PATH_TO_GALMURI/dist --output-dir assets/fonts
 ```
 
 The source used for `v0.5.4-ko` is
