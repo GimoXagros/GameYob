@@ -17,6 +17,9 @@ u8 backgroundSample[16];
 
 bool currentLfsr;
 
+void startChannel(int c);
+void doCommand(u32 command);
+
 // Use this with the 7-bit lfsr.
 // Note: On a gameboy it's 127 samples, but on a ds, # samples must be a 
 // multiple of 4. Previously I just repeated this 4 times. But that doesn't work 
