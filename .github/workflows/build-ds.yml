@@ -6,11 +6,15 @@ on:
     paths:
       - "platform/ds/**"
       - "platform/common/**"
+      - "assets/fonts/**"
+      - "Makefile.blocksds*"
       - ".github/workflows/build-ds.yml"
   pull_request:
     paths:
       - "platform/ds/**"
       - "platform/common/**"
+      - "assets/fonts/**"
+      - "Makefile.blocksds*"
       - ".github/workflows/build-ds.yml"
 
 permissions:
@@ -25,11 +29,10 @@ jobs:
         run: |
           docker run --rm \
             --volume "$GITHUB_WORKSPACE:/workspace" \
-            --workdir /workspace/platform/ds \
-            devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a \
+            --workdir /workspace \
+            skylyrac/blocksds:slim-v1.22.2@sha256:a073c57ffd340542a6e09d14616dd925d219bc534399dbdc73d2abaa04c1628e \
             bash -euo pipefail -c '
-              make &&
-              make gameyob_dsi.nds
+              make -f Makefile.blocksds
             '
       - name: Record artifact checksum
         run: |

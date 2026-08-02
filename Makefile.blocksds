@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+BLOCKSDS	?= /opt/blocksds/core
+WONDERFUL_TOOLCHAIN	?= /opt/wonderful
+
+NAME		:= gameyob
+VERSION		:= $(shell git describe --always --abbrev=4)
+GAME_TITLE	:= GameYob $(VERSION)
+GAME_SUBTITLE	:= A Gameboy emulator for DS
+GAME_AUTHOR	:= Author: Drenn
+GAME_ICON	:= platform/ds/icon.bmp
+
+MAKE		:= make
+RM		:= rm -rf
+
+ARM9_ELF	:= build/blocksds/arm9.elf
+ARM7_ELF	:= build/blocksds/arm7.elf
+DS_ROM		:= platform/ds/$(NAME).nds
+DSI_ROM		:= platform/ds/$(NAME)_dsi.nds
+
+ifeq ($(VERBOSE),1)
+V		:=
+else
+V		:= @
+endif
+
+.PHONY: all clean arm9 arm7 gameyob.nds gameyob_dsi.nds
+
+all: $(DS_ROM) $(DSI_ROM)
+
+gameyob.nds: $(DS_ROM)
+
+gameyob_dsi.nds: $(DSI_ROM)
+
+arm9:
+	$(V)+$(MAKE) -f Makefile.blocksds.arm9 --no-print-directory
+
+arm7:
+	$(V)+$(MAKE) -f Makefile.blocksds.arm7 --no-print-directory
+
+$(DS_ROM): arm9 arm7
+	@echo "  NDSTOOL $@"
+	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
+		-7 $(ARM7_ELF) -9 $(ARM9_ELF) \
+		-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)"
+
+# Keep the established DSi-only title header while using the same portable
+# ARM7/ARM9 payload. This makes the regular build usable on DS-family systems
+# and keeps an explicit DSi launcher target for existing users.
+$(DSI_ROM): arm9 arm7
+	@echo "  NDSTOOL $@"
+	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
+		-7 $(ARM7_ELF) -9 $(ARM9_ELF) \
+		-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)" \
+		-g GYOB -u 00030004 -uc 3
+
+clean:
+	@echo "  CLEAN"
+	$(V)$(MAKE) -f Makefile.blocksds.arm9 clean --no-print-directory
+	$(V)$(MAKE) -f Makefile.blocksds.arm7 clean --no-print-directory
+	$(V)$(RM) $(DS_ROM) $(DSI_ROM) compile_commands.json

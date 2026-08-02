@@ -1,8 +1,3 @@
-extern "C" {
-#include "libfat/cache.h"
-#include "libfat/partition.h"
-}
-
 #include <nds.h>
 #include <fat.h>
 #include "common.h"
@@ -15,6 +10,7 @@ extern "C" {
 #include <unistd.h>
 
 #include "inputhelper.h"
+#include "error.h"
 #include "gameboy.h"
 #include "main.h"
 #include "console.h"
@@ -50,15 +46,14 @@ touchPosition touchData;
 
 void initInput()
 {
-    fatInit(FAT_CACHE_SIZE, true);
-    //fatInitDefault();
+    if (!fatInitDefault())
+        fatalerr("Unable to initialize the SD filesystem.");
 }
 
 void flushFatCache() {
-    // This involves things from libfat which aren't normally visible
-    devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-    PARTITION* partition = (PARTITION*)devops->deviceData;
-    _FAT_cache_flush(partition->cache); // Flush the cache manually
+    // BlocksDS uses FatFS through picolibc. Flush all open standard streams
+    // instead of reaching into filesystem-private cache structures.
+    fflush(NULL);
 }
 
 

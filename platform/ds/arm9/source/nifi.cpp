@@ -474,10 +474,6 @@ void packetHandler(int packetID, int readlength)
 }
 
 
-void Timer_10ms(void) {
-	Wifi_Timer(10);
-}
-
 void nifiStop() {
     isClient = false;
     isHost = false;
@@ -490,7 +486,13 @@ void enableNifi()
     if (nifiInitialized)
         return;
 
-	Wifi_InitDefault(false);
+    // Local DS multiplayer doesn't require an Internet access point. Keeping
+    // the IP stack disabled also makes DSWiFi fully deinitializable, so local
+    // link remains usable after leaving and re-entering the link menu.
+    if (!Wifi_InitDefault(INIT_ONLY | WIFI_LOCAL_ONLY)) {
+        printLog("Nifi initialization failed\n");
+        return;
+    }
 
 // Wifi_SetPromiscuousMode: Allows the DS to enter or leave a "promsicuous" mode, in which 
 //   all data that can be received is forwarded to the arm9 for user processing.
@@ -508,18 +510,6 @@ void enableNifi()
 //  int channel: the channel to change to, in the range of 1-13
 	Wifi_SetChannel(10);
 
-	if(1) {
-		//for secial configuration for wifi
-		irqDisable(IRQ_TIMER3);
-		irqSet(IRQ_TIMER3, Timer_10ms); // replace timer IRQ
-		// re-set timer3
-		TIMER3_CR = 0;
-		TIMER3_DATA = -(6553 / 5); // 6553.1 * 256 / 5 cycles = ~10ms;
-		TIMER3_CR = 0x00C2; // enable, irq, 1/256 clock
-		irqEnable(IRQ_TIMER3);
-	}
-
-
 // Wifi_EnableWifi: Instructs the ARM7 to go into a basic "active" mode, not actually
 //   associated to an AP, but actively receiving and potentially transmitting
 	Wifi_EnableWifi();
@@ -531,7 +521,15 @@ void disableNifi() {
     if (!nifiInitialized)
         return;
 
+    Wifi_RawSetPacketHandler(NULL);
+    Wifi_SetPromiscuousMode(0);
     Wifi_DisableWifi();
+    // DSWiFi requires the ARM7 to observe disabled mode before resources can
+    // be released. These bounded waits avoid stale handlers on the next link.
+    swiWaitForVBlank();
+    swiWaitForVBlank();
+    if (!Wifi_Deinit())
+        printLog("Nifi deinitialization failed\n");
     nifiInitialized = false;
 }
 
@@ -734,6 +732,17 @@ void nifiHostMenu() {
     enableNifi();
     clearConsole();
 
+    if (!nifiInitialized) {
+        printf("Wireless hardware is unavailable.\n");
+        printf("Press B to return.\n");
+        while (true) {
+            swiWaitForVBlank();
+            inputUpdateVBlank();
+            if (keyJustPressed(KEY_B))
+                return;
+        }
+    }
+
     foundClient = false;
     isHost = true;
     isClient = false;
@@ -789,6 +798,17 @@ void nifiHostMenu() {
 void nifiClientMenu() {
     enableNifi();
     consoleClear();
+
+    if (!nifiInitialized) {
+        printf("Wireless hardware is unavailable.\n");
+        printf("Press B to return.\n");
+        while (true) {
+            swiWaitForVBlank();
+            inputUpdateVBlank();
+            if (keyJustPressed(KEY_B))
+                return;
+        }
+    }
     printf("Waiting for host...\n\n");
     printf("Press B to give up.\n\n");
 

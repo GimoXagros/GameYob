@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+export BLOCKSDS		?= /opt/blocksds/core
+export BLOCKSDSEXT	?= /opt/blocksds/external
+export WONDERFUL_TOOLCHAIN	?= /opt/wonderful
+
+NAME		:= blocksds/arm9
+SOURCEDIRS	:= platform/ds/arm9/source platform/common
+INCLUDEDIRS	:= platform/ds/arm9/include platform/ds/include \
+		   platform/common/include
+GFXDIRS		:= platform/ds/arm9/gfx
+BINDIRS		:= assets/fonts
+
+VERSION		:= $(shell git describe --always --abbrev=4)
+DEFINES		:= -DNO_VIZ -DVERSION_STRING=\"$(VERSION)\" \
+		   -DC_IO_FUNCTIONS -DNIFI
+
+LIBS		:= -ldswifi9_noip -lnds9
+LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \
+		   $(BLOCKSDS)/libs/libnds
+
+# GameYob's renderer contains ARM assembly call assumptions and has historically
+# been both faster and safer in ARM mode than Thumb mode.
+CFLAGS		:= -marm -Wno-psabi -ffast-math -fomit-frame-pointer \
+		   -include nds/ndstypes.h
+CXXFLAGS	:= $(CFLAGS)
+LDFLAGS		:= -marm
+
+include $(BLOCKSDS)/sys/default_makefiles/rom_arm9arm7/Makefile.arm9

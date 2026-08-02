@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+export BLOCKSDS		?= /opt/blocksds/core
+export BLOCKSDSEXT	?= /opt/blocksds/external
+export WONDERFUL_TOOLCHAIN	?= /opt/wonderful
+
+NAME		:= blocksds/arm7
+SOURCEDIRS	:= platform/ds/arm7/source
+INCLUDEDIRS	:= platform/ds/arm7/include platform/ds/include
+
+LIBS		:= -lnds7 -ldswifi7
+LIBDIRS		:= $(BLOCKSDS)/libs/libnds \
+		   $(BLOCKSDS)/libs/dswifi
+
+CFLAGS		:= -Wno-psabi -ffast-math -fomit-frame-pointer
+
+include $(BLOCKSDS)/sys/default_makefiles/rom_arm9arm7/Makefile.arm7

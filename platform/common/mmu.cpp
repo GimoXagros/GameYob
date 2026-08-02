@@ -1,10 +1,3 @@
-#ifdef DS
-extern "C" {
-#include "libfat/disc.h"
-#include "libfat/partition.h"
-}
-#endif
-
 #include <stdio.h>
 #include <cstdlib>
 #include <string.h>
@@ -655,17 +648,12 @@ bool Gameboy::updateHBlankDMA()
         return false;
 }
 
-// This bypasses libfat's cache to directly write a single sector of the save 
-// file. This reduces lag.
+// Write a contiguous range of logical autosave chunks through the filesystem.
 void Gameboy::writeSaveFileSectors(int startSector, int numSectors) {
-#ifdef DS
-    if (saveFileSectors[startSector] == -1) {
-        flushFatCache();
+    if (saveFile == NULL || startSector < 0 || numSectors <= 0)
         return;
-    }
-    devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-    PARTITION* partition = (PARTITION*)devops->deviceData;
 
-	_FAT_disc_writeSectors(partition->disc, saveFileSectors[startSector], numSectors, externRam+startSector*fatBytesPerSector);
-#endif
+    file_seek(saveFile, startSector * fatBytesPerSector, SEEK_SET);
+    file_write(externRam + startSector * fatBytesPerSector,
+            fatBytesPerSector, numSectors, saveFile);
 }

@@ -57,7 +57,7 @@ void printLog(const char *format, ...) {
     va_start(args, format);
 
     if (consoleDebugOutput)
-        viprintf(format, args);
+        vprintf(format, args);
 
     va_end(args);
 }

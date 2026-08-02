@@ -433,14 +433,14 @@ void mgr_updateVBlank() {
         int line=0;
         if (fpsOutput) {
             clearConsole();
-            iprintf("FPS: %d\n", fps);
+            printf("FPS: %d\n", fps);
             line++;
         }
         fps = 0;
 #ifdef DS
         if (timeOutput) {
             for (; line<23-1; line++)
-                iprintf("\n");
+                printf("\n");
             char *timeString = ctime(&rawTime);
             for (int i=0;; i++) {
                 if (timeString[i] == ':') {
@@ -453,9 +453,9 @@ void mgr_updateVBlank() {
             s[5] = '\0';
             int spaces = 31-strlen(s);
             for (int i=0; i<spaces; i++)
-                iprintf(" ");
+                printf(" ");
 
-            iprintf("%s\n", s);
+            printf("%s\n", s);
         }
 #endif
         lastRawTime = rawTime;

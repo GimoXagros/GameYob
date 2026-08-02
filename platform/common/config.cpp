@@ -292,13 +292,13 @@ void redrawKeyConfigChooser() {
 
     clearConsole();
 
-    iprintf("Config: ");
+    printf("Config: ");
     if (option == -1)
         iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* %s *\n\n", config->name);
     else
-        iprintf("  %s  \n\n", config->name);
+        printf("  %s  \n\n", config->name);
 
-    iprintf("       Button   Function\n\n");
+    printf("       Button   Function\n\n");
 
     for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {
 #if defined(_3DS)
@@ -309,17 +309,17 @@ void redrawKeyConfigChooser() {
 
         int len = 11-strlen(dsKeyNames[i]);
         while (len > 0) {
-            iprintf(" ");
+            printf(" ");
             len--;
         }
         if (option == i) 
             iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* %s | %s *\n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
         else
-            iprintf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
+            printf("  %s | %s  \n", dsKeyNames[i], gbKeyNames[config->funcKeys[i]]);
     }
-    iprintf("\nPress X to make a new config.");
+    printf("\nPress X to make a new config.");
     if (selectedKeyConfig != 0) /* can't erase the default */ {
-        iprintf("\n\nPress Y to delete this config.");
+        printf("\n\nPress Y to delete this config.");
     }
 }
 

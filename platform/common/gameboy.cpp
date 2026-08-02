@@ -1,10 +1,4 @@
 #ifdef DS
-extern "C" {
-#include "libfat/partition.h"
-#include "libfat/cache.h"
-#include "libfat/fatfile.h"
-#include "libfat/file_allocation_table.h"
-}
 #include "common.h"
 #endif
 #ifdef _3DS
@@ -775,44 +769,10 @@ int Gameboy::loadSave(int saveId)
             break;
     }
 
-    // Get the save file's sectors on the sd card.
-
-#ifdef DS
-    if (true || autoSavingEnabled) {
-        flushFatCache();
-        devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-        PARTITION* partition = (PARTITION*)devops->deviceData;
-
-        fatBytesPerSector = partition->bytesPerSector;
-
-        FILE_STRUCT* firstFatFile = partition->firstOpenFile;
-        FILE_STRUCT* fatFile = firstFatFile;
-
-        // Identify the file by the current_position variable
-        file_seek(saveFile, 13, SEEK_SET);
-
-        while (fatFile != NULL && fatFile->currentPosition != 13) {
-            fatFile = fatFile->nextOpenFile;
-        }
-
-        if (fatFile != NULL) {
-            file_seek(saveFile, 0, SEEK_SET);
-            FILE_POSITION position = fatFile->rwPosition;
-            if (position.byte != 0)
-                fatalerr("Bad assumption in autosaving code");
-
-            for (int i=0; i<0x2000*getNumSramBanks()/partition->bytesPerSector; i++) {
-                if (position.sector >= partition->sectorsPerCluster) {
-                    position.sector = 0;
-                    position.cluster = _FAT_fat_nextCluster(partition, position.cluster);
-                }
-                saveFileSectors[i] = _FAT_fat_clusterToSector(partition, position.cluster) + position.sector;
-                position.sector++;
-                printLog("%d\n", saveFileSectors[i]);
-            }
-        }
-    }
-#endif
+    // Autosave tracks logical 512-byte chunks. It intentionally doesn't cache
+    // physical FAT sectors: BlocksDS may move clusters while a file is open.
+    fatBytesPerSector = 512;
+    file_seek(saveFile, 0, SEEK_SET);
 
     return 0;
 }
@@ -840,54 +800,41 @@ int Gameboy::saveGame()
 }
 
 void Gameboy::gameboySyncAutosave() {
-#ifdef DS
     if (!autosaveStarted || saveFile == NULL)
         return;
-
-    flushFatCache();
 
     int totalSectors = 0;
 
     int startSector = -1;
-    int lastSector = -2;
     int numSectors = 0;
-    // iterate over each sector
+    // Coalesce adjacent dirty logical chunks. This retains the low-write-count
+    // autosave behaviour without bypassing the filesystem cache.
     for (int i=0; i<getNumSramBanks()*0x2000/fatBytesPerSector; i++) {
         if (dirtySectors[i]) {
             if (startSector == -1) {
                 startSector = i;
                 numSectors = 1;
             }
-            else {
-                if (lastSector == i-1 && saveFileSectors[i-1]+1 == saveFileSectors[i]) {
-                    numSectors++;
-                }
-                else {
-                    writeSaveFileSectors(startSector, numSectors);
-                    startSector = -1;
-                    numSectors = 0;
-                }
-            }
+            else
+                numSectors++;
             dirtySectors[i] = false;
-
             totalSectors++;
-
-            lastSector = i;
+        }
+        else if (startSector != -1) {
+            writeSaveFileSectors(startSector, numSectors);
+            startSector = -1;
+            numSectors = 0;
         }
     }
 
     if (startSector != -1)
         writeSaveFileSectors(startSector, numSectors);
 
+    flushFatCache();
     printLog("SAVE %d sectors\n", totalSectors);
-
-    devoptab_t* devops = (devoptab_t*)GetDeviceOpTab ("sd");
-    PARTITION* partition = (PARTITION*)devops->deviceData;
-    _FAT_cache_invalidate(partition->cache);
 
     framesSinceAutosaveStarted = 0;
     autosaveStarted = false;
-#endif
 }
 
 void Gameboy::updateAutosave() {
