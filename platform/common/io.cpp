@@ -41,6 +41,10 @@ void file_close(FileHandle* h) {
     free(h->filename);
     free(h);
 }
+void file_flush(FileHandle* h) {
+    if (h && h->file)
+        fflush(h->file);
+}
 void file_read(void* buf, int bs, int size, FileHandle* h) {
     fread(buf, bs, size, h->file);
 }

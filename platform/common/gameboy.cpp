@@ -793,7 +793,7 @@ int Gameboy::saveGame()
             break;
     }
 
-    flushFatCache();
+    file_flush(saveFile);
     memset(dirtySectors, 0, sizeof(dirtySectors));
 
     return 0;
@@ -830,7 +830,7 @@ void Gameboy::gameboySyncAutosave() {
     if (startSector != -1)
         writeSaveFileSectors(startSector, numSectors);
 
-    flushFatCache();
+    file_flush(saveFile);
     printLog("SAVE %d sectors\n", totalSectors);
 
     framesSinceAutosaveStarted = 0;

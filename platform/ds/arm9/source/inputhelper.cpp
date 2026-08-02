@@ -54,9 +54,8 @@ void initInput()
 }
 
 void flushFatCache() {
-    // BlocksDS uses FatFS through picolibc. Flush all open standard streams
-    // instead of reaching into filesystem-private cache structures.
-    fflush(NULL);
+    // Save streams are flushed explicitly through file_flush(). BlocksDS does
+    // not expose the old libfat global cache internals.
 }
 
 
@@ -125,14 +124,14 @@ void system_doRumble(bool rumbleVal)
     }
 }
 
-#define MOTION_SENSOR_RANGE 128
+#define DS_MOTION_SENSOR_RANGE 128
 
 int system_getMotionSensorX() {
     int px = touchData.px;
     if (!keyPressed(KEY_TOUCH))
         px = 128;
 
-    double val = (128 - px) * ((double)MOTION_SENSOR_RANGE / 256)
+    double val = (128 - px) * ((double)DS_MOTION_SENSOR_RANGE / 256)
         + MOTION_SENSOR_MID;
     /*
     if (val < 0)
@@ -146,7 +145,7 @@ int system_getMotionSensorY() {
     if (!keyPressed(KEY_TOUCH))
         py = 96;
 
-    double val = (96 - py) * ((double)MOTION_SENSOR_RANGE / 192)
+    double val = (96 - py) * ((double)DS_MOTION_SENSOR_RANGE / 192)
         + MOTION_SENSOR_MID - 80;
     return (int)val;
 }
@@ -165,7 +164,7 @@ void system_enableCamera(int index) {
         camInit = true;
     }
 
-    u8 camera = index == 1 ? CAMERA_INNER : CAMERA_OUTER;
+    CameraDevice camera = index == 1 ? CAMERA_INNER : CAMERA_OUTER;
     if (!cameraSelect(camera)) {
         cameraDeinit();
         free(camData);

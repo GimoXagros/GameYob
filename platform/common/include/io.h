@@ -24,6 +24,7 @@ struct DirStruct;
 void        fs_init();
 FileHandle* file_open(const char*, const char*);    // Returns NULL if error occurs
 void        file_close(FileHandle*);
+void        file_flush(FileHandle*);
 void        file_read(void*, int, int, FileHandle*);
 void        file_write(const void*, int, int, FileHandle*);
 void        file_gets(char*, int, FileHandle*);

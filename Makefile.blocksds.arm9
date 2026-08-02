@@ -13,7 +13,7 @@ BINDIRS		:= assets/fonts
 
 VERSION		:= $(shell git describe --always --abbrev=4)
 DEFINES		:= -DNO_VIZ -DVERSION_STRING=\"$(VERSION)\" \
-		   -DC_IO_FUNCTIONS -DNIFI
+		   -DC_IO_FUNCTIONS -DNIFI -DDS
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \
