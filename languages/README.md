@@ -48,6 +48,16 @@ strings:
 Run `python tools/generate_language_files.py` to regenerate the twelve example
 files and the embedded-language table from the canonical English-key list.
 
+# GameYob 言語ファイル
+
+英語（`en`）、日本語（`ja`）、韓国語（`ko`）は実行ファイルへ内蔵されているため、外部の言語フォルダーがなくても **設定 → 言語** からすぐに切り替えられます。同じ内容を編集できるINI、JSON、XML、YAMLの例も同梱しています。翻訳がないキーは空欄ではなく英語キーを表示します。
+
+独自の翻訳は **Custom → 言語ファイル選択** からUTF-8の`.ini`、`.json`、`.xml`、`.yaml`、`.yml`を読み込みます。選択したコードとパスは`gameyobds.ini`へ保存されます。
+
+**設定保存**を実行すると、`gameyobds.ini`と同じ場所に`gameyob_language.ini`が存在しない場合だけ、完全な英語テンプレートを作成します。既存ファイルは上書きされません。新しい言語を追加する場合は`strings`内の値だけを翻訳し、英語キーは変更せず、UTF-8で保存してください。
+
+最大512項目、キー127バイト、値511バイト、ファイル128KiBまで読み込めます。これらの上限はNintendo DS上での安定した読み込みを保つためのものです。
+
 # GameYob 언어 파일
 
 영어(`en`)·일본어(`ja`)·한국어(`ko`) 메뉴는 실행 파일에 내장되어 외부

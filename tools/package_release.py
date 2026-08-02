@@ -33,7 +33,10 @@ def main() -> None:
         "OFL.txt": (root / "assets/fonts/OFL.txt").read_bytes(),
         "STB_LICENSE.txt": (root / "third_party/stb/LICENSE.txt").read_bytes(),
         "THIRD_PARTY_NOTICES.txt": (root / "THIRD_PARTY_NOTICES.txt").read_bytes(),
-        "RELEASE_NOTES.md": (root / "docs/releases/v0.5.4-ko.md").read_bytes(),
+        "RELEASE_NOTES.md": (root / "docs/releases/v0.5.5-ko.md").read_bytes(),
+        "gameyob/docs/user-guide.en.md": (root / "docs/guides/user-guide.en.md").read_bytes(),
+        "gameyob/docs/user-guide.ja.md": (root / "docs/guides/user-guide.ja.md").read_bytes(),
+        "gameyob/docs/user-guide.ko.md": (root / "docs/guides/user-guide.ko.md").read_bytes(),
         "gameyob/languages/README.md": (root / "languages/README.md").read_bytes(),
     }
     for language in sorted((root / "languages").iterdir()):

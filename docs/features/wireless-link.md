@@ -8,7 +8,7 @@ The native 3DS build also exposes a LAN backend using the same protocol model.
 Every packet carries:
 
 - `YOB2` magic and protocol version;
-- host/session ID and sender ROM identifier;
+- host/session ID and full-file sender ROM fingerprint;
 - packet sequence and exact acknowledged sequence;
 - declared payload length;
 - fragment metadata and total transfer length;
@@ -46,10 +46,17 @@ after ten seconds. Cancelling or timing out no longer changes an emulator pause
 state that the link subsystem did not create.
 
 Starting **Local Link** now closes any active wireless transport first, clears
-stale secondary-ROM/save state, and selects a deterministic internal-clock
-instance. Native 3DS local and LAN cable sessions also use the CGB fast serial
-clock when the cartridge requests it. A translated confirmation message makes
-the otherwise background-only second Game Boy instance visible to the user.
+stale secondary-ROM/save state, loads the dedicated `.sa2` save exactly once,
+maps SRAM before emulator initialization, and selects a deterministic
+internal-clock instance. Native 3DS local and LAN cable sessions also use the
+CGB fast serial clock when the cartridge requests it. A translated confirmation
+message makes the otherwise background-only second Game Boy instance visible.
+
+ROM identity is calculated across the complete file rather than its visible
+title. This permits cross-version link games while preventing two patched ROMs
+with the same title from being treated as identical. When a different peer ROM
+is required, its file is loaded, fingerprint-checked, and initialized in the
+correct save-before-MMU order.
 
 This is LAN communication, not Nintendo UDS. Both systems must be on the same
 IPv4 network and the access point/firewall must permit UDP broadcast and port

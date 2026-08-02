@@ -19,7 +19,7 @@ The 3DS version had its own kinks, which means you may still prefer to use the
 DS version even on a 3DS. It is recommended to install it using the DSiWare CIA
 file provided with the newer releases of GameYob DS.
 
-## GameYob v0.5.4-ko
+## GameYob v0.5.5-ko
 
 This unofficial homebrew release completes the next repository milestone and
 keeps the emulator core and its redistributable homebrew binaries under their
@@ -27,6 +27,10 @@ existing licenses. No ROM image or BIOS is included.
 
 ### Completed work
 
+- DS/DSi development migrated from legacy devkitARM makefiles to the pinned
+  BlocksDS 1.22.2 SDK and Wonderful toolchain, with reproducible container CI.
+  The native 3DS target remains on libctru/devkitARM because BlocksDS targets
+  Nintendo DS-family binaries rather than native 3DS applications.
 - Extensible UTF-8 localization with embedded English, Japanese, and Korean
   menus, English fallback, custom file selection, and editable examples in
   INI, JSON, XML, and YAML; saving settings creates a non-destructive English
@@ -39,7 +43,13 @@ existing licenses. No ROM image or BIOS is included.
   input, state hashes, timeout handling, initial SRAM synchronization, and a
   bounded offline/no-peer return path
 - Reliable local-link restart after a wireless session, isolated secondary
-  save state, and native 3DS CGB fast-serial timing
+  save state, correct cross-ROM initialization, full-ROM peer fingerprints,
+  and native 3DS CGB fast-serial timing
+- Stable MBC3/HuC3 real-time clocks with latch-edge, halt, day-carry,
+  backward-host-clock, RTC-only cartridge, save, and state handling
+- Patched-ROM layout hardening: physical file-size detection, safe
+  non-power-of-two bank mirroring, partial-bank fill, the complete standard
+  SRAM header table through 128 KiB, and an explicit 8 MiB hardware boundary
 - Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
   attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
 - Independent DS NR50 SO1/SO2 volume/routing behavior and GameShark `0x8x`
@@ -50,10 +60,19 @@ existing licenses. No ROM image or BIOS is included.
 
 See [language-file documentation](languages/README.md),
 [wireless-link design](docs/features/wireless-link.md), and the
-[v0.5.4-ko release record](docs/releases/v0.5.4-ko.md).
+[v0.5.5-ko release record](docs/releases/v0.5.5-ko.md).
+
+### User guides / ユーザーガイド / 사용자 가이드
+
+- [English](docs/guides/user-guide.en.md)
+- [日本語](docs/guides/user-guide.ja.md)
+- [한국어](docs/guides/user-guide.ko.md)
 
 ### 완료된 작업
 
+- 기존 devkitARM Makefile에서 고정된 BlocksDS 1.22.2 SDK와 Wonderful
+  툴체인으로 DS/DSi 개발 환경을 전환하고 컨테이너 CI를 재현 가능하게 구성.
+  BlocksDS는 DS 계열용이므로 네이티브 3DS 대상은 libctru/devkitARM 유지
 - 파일 없이도 작동하는 내장 영어·일본어·한국어 메뉴, 영어 원문 대체,
   사용자 파일 선택을 갖춘 UTF-8 다국어 기능과 INI·JSON·XML·YAML 예제;
   설정 저장 시 기존 파일을 덮어쓰지 않는 영어 기본
@@ -64,7 +83,12 @@ See [language-file documentation](languages/README.md),
   분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM 동기화를 갖춘
   네이티브 3DS LAN 링크와 네트워크 없음·상대 기기 없음 상태의 제한 시간 복귀
 - 무선 링크 사용 뒤에도 정상적으로 다시 시작되는 로컬 링크, 분리된 두 번째
-  세이브 상태 및 네이티브 3DS GBC 고속 직렬 통신 타이밍
+  세이브 상태, 서로 다른 ROM의 올바른 초기화, 전체 ROM 지문 확인 및
+  네이티브 3DS GBC 고속 직렬 통신 타이밍
+- 래치 0→1 경계, 정지, 날짜 캐리, 호스트 시계 역행, RTC 전용 카트리지,
+  세이브·상태 파일을 처리하는 안정된 MBC3/HuC3 실시간 시계
+- 실제 파일 크기, 비2제곱 뱅크 미러링, 불완전 뱅크 채움, 128KiB까지의
+  표준 SRAM 헤더 및 8MiB 하드웨어 경계를 반영한 패치 ROM 안정화
 - 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
   명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
 - DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기
@@ -200,7 +224,7 @@ MIT 및 OFL-1.1 라이선스 전문은 저장소와 `gameyob.zip`에 포함되�
 
 ## TODO
 
-The following work is not completed by `v0.5.4-ko`.
+The following work is not completed by `v0.5.5-ko`.
 
 1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
@@ -219,7 +243,7 @@ The following work is not completed by `v0.5.4-ko`.
 
 ## 할 일
 
-다음 작업은 `v0.5.4-ko`에서 완료되지 않았습니다.
+다음 작업은 `v0.5.5-ko`에서 완료되지 않았습니다.
 
 1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
