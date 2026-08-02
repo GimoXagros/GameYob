@@ -10,6 +10,7 @@
 #include "cheats.h"
 #include "error.h"
 #include "io.h"
+#include "nifi_protocol.h"
 
 #ifdef EMBEDDED_ROM
 #include "rom_gb.h"
@@ -22,6 +23,24 @@ extern bool __dsimode;
 #define DSI_MAX_BANKS 512 // 8 megabytes
 #define DS_MAX_BANKS 32 // 2 megabytes
 #endif
+
+namespace {
+
+uint32_t fingerprintFile(FileHandle* file, int sizeBytes) {
+    uint8_t buffer[1024];
+    uint32_t identifier = nifi::romIdentifier(NULL, 0);
+    file_seek(file, 0, SEEK_SET);
+    for (int offset = 0; offset < sizeBytes; offset += sizeof(buffer)) {
+        int bytes = sizeBytes - offset;
+        if (bytes > (int)sizeof(buffer))
+            bytes = sizeof(buffer);
+        file_read(buffer, 1, bytes, file);
+        identifier = nifi::romIdentifierUpdate(identifier, buffer, bytes);
+    }
+    return identifier ? identifier : 1;
+}
+
+} // namespace
 
 RomFile::RomFile(const char* f, bool halfMemory) {
     romFile=NULL;
@@ -108,23 +127,12 @@ RomFile::RomFile(const char* f, bool halfMemory) {
     if (gbsMode)
         numRamBanks = 1;
     else {
-        // Get the game's external memory size and allocate the memory
-        switch(getRamSize())
-        {
-            case 0:
-                numRamBanks = 0;
-                break;
-            case 1: // Technically 2 kilobytes
-            case 2:
-                numRamBanks = 1;
-                break;
-            case 3:
-                numRamBanks = 4;
-                break;
-            default:
-                printLog("Invalid RAM bank number: %x\nDefaulting to 4 banks\n", getRamSize());
-                numRamBanks = 4;
-                break;
+        // Prefer the physical ROM length over the often-stale size byte used
+        // by patched ROMs, but decode the complete standard RAM-size table.
+        numRamBanks = romlayout::ramBankCount(getRamSize());
+        if (numRamBanks < 0) {
+            printLog("Invalid RAM bank number: %x\nDefaulting to 4 banks\n", getRamSize());
+            numRamBanks = 4;
         }
         if (getMBC() == MBC2)
             numRamBanks = 1;
@@ -145,6 +153,9 @@ RomFile::~RomFile() {
 
 
 void RomFile::loadRomBank(int romBank) {
+    romBank = normalizeRomBank(romBank);
+    if (romBank < 0)
+        return;
     if (bankSlotIDs[romBank] != -1) {
         romSlot1 = romBankSlots+bankSlotIDs[romBank]*0x4000;
         return;
@@ -155,6 +166,7 @@ void RomFile::loadRomBank(int romBank) {
     bankSlotIDs[bankToUnload] = -1;
     bankSlotIDs[romBank] = slot;
 
+    memset(romBankSlots+slot*0x4000, 0xff, 0x4000);
     file_seek(romFile, 0x4000*romBank, SEEK_SET);
     file_read(romBankSlots+slot*0x4000, 1, 0x4000, romFile);
 
@@ -166,9 +178,11 @@ void RomFile::loadRomBank(int romBank) {
 }
 
 bool RomFile::isRomBankLoaded(int bank) {
-    return bankSlotIDs[bank] != -1;
+    bank = normalizeRomBank(bank);
+    return bank >= 0 && bankSlotIDs[bank] != -1;
 }
 u8* RomFile::getRomBank(int bank) {
+    bank = normalizeRomBank(bank);
     if (!isRomBankLoaded(bank))
         return 0;
     return romBankSlots+bankSlotIDs[bank]*0x4000;
@@ -262,22 +276,27 @@ void RomFile::loadBanks() {
         return;
     }
 
+    int payloadSize = 0;
     if (gbsMode) {
         file_read(gbsHeader, 1, 0x70, romFile);
         gbsReadHeader();
         file_seek(romFile, 0, SEEK_END);
-        numRomBanks = (file_tell(romFile)-0x70+0x3fff)/0x4000; // Get number of banks, rounded up
-        printf("%.2x\n", numRomBanks);
+        romSizeBytes = file_tell(romFile);
+        payloadSize = romSizeBytes > 0x70 ? romSizeBytes - 0x70 : 0;
+        numRomBanks = romlayout::bankCountForSize(payloadSize);
     }
     else {
         file_seek(romFile, 0, SEEK_END);
-        numRomBanks = (file_tell(romFile)+0x3fff)/0x4000; // Get number of banks, rounded up
+        romSizeBytes = file_tell(romFile);
+        payloadSize = romSizeBytes;
+        numRomBanks = romlayout::bankCountForSize(payloadSize);
     }
 
-    // Round numRomBanks to a power of 2
-    int n=1;
-    while (n < numRomBanks) n*=2;
-    numRomBanks = n;
+    if (!romlayout::isSupportedSize(payloadSize))
+        fatalerr("Unsupported ROM size: %d bytes (maximum is 8 MiB).",
+                romSizeBytes);
+
+    contentId = fingerprintFile(romFile, romSizeBytes);
 
     //int rawRomSize = file_tell(romFile);
     file_seek(romFile, 0, SEEK_SET);
@@ -296,7 +315,11 @@ void RomFile::loadBanks() {
 
     if (romBankSlots != NULL)
         free(romBankSlots);
-    romBankSlots = (u8*)malloc(maxLoadedRomBanks*0x4000);
+    int allocationSlots = numLoadedRomBanks < 2 ? 2 : numLoadedRomBanks;
+    romBankSlots = (u8*)malloc(allocationSlots*0x4000);
+    if (romBankSlots == NULL)
+        fatalerr("Not enough memory to load ROM banks.");
+    memset(romBankSlots, 0xff, allocationSlots*0x4000);
 
     // Read bank 0
     if (gbsMode) {

@@ -54,6 +54,13 @@ jobs:
             tests/rtc_test.cpp platform/common/rtc.cpp \
             -o /tmp/rtc_test
           /tmp/rtc_test
+      - name: Build and run ROM layout tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/rom_layout_test.cpp platform/common/rom_layout.cpp \
+            -o /tmp/rom_layout_test
+          /tmp/rom_layout_test
       - name: Build and run SGB border tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

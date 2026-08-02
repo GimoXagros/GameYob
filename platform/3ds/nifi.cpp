@@ -149,9 +149,7 @@ u32 stateHash() {
 
 u32 getLocalRomId() {
     if (!localRomId && gameboy && gameboy->getRomFile()) {
-        const char* title = gameboy->getRomFile()->getRomTitle();
-        localRomId = nifi::romIdentifier(reinterpret_cast<const u8*>(title),
-                                         strlen(title));
+        localRomId = gameboy->getRomFile()->getContentId();
         if (!localRomId)
             localRomId = 1;
     }
@@ -421,7 +419,7 @@ int receiveSram() {
 
 int loadOtherRom() {
     if (nifiLinkType != LINK_CABLE ||
-            strcmp(gameboy->getRomFile()->getRomTitle(), linkedRomTitle) == 0)
+            gameboy->getRomFile()->getContentId() == linkedRomId)
         return 0;
     if (!file_exists(linkedFilename))
         return 1;
@@ -429,9 +427,15 @@ int loadOtherRom() {
     gameboy->getRomFile()->halfMemoryMode();
     if (gb2->getRomFile() && gameboy->getRomFile() != gb2->getRomFile())
         delete gb2->getRomFile();
-    gb2->setRomFile(new RomFile(linkedFilename, true));
+    RomFile* linkedRom = new RomFile(linkedFilename, true);
+    if (!linkedRom || linkedRom->getContentId() != linkedRomId) {
+        delete linkedRom;
+        return 1;
+    }
+    gb2->setRomFile(linkedRom);
+    if (gb2->loadSave(-1) != 0)
+        return 1;
     gb2->init();
-    gb2->loadSave(-1);
     return 0;
 }
 

@@ -149,8 +149,7 @@ void nifiSendInputFrame(u32 frame) {
 
 u32 nifiGetLocalRomId() {
     if (!localRomId && gameboy && gameboy->getRomFile()) {
-        const char* title = gameboy->getRomFile()->getRomTitle();
-        localRomId = nifi::romIdentifier((const u8*)title, strlen(title));
+        localRomId = gameboy->getRomFile()->getContentId();
         if (!localRomId)
             localRomId = 1;
     }
@@ -629,7 +628,7 @@ int nifiReceiveSram() {
 int loadOtherRom() {
     if (nifiLinkType != LINK_CABLE)
         return 0;
-    if (strcmp(gameboy->getRomFile()->getRomTitle(), linkedRomTitle) == 0)
+    if (gameboy->getRomFile()->getContentId() == linkedRomId)
         return 0;
     if (!file_exists(linkedFilename))
         return 1;
@@ -638,12 +637,17 @@ int loadOtherRom() {
 
     if (gb2->getRomFile() != NULL && gameboy->getRomFile() != gb2->getRomFile())
         delete gb2->getRomFile();
-    gb2->setRomFile(new RomFile(linkedFilename, true));
+    RomFile* linkedRom = new RomFile(linkedFilename, true);
+    if (!linkedRom || linkedRom->getContentId() != linkedRomId) {
+        delete linkedRom;
+        return 1;
+    }
+    gb2->setRomFile(linkedRom);
 
-    // Init again since we switched out the rom
+    // Size and map SRAM before initMMU stores its bank pointers.
+    if (gb2->loadSave(-1) != 0)
+        return 1;
     gb2->init();
-    // run loadSave() to make sure externRam is sized correctly
-    gb2->loadSave(-1);
 
     return 0;
 }

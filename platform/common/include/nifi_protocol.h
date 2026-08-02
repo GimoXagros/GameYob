@@ -63,6 +63,8 @@ enum DecodeResult {
 
 uint32_t crc32(const uint8_t* data, size_t length);
 uint32_t romIdentifier(const uint8_t* header, size_t length);
+uint32_t romIdentifierUpdate(uint32_t identifier,
+        const uint8_t* data, size_t length);
 
 size_t encodePacket(uint8_t* output, size_t outputCapacity,
         const PacketHeader& header, const uint8_t* payload);

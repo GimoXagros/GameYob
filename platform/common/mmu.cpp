@@ -25,8 +25,9 @@ static u8 unavailableRam[0x2000];
 
 void Gameboy::refreshRomBank(int bank) 
 {
-    if (bank < romFile->getNumRomBanks()) {
-        romBank = bank;
+    const int normalizedBank = romFile->normalizeRomBank(bank);
+    if (normalizedBank >= 0) {
+        romBank = normalizedBank;
         romFile->loadRomBank(romBank); 
         memory[0x4] = romFile->romSlot1;
         memory[0x5] = romFile->romSlot1+0x1000;

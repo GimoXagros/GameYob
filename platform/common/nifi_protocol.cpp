@@ -66,9 +66,15 @@ uint32_t crc32(const uint8_t* data, size_t length) {
 }
 
 uint32_t romIdentifier(const uint8_t* header, size_t length) {
-    uint32_t hash = 2166136261U;
+    return romIdentifierUpdate(2166136261U, header, length);
+}
+
+uint32_t romIdentifierUpdate(uint32_t hash, const uint8_t* data,
+        size_t length) {
+    if (!data)
+        return hash;
     for (size_t i = 0; i < length; ++i) {
-        hash ^= header[i];
+        hash ^= data[i];
         hash *= 16777619U;
     }
     return hash;

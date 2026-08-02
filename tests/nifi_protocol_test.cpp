@@ -34,6 +34,16 @@ static void testKnownCrc32Vector() {
     assert(nifi::crc32(input, sizeof(input) - 1) == 0xcbf43926U);
 }
 
+static void testIncrementalRomIdentifier() {
+    static const uint8_t first[] = {1, 2, 3};
+    static const uint8_t second[] = {4, 5, 6};
+    static const uint8_t combined[] = {1, 2, 3, 4, 5, 6};
+    uint32_t identifier = nifi::romIdentifier(first, sizeof(first));
+    identifier = nifi::romIdentifierUpdate(identifier, second,
+                                            sizeof(second));
+    assert(identifier == nifi::romIdentifier(combined, sizeof(combined)));
+}
+
 static void testRejectsTruncationAndCorruption() {
     uint8_t packet[64];
     const uint8_t payload[] = {9, 8, 7};
@@ -84,6 +94,7 @@ int main() {
 
     testRoundTrip();
     testKnownCrc32Vector();
+    testIncrementalRomIdentifier();
     testRejectsTruncationAndCorruption();
     testIdentityBounds();
     return 0;

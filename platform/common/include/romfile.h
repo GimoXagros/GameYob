@@ -6,8 +6,7 @@
 #include <stdio.h>
 #include <vector>
 #include "io.h"
-
-#define MAX_ROM_BANKS   0x200
+#include "rom_layout.h"
 
 /* All the possible MBC */
 enum {
@@ -43,12 +42,18 @@ class RomFile {
         void fullMemoryMode();
 
         inline int getNumRomBanks() { return numRomBanks; }
+        inline int getRomSizeBytes() { return romSizeBytes; }
+        inline uint32_t getContentId() { return contentId; }
         inline int getNumSramBanks() { return numRamBanks; }
         inline int getCgbFlag() { return romSlot0[0x143]; }
         inline int getRamSize() { return romSlot0[0x149]; }
         inline int getMapper() { return romSlot0[0x147]; }
         inline int getMBC() { return MBC; }
-        inline bool hasRumble() { return MBC == 0x1c || MBC == 0x1d || MBC == 0x1e; }
+        inline bool hasRumble() { return getMapper() == 0x1c ||
+            getMapper() == 0x1d || getMapper() == 0x1e; }
+        inline int normalizeRomBank(int bank) {
+            return romlayout::normalizeBank(bank, numRomBanks);
+        }
 
         u8* romSlot0;
         u8* romSlot1;
@@ -59,11 +64,13 @@ class RomFile {
         u8* romBankSlots = NULL; // Each 0x4000 bytes = one slot
         int maxLoadedRomBanks;
         int numLoadedRomBanks;
-        int bankSlotIDs[MAX_ROM_BANKS]; // Keeps track of which bank occupies which slot
+        int bankSlotIDs[romlayout::MAX_ROM_BANKS]; // Bank-to-cache-slot map
         std::vector<int> lastBanksUsed;
         FileHandle* romFile;
 
         int numRomBanks;
+        int romSizeBytes;
+        uint32_t contentId;
         int numRamBanks;
         int MBC;
 
