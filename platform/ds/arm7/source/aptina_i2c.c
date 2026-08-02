@@ -30,6 +30,7 @@
  * -Pk11, 2020                                           *
  ********************************************************/
 
+#ifndef __BLOCKSDS__
 #include "aptina_i2c.h"
 
 #include <nds/bios.h>
@@ -100,3 +101,4 @@ u16 aptReadRegister(u8 device, u16 reg) {
 
 	return 0xFFFF;
 }
+#endif

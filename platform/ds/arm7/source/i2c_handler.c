@@ -1,3 +1,4 @@
+#ifndef __BLOCKSDS__
 #include "i2c_handler.h"
 
 #include "aptina.h"
@@ -40,3 +41,4 @@ void i2cFifoHandler(u32 value32, void *userdata) {
 			break;
 	}
 }
+#endif
