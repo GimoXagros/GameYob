@@ -333,22 +333,14 @@ void handlePacketCommand(int command, u8* data, u32 dataLen) {
             break;
         case NIFI_CMD_TRANSFER_SRAM:
             {
-                u32 expectedSize = 0;
-                if (nifiLinkType == LINK_SGB)
-                    expectedSize = gameboy->getNumSramBanks()*0x2000;
-                else if (gb2)
-                    expectedSize = gb2->getNumSramBanks()*0x2000;
-                if (dataLen != expectedSize) {
-                    printLog("Nifi bad SRAM size\n");
+                Gameboy* destination = nifiLinkType == LINK_SGB ?
+                    gameboy : gb2;
+                if (!destination ||
+                        !destination->importLinkSaveData(data, dataLen)) {
+                    printLog("Nifi bad save-data size\n");
                     break;
                 }
-                if (nifiLinkType == LINK_SGB)
-                    memcpy(gameboy->externRam, data, expectedSize);
-                else if (gb2)
-                    memcpy(gb2->externRam, data, expectedSize);
-                else
-                    printLog("GB2 NOT INITIALIZED!\n");
-                printLog("Received SRAM.\n");
+                printLog("Received save data.\n");
                 receivedSram = true;
             }
             break;
@@ -608,9 +600,16 @@ void nifiLinkTypeMenu() {
 }
 
 void nifiSendSram() {
-    nifiSendPacket(NIFI_CMD_TRANSFER_SRAM, gameboy->externRam,
-            gameboy->getNumSramBanks()*0x2000, true);
-    printLog("Sent SRAM.\n");
+    const u32 dataSize = gameboy->getLinkSaveDataSize();
+    if (!dataSize)
+        return;
+    u8* data = (u8*)malloc(dataSize);
+    if (!data)
+        return;
+    if (gameboy->exportLinkSaveData(data, dataSize))
+        nifiSendPacket(NIFI_CMD_TRANSFER_SRAM, data, dataSize, true);
+    free(data);
+    printLog("Sent save data.\n");
 }
 
 int nifiReceiveSram() {
@@ -708,9 +707,9 @@ int nifiStartLink() {
 
     }
 
-    const bool localHasSram = gameboy->getNumSramBanks() != 0;
+    const bool localHasSram = gameboy->getLinkSaveDataSize() != 0;
     const bool remoteHasSram = nifiLinkType == LINK_CABLE && gb2 &&
-        gb2->getNumSramBanks() != 0;
+        gb2->getLinkSaveDataSize() != 0;
     if (isHost) {
         if (localHasSram)
             nifiSendSram();

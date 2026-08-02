@@ -24,7 +24,7 @@ private:
 };
 
 enum {
-    PROTOCOL_VERSION = 2,
+    PROTOCOL_VERSION = 3,
     HEADER_SIZE = 32,
     FLAG_ACK_REQUIRED = 1,
     // A fragment packet contains 0x400 data bytes plus a 0x10 wrapper.

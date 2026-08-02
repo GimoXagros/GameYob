@@ -99,7 +99,7 @@ size_t encodePacket(uint8_t* output, size_t outputCapacity,
     output[0] = 'Y';
     output[1] = 'O';
     output[2] = 'B';
-    output[3] = '2';
+    output[3] = '3';
     output[4] = PROTOCOL_VERSION;
     output[5] = header.command;
     output[6] = header.flags;
@@ -123,7 +123,7 @@ DecodeResult decodePacket(const uint8_t* packet, size_t packetLength,
     if (!packet || !output || packetLength < HEADER_SIZE)
         return DECODE_TOO_SHORT;
     if (packet[0] != 'Y' || packet[1] != 'O' ||
-            packet[2] != 'B' || packet[3] != '2')
+            packet[2] != 'B' || packet[3] != '3')
         return DECODE_BAD_MAGIC;
     if (packet[4] != PROTOCOL_VERSION)
         return DECODE_BAD_VERSION;

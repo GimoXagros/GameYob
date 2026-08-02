@@ -834,6 +834,48 @@ int Gameboy::saveGame()
     return 0;
 }
 
+size_t Gameboy::getLinkSaveDataSize()
+{
+    size_t size = getNumSramBanks()*0x2000;
+    if (romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3)
+        size += sizeof(ClockStruct);
+    return size;
+}
+
+bool Gameboy::exportLinkSaveData(u8* output, size_t outputSize)
+{
+    if (!output || outputSize != getLinkSaveDataSize())
+        return false;
+
+    const size_t ramSize = getNumSramBanks()*0x2000;
+    if (ramSize)
+        memcpy(output, externRam, ramSize);
+    if (outputSize > ramSize) {
+        updateClockFromHost();
+        memcpy(output + ramSize, &gbClock, sizeof(gbClock));
+    }
+    return true;
+}
+
+bool Gameboy::importLinkSaveData(const u8* input, size_t inputSize)
+{
+    if (!input || inputSize != getLinkSaveDataSize())
+        return false;
+
+    const size_t ramSize = getNumSramBanks()*0x2000;
+    if (ramSize)
+        memcpy(externRam, input, ramSize);
+    if (inputSize > ramSize) {
+        memcpy(&gbClock, input + ramSize, sizeof(gbClock));
+        const time_t now = getTime();
+        if (gbClock.last <= 0 || gbClock.last > now)
+            gbClock.last = now;
+        rtcLatchState = 0;
+        rtcLatched = false;
+    }
+    return true;
+}
+
 void Gameboy::gameboySyncAutosave() {
     if (!autosaveStarted || saveFile == NULL)
         return;

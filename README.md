@@ -40,7 +40,7 @@ existing licenses. No ROM image or BIOS is included.
   are converted to UTF-8 without lossy narrowing
 - Native 3DS LAN link backend with room discovery, host/client connection,
   link-cable and SGB multiplayer modes, ACK/retry, fragmentation, buffered
-  input, state hashes, timeout handling, initial SRAM synchronization, and a
+  input, state hashes, timeout handling, initial SRAM/RTC synchronization, and a
   bounded offline/no-peer return path
 - Reliable local-link restart after a wireless session, isolated secondary
   save state, correct cross-ROM initialization, full-ROM peer fingerprints,
@@ -80,7 +80,7 @@ See [language-file documentation](languages/README.md),
 - DS/DSi 및 네이티브 3DS의 전체 Galmuri BMP 유니코드 UI 글꼴,
   UTF-8/CP949 한글 파일명·치트 목록, 3DS UTF-16 파일명의 무손실 UTF-8 변환
 - 방 검색, 호스트/클라이언트 연결, 링크 케이블·SGB 멀티플레이, 재전송,
-  분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM 동기화를 갖춘
+  분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM/RTC 동기화를 갖춘
   네이티브 3DS LAN 링크와 네트워크 없음·상대 기기 없음 상태의 제한 시간 복귀
 - 무선 링크 사용 뒤에도 정상적으로 다시 시작되는 로컬 링크, 분리된 두 번째
   세이브 상태, 서로 다른 ROM의 올바른 초기화, 전체 ROM 지문 확인 및

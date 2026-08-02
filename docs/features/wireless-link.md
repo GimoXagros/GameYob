@@ -3,7 +3,7 @@
 The legacy raw NiFi backend now uses a versioned, bounds-checked packet format.
 The native 3DS build also exposes a LAN backend using the same protocol model.
 
-## Protocol v2
+## Protocol v3
 
 Every packet carries:
 
@@ -29,7 +29,7 @@ identity strings use explicit lengths and capacity checks instead of
   that happens to share the same ring slot.
 - A deterministic state hash is exchanged every 60 frames; mismatches are
   logged with the first detected frame.
-- Initial SRAM transfer is length-checked and reliable.
+- Initial SRAM plus MBC3/HuC3 clock transfer is length-checked and reliable.
 
 ## Native Nintendo 3DS LAN backend
 

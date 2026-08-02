@@ -276,20 +276,11 @@ void handlePacketCommand(int command, const u8* data, u32 dataLength) {
 
         case NIFI_CMD_TRANSFER_SRAM:
             {
-                u32 expectedSize = 0;
-                u8* destination = NULL;
-                if (nifiLinkType == LINK_SGB && gameboy) {
-                    expectedSize = gameboy->getNumSramBanks() * 0x2000;
-                    destination = gameboy->externRam;
-                }
-                else if (gb2) {
-                    expectedSize = gb2->getNumSramBanks() * 0x2000;
-                    destination = gb2->externRam;
-                }
-                if (destination && dataLength == expectedSize) {
-                    memcpy(destination, data, expectedSize);
+                Gameboy* destination = nifiLinkType == LINK_SGB ?
+                    gameboy : gb2;
+                if (destination &&
+                        destination->importLinkSaveData(data, dataLength))
                     receivedSram = true;
-                }
             }
             break;
 
@@ -403,10 +394,17 @@ void pumpPackets() {
 }
 
 void sendSram() {
-    if (!gameboy || !gameboy->externRam)
+    if (!gameboy)
         return;
-    nifiSendPacket(NIFI_CMD_TRANSFER_SRAM, gameboy->externRam,
-                   gameboy->getNumSramBanks() * 0x2000, true);
+    const u32 dataSize = gameboy->getLinkSaveDataSize();
+    if (!dataSize)
+        return;
+    u8* data = static_cast<u8*>(malloc(dataSize));
+    if (!data)
+        return;
+    if (gameboy->exportLinkSaveData(data, dataSize))
+        nifiSendPacket(NIFI_CMD_TRANSFER_SRAM, data, dataSize, true);
+    free(data);
 }
 
 int receiveSram() {
@@ -477,9 +475,9 @@ int startLink() {
             &gameboy->controllers[0] : &gb2->controllers[0];
     }
 
-    const bool localHasSram = gameboy->getNumSramBanks() != 0;
+    const bool localHasSram = gameboy->getLinkSaveDataSize() != 0;
     const bool remoteHasSram = nifiLinkType == LINK_CABLE && gb2 &&
-        gb2->getNumSramBanks() != 0;
+        gb2->getLinkSaveDataSize() != 0;
     if (isHost) {
         if (localHasSram)
             sendSram();

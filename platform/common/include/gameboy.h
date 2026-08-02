@@ -148,6 +148,9 @@ class Gameboy {
 
         int loadSave(int saveId);
         int saveGame();
+        size_t getLinkSaveDataSize();
+        bool exportLinkSaveData(u8* output, size_t outputSize);
+        bool importLinkSaveData(const u8* input, size_t inputSize);
         void gameboySyncAutosave();
         void updateAutosave();
 
