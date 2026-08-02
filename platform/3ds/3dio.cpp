@@ -261,6 +261,11 @@ void file_close(FileHandle* fileHandle) {
     free(fileHandle);
 }
 
+void file_flush(FileHandle* fileHandle) {
+    // file_write() uses FS_WRITE_FLUSH for every write on this backend.
+    (void)fileHandle;
+}
+
 void file_read(void* dest, int bs, int size, FileHandle* fileHandle) {
     u32 bytesRead;
     FSFILE_Read(fileHandle->handle, &bytesRead, fileHandle->head, dest, bs*size);

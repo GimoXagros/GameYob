@@ -26,7 +26,6 @@ int gbsPlayingSong;
 
 PrintConsole gbsConsole;
 #ifdef DS
-extern PrintConsole defaultConsole; // Defined in libnds
 #endif
 
 // private
@@ -111,9 +110,9 @@ void gbsInit() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
 
 #ifdef DS
-    memcpy(&gbsConsole, &defaultConsole, sizeof(PrintConsole));
     videoSetMode(MODE_0_2D);
-    consoleInit(&gbsConsole, gbsConsole.bgLayer, BgType_Text4bpp, BgSize_T_256x256, gbsConsole.mapBase, gbsConsole.gfxBase, true, true);
+    consoleInit(&gbsConsole, 0, BgType_Text4bpp, BgSize_T_256x256,
+            22, 3, true, true);
     setPrintConsole(&gbsConsole);
     videoBgEnable(0);
 #endif
