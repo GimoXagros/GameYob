@@ -307,6 +307,7 @@ class Gameboy {
 
 
         bool updateHBlankDMA();
+        void updateClockFromHost();
         void latchClock();
         void writeSaveFileSectors(int startSector, int numSectors);
 
@@ -419,6 +420,8 @@ class Gameboy {
 
         // Persistent (not overwritten in init())
         ClockStruct gbClock;
+        u8 rtcLatchState;
+        bool rtcLatched;
 
         // Game Boy Camera - https://gbdev.io/pandocs/Gameboy_Camera.html
         u8 camRegisters[0x80];

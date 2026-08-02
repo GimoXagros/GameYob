@@ -47,6 +47,13 @@ jobs:
             tests/gb_noise_test.cpp platform/common/gb_noise.cpp \
             -o /tmp/gb_noise_test
           /tmp/gb_noise_test
+      - name: Build and run RTC tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/rtc_test.cpp platform/common/rtc.cpp \
+            -o /tmp/rtc_test
+          /tmp/rtc_test
       - name: Build and run SGB border tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

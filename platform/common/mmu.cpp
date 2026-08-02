@@ -21,6 +21,8 @@
 #define refreshWramBank() { \
     memory[0xd] = wram[wramBank]; }
 
+static u8 unavailableRam[0x2000];
+
 void Gameboy::refreshRomBank(int bank) 
 {
     if (bank < romFile->getNumRomBanks()) {
@@ -42,8 +44,12 @@ void Gameboy::refreshRamBank (int bank)
         memory[0xa] = externRam+currentRamBank*0x2000;
         memory[0xb] = externRam+currentRamBank*0x2000+0x1000; 
     }
-    else
+    else {
+        currentRamBank = bank;
+        memory[0xa] = unavailableRam;
+        memory[0xb] = unavailableRam+0x1000;
         printLog("Tried to access ram bank %x\n", bank);
+    }
 }
 
 void Gameboy::writeSram(u16 addr, u8 val) {
@@ -76,6 +82,9 @@ void Gameboy::initMMU()
     memoryModel = 0;
     romBank = 1;
     currentRamBank = 0;
+    rtcLatchState = 0;
+    rtcLatched = false;
+    memset(unavailableRam, 0xff, sizeof(unavailableRam));
 
     readFunc = mbcReads[romFile->getMBC()];
     writeFunc = mbcWrites[romFile->getMBC()];

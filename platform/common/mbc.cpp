@@ -3,6 +3,7 @@
 #include "inputhelper.h"
 #include "menu.h"
 #include "romfile.h"
+#include "rtc.h"
 #include "timer.h"
 #include <stdlib.h>
 
@@ -14,19 +15,22 @@ u8 Gameboy::m3r (u16 addr) {
     if (!ramEnabled)
         return 0xff;
 
+    if (currentRamBank >= 0x8 && currentRamBank <= 0xc && !rtcLatched)
+        updateClockFromHost();
+
     switch (currentRamBank) { // Check for RTC register
         case 0x8:
-            return gbClock.mbc3.s;
+            return rtcLatched ? gbClock.latch[0] : gbClock.mbc3.s;
         case 0x9:
-            return gbClock.mbc3.m;
+            return rtcLatched ? gbClock.latch[1] : gbClock.mbc3.m;
         case 0xA:
-            return gbClock.mbc3.h;
+            return rtcLatched ? gbClock.latch[2] : gbClock.mbc3.h;
         case 0xB:
-            return gbClock.mbc3.d&0xff;
+            return rtcLatched ? gbClock.latch[3] : (gbClock.mbc3.d&0xff);
         case 0xC:
-            return gbClock.mbc3.ctrl;
+            return rtcLatched ? gbClock.latch[4] : gbClock.mbc3.ctrl;
         default: // Not an RTC register
-            return memory[addr>>12][addr&0xfff];
+            return getNumSramBanks() ? memory[addr>>12][addr&0xfff] : 0xff;
     }
 }
 
@@ -196,28 +200,39 @@ void Gameboy::m3w(u16 addr, u8 val) {
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
-            if (val)
+            val &= 1;
+            if (rtcLatchState == 0 && val == 1)
                 latchClock();
+            rtcLatchState = val;
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
             if (!ramEnabled)
                 break;
 
+            if (currentRamBank >= 0x8 && currentRamBank <= 0xc)
+                updateClockFromHost();
+
             switch (currentRamBank) { // Check for RTC register
                 case 0x8:
+                    if (val > 59)
+                        val = 59;
                     if (gbClock.mbc3.s != val) {
                         gbClock.mbc3.s = val;
                         writeClockStruct();
                     }
                     return;
                 case 0x9:
+                    if (val > 59)
+                        val = 59;
                     if (gbClock.mbc3.m != val) {
                         gbClock.mbc3.m = val;
                         writeClockStruct();
                     }
                     return;
                 case 0xA:
+                    if (val > 23)
+                        val = 23;
                     if (gbClock.mbc3.h != val) {
                         gbClock.mbc3.h = val;
                         writeClockStruct();
@@ -231,6 +246,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
                     }
                     return;
                 case 0xC:
+                    val &= 0xc1;
                     if (gbClock.mbc3.ctrl != val) {
                         gbClock.mbc3.d &= 0xFF;
                         gbClock.mbc3.d |= (val&1)<<8;
@@ -247,7 +263,7 @@ void Gameboy::m3w(u16 addr, u8 val) {
 }
 
 void Gameboy::writeClockStruct() {
-    if (autoSavingEnabled) {
+    if (autoSavingEnabled && saveFile != NULL) {
         file_seek(saveFile, getNumSramBanks()*0x2000, SEEK_SET);
         file_write(&gbClock, 1, sizeof(gbClock), saveFile);
         saveModified = true;
@@ -517,50 +533,39 @@ void Gameboy::camw (u16 addr, u8 val) {
     }
 }
 
-/* Increment y if x is greater than val */
-#define OVERFLOW(x,val,y)   \
-    do {                    \
-        while (x >= val) {  \
-            x -= val;       \
-            y++;            \
-        }                   \
-    } while (0) 
+void Gameboy::updateClockFromHost()
+{
+    const time_t now = getTime();
+    if (gbClock.last <= 0 || now < gbClock.last) {
+        gbClock.last = now;
+        return;
+    }
+
+    const uint64_t elapsed = static_cast<uint64_t>(now - gbClock.last);
+    switch (romFile->getMBC()) {
+        case MBC3:
+            rtc::advanceMbc3(gbClock.mbc3.s, gbClock.mbc3.m,
+                    gbClock.mbc3.h, gbClock.mbc3.d,
+                    gbClock.mbc3.ctrl, elapsed);
+            break;
+        case HUC3:
+            rtc::advanceHuc3(gbClock.huc3.m, gbClock.huc3.d,
+                    gbClock.huc3.y, elapsed);
+            break;
+    }
+    gbClock.last = now;
+}
 
 void Gameboy::latchClock()
 {
-    // +2h, the same as lameboy
-    time_t now = rawTime-120*60;
-    time_t difference = now - gbClock.last;
-    struct tm* lt = gmtime((const time_t *)&difference);
+    updateClockFromHost();
 
-    switch (romFile->getMBC()) {
-        case MBC3:
-            gbClock.mbc3.s += lt->tm_sec;
-            OVERFLOW(gbClock.mbc3.s, 60, gbClock.mbc3.m);
-            gbClock.mbc3.m += lt->tm_min;
-            OVERFLOW(gbClock.mbc3.m, 60, gbClock.mbc3.h);
-            gbClock.mbc3.h += lt->tm_hour;
-            OVERFLOW(gbClock.mbc3.h, 24, gbClock.mbc3.d);
-            gbClock.mbc3.d += lt->tm_yday;
-            /* Overflow! */
-            if (gbClock.mbc3.d > 0x1FF)
-            {
-                /* Set the carry bit */
-                gbClock.mbc3.ctrl |= 0x80;
-                gbClock.mbc3.d &= 0x1FF;
-            }
-            /* The 9th bit of the day register is in the control register */ 
-            gbClock.mbc3.ctrl &= ~1;
-            gbClock.mbc3.ctrl |= (gbClock.mbc3.d > 0xff);
-            break;
-        case HUC3:
-            gbClock.huc3.m += lt->tm_min;
-            OVERFLOW(gbClock.huc3.m, 60*24, gbClock.huc3.d);
-            gbClock.huc3.d += lt->tm_yday;
-            OVERFLOW(gbClock.huc3.d, 365, gbClock.huc3.y);
-            gbClock.huc3.y += lt->tm_year - 70;
-            break;
+    if (romFile->getMBC() == MBC3) {
+        gbClock.latch[0] = gbClock.mbc3.s;
+        gbClock.latch[1] = gbClock.mbc3.m;
+        gbClock.latch[2] = gbClock.mbc3.h;
+        gbClock.latch[3] = gbClock.mbc3.d & 0xff;
+        gbClock.latch[4] = gbClock.mbc3.ctrl;
+        rtcLatched = true;
     }
-
-    gbClock.last = now;
 }

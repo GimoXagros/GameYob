@@ -44,6 +44,11 @@ Gameboy::Gameboy() : hram(highram+0xe00), ioRam(highram+0xf00) {
     saveModified = false;
     autosaveStarted = false;
 
+    memset(&gbClock, 0, sizeof(gbClock));
+    gbClock.last = getTime();
+    rtcLatchState = 0;
+    rtcLatched = false;
+
     cheatEngine = new CheatEngine(this);
     soundEngine = new SoundEngine(this);
 }
@@ -726,13 +731,23 @@ int Gameboy::loadSave(int saveId)
 
     if (externRam != NULL)
         free(externRam);
+    externRam = NULL;
 
-    if (getNumSramBanks() == 0)
+    const int ramSize = getNumSramBanks()*0x2000;
+    const bool hasClock = romFile->getMBC() == MBC3 ||
+        romFile->getMBC() == HUC3;
+    if (ramSize == 0 && !hasClock)
         return 0;
 
-    externRam = (u8*)malloc(getNumSramBanks()*0x2000);
-    if (!externRam)
-        return 1;
+    if (ramSize > 0) {
+        externRam = (u8*)malloc(ramSize);
+        if (!externRam)
+            return 1;
+        memset(externRam, 0, ramSize);
+    }
+
+    memset(&gbClock, 0, sizeof(gbClock));
+    gbClock.last = getTime();
 
     if (gbsMode || saveId == -1) {
         saveFile = NULL;
@@ -742,8 +757,8 @@ int Gameboy::loadSave(int saveId)
     // Now load the data.
     saveFile = file_open(savename, "r+b");
 
-    int neededFileSize = getNumSramBanks()*0x2000;
-    if (romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3)
+    int neededFileSize = ramSize;
+    if (hasClock)
         neededFileSize += sizeof(ClockStruct);
 
     int fileSize = 0;
@@ -771,13 +786,17 @@ int Gameboy::loadSave(int saveId)
         }
     }
 
-    file_read(externRam, 1, 0x2000*getNumSramBanks(), saveFile);
+    const bool storedClockAvailable = hasClock &&
+        fileSize >= ramSize + (int)sizeof(ClockStruct);
 
-    switch (romFile->getMBC()) {
-        case MBC3:
-        case HUC3:
-            file_read(&gbClock, 1, sizeof(gbClock), saveFile);
-            break;
+    if (ramSize > 0)
+        file_read(externRam, 1, ramSize, saveFile);
+
+    if (storedClockAvailable) {
+        file_read(&gbClock, 1, sizeof(gbClock), saveFile);
+        const time_t now = getTime();
+        if (gbClock.last <= 0 || gbClock.last > now)
+            gbClock.last = now;
     }
 
     // Autosave tracks logical 512-byte chunks. It intentionally doesn't cache
@@ -790,12 +809,17 @@ int Gameboy::loadSave(int saveId)
 
 int Gameboy::saveGame()
 {
-    if (saveFile == NULL || getNumSramBanks() == 0)
+    if (saveFile == NULL)
         return 0;
+
+    if (romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3)
+        updateClockFromHost();
 
     file_seek(saveFile, 0, SEEK_SET);
 
-    file_write(externRam, 1, 0x2000*getNumSramBanks(), saveFile);
+    const int ramSize = getNumSramBanks()*0x2000;
+    if (ramSize > 0)
+        file_write(externRam, 1, ramSize, saveFile);
 
     switch (romFile->getMBC()) {
         case MBC3:
@@ -930,6 +954,8 @@ void Gameboy::saveState(int stateNum) {
     state.wramBank = wramBank;
     state.vramBank = vramBank;
     state.memoryModel = memoryModel;
+    if (romFile->getMBC() == MBC3 || romFile->getMBC() == HUC3)
+        updateClockFromHost();
     state.clock = gbClock;
     state.scanlineCounter = scanlineCounter;
     state.timerCounter = timerCounter;
@@ -1066,6 +1092,10 @@ int Gameboy::loadState(int stateNum) {
     vramBank = state.vramBank;
     memoryModel = state.memoryModel;
     gbClock = state.clock;
+    rtcLatchState = 0;
+    rtcLatched = false;
+    if (gbClock.last <= 0 || gbClock.last > getTime())
+        gbClock.last = getTime();
     scanlineCounter = state.scanlineCounter;
     timerCounter = state.timerCounter;
     phaseCounter = state.phaseCounter;
