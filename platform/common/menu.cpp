@@ -428,8 +428,12 @@ void localLinkFunc(int value) {
     // subsequently selected local link appear unresponsive.
     nifiStop();
 #endif
-    mgr_startGb2(NULL);
-    gb2->loadSave(2);
+    // Save slot 2 is dedicated to the second local Game Boy. Loading it once
+    // avoids replacing a freshly allocated SRAM buffer and losing its handle.
+    if (!mgr_startGb2(2)) {
+        printMenuMessage("Link failed.");
+        return;
+    }
     mgr_setInternalClockGb(gameboy);
     printMenuMessage("Local link started.");
 }

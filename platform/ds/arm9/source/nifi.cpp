@@ -658,7 +658,8 @@ int nifiStartLink() {
     mgr_reset();
     if (nifiLinkType == LINK_CABLE) {
         printLog("Start Gb2\n");
-        mgr_startGb2(NULL);
+        if (!mgr_startGb2(-1))
+            return 1;
         if (loadOtherRom() != 0) {
             printf("Error loading \"%s\".\n");
             return 1;

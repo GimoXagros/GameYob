@@ -10,7 +10,7 @@ extern int mgr_frameCounter;
 void mgr_init();
 void mgr_reset();
 void mgr_runFrame();
-void mgr_startGb2(const char* filename);
+bool mgr_startGb2(int saveId);
 void mgr_swapFocus();
 void mgr_setInternalClockGb(Gameboy* g);
 bool mgr_isInternalClockGb(Gameboy* g);

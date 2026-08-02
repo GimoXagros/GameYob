@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <new>
 #include "gbmanager.h"
 #include "inputhelper.h"
 #include "gameboy.h"
@@ -124,9 +125,14 @@ void mgr_runFrame() {
     mgr_frameCounter++;
 }
 
-void mgr_startGb2(const char* filename) {
-    if (gb2 == NULL)
-        gb2 = new Gameboy();
+bool mgr_startGb2(int saveId) {
+    if (!gameboy || !gameboy->getRomFile())
+        return false;
+    if (gb2 == NULL) {
+        gb2 = new (std::nothrow) Gameboy();
+        if (!gb2)
+            return false;
+    }
 
     // A previous wireless or local-link session may have left the secondary
     // instance attached to another ROM/save file. Detach it before reusing the
@@ -138,10 +144,10 @@ void mgr_startGb2(const char* filename) {
             delete oldRomFile;
     }
     gb2->setRomFile(gameboy->getRomFile());
-    if (filename == 0)
-        gb2->loadSave(-1);
-    else
-        gb2->loadSave(2);
+    if (gb2->loadSave(saveId) != 0) {
+        gb2->unloadRom();
+        return false;
+    }
     gb2->init();
     gb2->cycleCount = gameboy->cycleCount;
     gb2->getSoundEngine()->mute();
@@ -150,6 +156,7 @@ void mgr_startGb2(const char* filename) {
     gb2->linkedGameboy = gameboy;
 
     gbDuo = gb2;
+    return true;
 }
 
 void mgr_swapFocus() {

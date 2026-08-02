@@ -712,6 +712,11 @@ bool Gameboy::isRomLoaded() {
 
 int Gameboy::loadSave(int saveId)
 {
+    if (saveFile != NULL) {
+        file_close(saveFile);
+        saveFile = NULL;
+    }
+
     if (saveId == 1)
         snprintf(savename, sizeof(savename), "%s.sav",
                  romFile->getBasename());
@@ -726,6 +731,8 @@ int Gameboy::loadSave(int saveId)
         return 0;
 
     externRam = (u8*)malloc(getNumSramBanks()*0x2000);
+    if (!externRam)
+        return 1;
 
     if (gbsMode || saveId == -1) {
         saveFile = NULL;
@@ -749,11 +756,15 @@ int Gameboy::loadSave(int saveId)
         if (!saveFile) {
             // 3DS shouldn't run this part, it'll create the file automatically
             saveFile = file_open(savename, "wb");
+            if (!saveFile)
+                return 1;
             file_seek(saveFile, neededFileSize-1, SEEK_SET);
             file_putc(0, saveFile);
 
             file_close(saveFile);
             saveFile = file_open(savename, "r+b");
+            if (!saveFile)
+                return 1;
         }
         else {
             file_setSize(saveFile, neededFileSize);

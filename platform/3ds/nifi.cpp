@@ -446,7 +446,8 @@ int startLink() {
 
     mgr_reset();
     if (nifiLinkType == LINK_CABLE) {
-        mgr_startGb2(NULL);
+        if (!mgr_startGb2(-1))
+            return 1;
         if (loadOtherRom())
             return 1;
     }
