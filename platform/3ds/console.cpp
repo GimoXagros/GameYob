@@ -21,7 +21,7 @@ void clearConsole() {
     textResetGlyphCache();
 }
 
-PrintConsole* getDefaultConsole() {
+const PrintConsole* getDefaultConsole() {
     return NULL;
 }
 

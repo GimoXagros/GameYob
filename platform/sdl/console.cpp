@@ -17,7 +17,7 @@ void consoleFlush() {
     fflush(stdout);
 }
 
-PrintConsole* getDefaultConsole() {
+const PrintConsole* getDefaultConsole() {
     return NULL;
 }
 

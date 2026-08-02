@@ -25,7 +25,7 @@ bool isConsoleOn(); // Returns true if the sub-screen's console is set up.
 
 void clearConsole();
 void consoleFlush();
-PrintConsole* getDefaultConsole();
+const PrintConsole* getDefaultConsole();
 int consoleGetWidth();
 int consoleGetHeight();
 
