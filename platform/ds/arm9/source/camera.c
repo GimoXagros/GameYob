@@ -1,3 +1,4 @@
+#ifndef __BLOCKSDS__
 /*
  * Thanks to Epicpkmn11: https://github.com/Epicpkmn11/dsi-camera/
  * Original code published under public domain (Unlicense)
@@ -107,3 +108,4 @@ void cameraTransferStart(u16 *dst, CaptureMode mode) {
 void cameraTransferStop() { REG_CAM_CNT &= ~BIT(15); }
 
 bool cameraTransferActive() { return REG_NDMA1CNT & BIT(31); }
+#endif

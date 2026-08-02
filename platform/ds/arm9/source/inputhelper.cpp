@@ -1,4 +1,5 @@
 #include <nds.h>
+#include <nds/arm9/camera.h>
 #include <fat.h>
 #include "common.h"
 
@@ -23,7 +24,9 @@
 #include "filechooser.h"
 #include "romfile.h"
 #include "gbmanager.h"
-#include "camera.h"
+
+#define GAMEYOB_CAMERA_NDMA_CHANNEL 1
+#define CAM_BUFFER_SIZE (256 * 192 * sizeof(u16))
 
 int keysPressed=0;
 int lastKeysPressed=0;
@@ -152,26 +155,40 @@ void system_enableCamera(int index) {
     if (index == camActive) return;
 
     if (!camInit) {
-        cameraInit();
+        if (!isDSiMode() || !cameraInit())
+            return;
         camData = (u16*)malloc(CAM_BUFFER_SIZE);
+        if (!camData) {
+            cameraDeinit();
+            return;
+        }
         camInit = true;
     }
 
-    switch (index) {
-        case 1:
-            cameraActivate(CAM_INNER);
-            break;
-        case 2:
-            cameraActivate(CAM_OUTER);
-            break;
+    u8 camera = index == 1 ? CAMERA_INNER : CAMERA_OUTER;
+    if (!cameraSelect(camera)) {
+        cameraDeinit();
+        free(camData);
+        camData = NULL;
+        camInit = false;
+        camActive = 0;
+        return;
     }
     camActive = index;
 }
 
 void system_disableCamera(void) {
-    cameraDeactivateAny();
+    if (!camInit)
+        return;
+
+    while (ndmaBusy(GAMEYOB_CAMERA_NDMA_CHANNEL))
+        system_waitForVBlank();
+    cameraStopTransfer();
+    cameraDeinit();
     free(camData);
+    camData = NULL;
     camInit = false;
+    camActive = 0;
 }
 
 // The actual sensor image is 128x126 or so.
@@ -218,13 +235,15 @@ static u8 gb_cam_matrix_process(u8 value, u8 x, u8 y, const u8* CAM_REG)
 void system_getCamera(u8* memory, const u8* camRegisters)
 {
     if (camInit) {
-        if(!cameraTransferActive()) {
-            cameraTransferStart(camData, CAPTURE_MODE_PREVIEW);
+        if (!cameraTransferActive() &&
+                !ndmaBusy(GAMEYOB_CAMERA_NDMA_CHANNEL)) {
+            cameraStartTransfer(camData, MCUREG_APT_SEQ_CMD_PREVIEW,
+                    GAMEYOB_CAMERA_NDMA_CHANNEL);
 
-            while(cameraTransferActive())
+            while (ndmaBusy(GAMEYOB_CAMERA_NDMA_CHANNEL))
                 system_waitForVBlank();
 
-            cameraTransferStop();
+            cameraStopTransfer();
         }
 
         const u8* CAM_REG = camRegisters;
@@ -268,7 +287,13 @@ void system_getCamera(u8* memory, const u8* camRegisters)
         {
             u8 x = (i * 1.6);
             u8 y = (j * 1.6);
-            s16 value = (camData[(y*256) + (x+16)] & 0xff);
+            // BlocksDS preview transfers are RGB555. Convert to an 8-bit
+            // luminance value before feeding the Game Boy Camera sensor model.
+            u16 pixel = camData[(y*256) + (x+16)];
+            int red = pixel & 0x1f;
+            int green = (pixel >> 5) & 0x1f;
+            int blue = (pixel >> 10) & 0x1f;
+            s16 value = (red * 77 + green * 150 + blue * 29) >> 5;
             value = ( (value * EXPOSURE_bits ) / 0x0300 ); // 0x0300 could be other values
             value = 128 + (((value-128) * 1)/8); // "adapt" to "3.1"/5.0 V
             gb_cam_retina_output_buf[i][j] = gb_clamp_int(0,value,255);

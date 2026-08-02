@@ -10,7 +10,9 @@
 extern "C" {
 #endif
 
+#ifndef __BLOCKSDS__
 #define FIFO_CAMERA FIFO_USER_04
+#endif
 
 typedef enum {
 	CAM_INIT,

@@ -32,6 +32,7 @@ jobs:
             --workdir /workspace \
             skylyrac/blocksds:slim-v1.22.2@sha256:a073c57ffd340542a6e09d14616dd925d219bc534399dbdc73d2abaa04c1628e \
             bash -euo pipefail -c '
+              git config --global --add safe.directory /workspace
               make -f Makefile.blocksds
             '
       - name: Record artifact checksum
