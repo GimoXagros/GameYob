@@ -13,8 +13,8 @@ GAME_ICON	:= platform/ds/icon.bmp
 MAKE		:= make
 RM		:= rm -rf
 
-ARM9_ELF	:= build/blocksds/arm9.elf
-ARM7_ELF	:= build/blocksds/arm7.elf
+ARM9_ELF	:= build/arm9.elf
+ARM7_ELF	:= build/arm7.elf
 DS_ROM		:= platform/ds/$(NAME).nds
 DSI_ROM		:= platform/ds/$(NAME)_dsi.nds
 
