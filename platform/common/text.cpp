@@ -170,8 +170,17 @@ unsigned int glyphHashSlot(unsigned int codepoint) {
 }
 
 unsigned int tileForCodepoint(unsigned int codepoint, PrintConsole* console) {
-    if (codepoint < 128)
-        return codepoint;
+    if (codepoint < 128) {
+        // libnds fonts omit the control-character range. consolePrintChar()
+        // maps ASCII through asciiOffset/fontCharOffset; using the raw byte as
+        // a tile index displays unrelated glyph data with current BlocksDS.
+        if (codepoint < console->font.asciiOffset ||
+                codepoint >= console->font.asciiOffset +
+                    console->font.numChars)
+            codepoint = ' ';
+        return codepoint + console->fontCharOffset -
+            console->font.asciiOffset;
+    }
     const unsigned int hash = glyphHashSlot(codepoint);
     for (unsigned int probe = 0; probe < GLYPH_HASH_SIZE; ++probe) {
         const unsigned int slot = (hash + probe) & (GLYPH_HASH_SIZE - 1);

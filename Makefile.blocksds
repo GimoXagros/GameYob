@@ -52,7 +52,7 @@ $(DSI_ROM): arm9 arm7
 	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \
 		-7 $(ARM7_ELF) -9 $(ARM9_ELF) \
 		-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)" \
-		-g GYOB -u 00030004 -uc 3
+		-g GYOB -u 00030004
 
 clean:
 	@echo "  CLEAN"

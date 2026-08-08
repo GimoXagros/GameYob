@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <locale.h>
 #include <dirent.h>
 #include <unistd.h>
 
@@ -49,6 +50,9 @@ touchPosition touchData;
 
 void initInput()
 {
+    // libfat converts FAT long filenames through the active multibyte locale.
+    // BlocksDS/picolibc provides the UTF-8 locale used by current libfat.
+    setlocale(LC_CTYPE, "C.UTF-8");
     if (!fatInitDefault())
         fatalerr("Unable to initialize the SD filesystem.");
 }
