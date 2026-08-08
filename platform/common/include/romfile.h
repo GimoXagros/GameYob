@@ -43,7 +43,7 @@ class RomFile {
 
         inline int getNumRomBanks() { return numRomBanks; }
         inline int getRomSizeBytes() { return romSizeBytes; }
-        inline uint32_t getContentId() { return contentId; }
+        uint32_t getContentId();
         inline int getNumSramBanks() { return numRamBanks; }
         inline int getCgbFlag() { return romSlot0[0x143]; }
         inline int getRamSize() { return romSlot0[0x149]; }

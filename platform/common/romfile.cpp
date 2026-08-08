@@ -27,7 +27,9 @@ extern bool __dsimode;
 namespace {
 
 uint32_t fingerprintFile(FileHandle* file, int sizeBytes) {
-    uint8_t buffer[1024];
+    // Use one Game Boy ROM bank per read. Small DLDI reads are expensive on
+    // DS flashcards and made ordinary ROM startup look as if it had frozen.
+    uint8_t buffer[romlayout::ROM_BANK_SIZE];
     uint32_t identifier = nifi::romIdentifier(NULL, 0);
     file_seek(file, 0, SEEK_SET);
     for (int offset = 0; offset < sizeBytes; offset += sizeof(buffer)) {
@@ -45,6 +47,7 @@ uint32_t fingerprintFile(FileHandle* file, int sizeBytes) {
 RomFile::RomFile(const char* f, bool halfMemory) {
     romFile=NULL;
     maxLoadedRomBanks = 0;
+    contentId = 0;
 
     if (!f)
         fatalerr("ROM filename is missing.");
@@ -196,6 +199,55 @@ const char* RomFile::getFilename() {
     return filename;
 }
 
+uint32_t RomFile::getContentId() {
+    if (contentId != 0)
+        return contentId;
+
+    // The identifier is only needed when a link session is started. Deferring
+    // this full-file hash keeps normal ROM startup responsive on slow DLDI
+    // storage. When all banks are resident (the usual DSi/3DS case), avoid a
+    // second filesystem pass altogether.
+    if (!gbsMode && romSizeBytes > 0 &&
+            numRomBanks <= numLoadedRomBanks) {
+        contentId = nifi::romIdentifier(romBankSlots, romSizeBytes);
+    }
+    else {
+        FileHandle* source = romFile;
+        bool closeSource = false;
+        int oldPosition = 0;
+
+        if (source != NULL) {
+            oldPosition = file_tell(source);
+        }
+        else {
+            source = file_open(filename, "rb");
+            closeSource = source != NULL;
+        }
+
+        if (source != NULL) {
+            contentId = fingerprintFile(source, romSizeBytes);
+            if (closeSource)
+                file_close(source);
+            else
+                file_seek(source, oldPosition, SEEK_SET);
+        }
+    }
+
+    // A zero identifier is reserved for "unknown" by the link protocol.
+    // This deterministic header fallback also keeps diagnostics usable if a
+    // cartridge file becomes unavailable after it has been loaded.
+    if (contentId == 0) {
+        contentId = nifi::romIdentifier(romSlot0, 0x150);
+        contentId = nifi::romIdentifierUpdate(contentId,
+                reinterpret_cast<const uint8_t*>(&romSizeBytes),
+                sizeof(romSizeBytes));
+        if (contentId == 0)
+            contentId = 1;
+    }
+
+    return contentId;
+}
+
 
 void RomFile::loadBios(const char* filename) {
     FileHandle* file;
@@ -295,8 +347,6 @@ void RomFile::loadBanks() {
     if (!romlayout::isSupportedSize(payloadSize))
         fatalerr("Unsupported ROM size: %d bytes (maximum is 8 MiB).",
                 romSizeBytes);
-
-    contentId = fingerprintFile(romFile, romSizeBytes);
 
     //int rawRomSize = file_tell(romFile);
     file_seek(romFile, 0, SEEK_SET);
