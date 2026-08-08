@@ -169,18 +169,20 @@ unsigned int glyphHashSlot(unsigned int codepoint) {
     return (codepoint * 2654435761U) & (GLYPH_HASH_SIZE - 1);
 }
 
+unsigned int asciiTileForCodepoint(unsigned int codepoint,
+                                   PrintConsole* console) {
+    if (codepoint < console->font.asciiOffset ||
+            codepoint >= console->font.asciiOffset + console->font.numChars)
+        codepoint = ' ';
+    return codepoint + console->fontCharOffset - console->font.asciiOffset;
+}
+
 unsigned int tileForCodepoint(unsigned int codepoint, PrintConsole* console) {
-    if (codepoint < 128) {
+    if (codepoint < 128)
         // libnds fonts omit the control-character range. consolePrintChar()
         // maps ASCII through asciiOffset/fontCharOffset; using the raw byte as
         // a tile index displays unrelated glyph data with current BlocksDS.
-        if (codepoint < console->font.asciiOffset ||
-                codepoint >= console->font.asciiOffset +
-                    console->font.numChars)
-            codepoint = ' ';
-        return codepoint + console->fontCharOffset -
-            console->font.asciiOffset;
-    }
+        return asciiTileForCodepoint(codepoint, console);
     const unsigned int hash = glyphHashSlot(codepoint);
     for (unsigned int probe = 0; probe < GLYPH_HASH_SIZE; ++probe) {
         const unsigned int slot = (hash + probe) & (GLYPH_HASH_SIZE - 1);
@@ -190,10 +192,10 @@ unsigned int tileForCodepoint(unsigned int codepoint, PrintConsole* console) {
             return glyphHashTiles[slot] - 1;
     }
     if (nextDynamicTile >= DYNAMIC_TILE_COUNT)
-        return '?';
+        return asciiTileForCodepoint('?', console);
     const unsigned char* bitmap = bitmapForCodepoint(codepoint);
     if (!bitmap)
-        return '?';
+        return asciiTileForCodepoint('?', console);
 
     const unsigned int cacheIndex = nextDynamicTile++;
     const unsigned int tile = FIRST_DYNAMIC_TILE + cacheIndex;
