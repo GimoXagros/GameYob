@@ -33,7 +33,7 @@ DATA		:=	data ../../assets/fonts
 INCLUDES	:=	include ../common/include ../../third_party/stb
 
 
-APP_TITLE		:= GameYob 3DS `git describe --always --abbrev=4`
+APP_TITLE		:= GameYob 3DS v0.5.5-ko
 APP_DESCRIPTION := Gameboy & Gameboy Color emulator
 APP_AUTHOR		:= Drenn
 APP_ICON		:= $(TOPDIR)/icon.png
@@ -53,7 +53,7 @@ CFLAGS	:=	-Wall -O3 -mthumb-interwork \
 			-mfpu=vfp -ffast-math -mword-relocations \
 			$(ARCH)
 
-CFLAGS	+=	-DVERSION_STRING=\"`git describe --always --abbrev=4`\"\
+CFLAGS	+=	-DGIT_REVISION=\"`git rev-parse --short=12 HEAD`\"\
 			-include "3ds/types.h"
 
 CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DNIFI

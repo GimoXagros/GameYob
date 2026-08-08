@@ -11,8 +11,8 @@ INCLUDEDIRS	:= platform/ds/arm9/include platform/ds/include \
 GFXDIRS		:= platform/ds/arm9/gfx
 BINDIRS		:= assets/fonts
 
-VERSION		:= $(shell git describe --always --abbrev=4)
-DEFINES		:= -DNO_VIZ -DVERSION_STRING=\"$(VERSION)\" \
+REVISION	:= $(shell git rev-parse --short=12 HEAD)
+DEFINES		:= -DNO_VIZ -DGIT_REVISION=\"$(REVISION)\" \
 		   -DC_IO_FUNCTIONS -DNIFI -DDS
 
 LIBS		:= -ldswifi9_noip -lnds9
