@@ -1,3 +1,55 @@
+Version 0.5.5-ko:
+
+- Migrated the Nintendo DS and DSi builds to the pinned BlocksDS 1.22.2 SDK
+  and Wonderful toolchain while retaining a separate current libctru/devkitARM
+  build for native Nintendo 3DS.
+- Added embedded English, Japanese, and Korean menus with UTF-8 custom language
+  files in INI, JSON, XML, and YAML formats. Saving settings can create a
+  non-destructive English language template.
+- Completed UTF-8/CP949 Korean ROM filename, path, and cheat-list handling on
+  DS, DSi, and native 3DS, including UTF-16-to-UTF-8 3DS directory conversion.
+- Added native 3DS LAN link discovery and host/client play with protocol
+  versioning, ROM fingerprints, CRC, sequence numbers, ACK/retry,
+  fragmentation, input buffering, state hashes, timeouts, and initial SRAM/RTC
+  synchronization.
+- Hardened DS/DSi NiFi and local-link restart behavior, secondary save
+  isolation, cross-ROM setup, bounds checks, and offline/no-peer return paths.
+- Stabilized MBC3 and HuC3 RTC behavior, including latch edges, halt, day carry,
+  backward host-clock handling, RTC-only cartridges, saves, and save states.
+- Hardened patched-ROM support using physical file length, safe
+  non-power-of-two bank mirroring, partial-bank fill, standard SRAM sizes up to
+  128 KiB, and an explicit 8 MiB MBC5 boundary.
+- Fixed DMG sprite ordering, horizontal Window clipping, LCD-off output, CGB
+  background priority, noise-channel LFSR behavior, and additional SGB command
+  and border state handling.
+- Added selectable 0x900-byte GBC BIOS paths on DS, DSi, and native 3DS, stored
+  as `biosfile` in `gameyobds.ini`.
+- Updated native 3DS audio to prefer hardware CSND with NDSP fallback and added
+  debug status for the active audio backend.
+- Native 3DS ROM operation was accepted on real hardware with a fixed centered
+  160x144 display. Occasional frame drops remain. Unstable native 3DS scaling
+  was removed from this release and deferred to the v0.5.6-ko target; DS/DSi
+  scaling remains available.
+- Added English, Japanese, and Korean user guides, deterministic release
+  packaging, SHA-256 checksums, and complete redistributed license notices.
+
+Version 0.5.3-ko:
+
+- Added Korean UTF-8/CP949 ROM filenames, directory names, cheat names, and
+  related save, state, and printer paths.
+- Added native Nintendo 3DS Super Game Boy border decoding and display.
+- Fixed DMG sprite ordering, horizontal Window clipping, LCD-off white output,
+  CGB background priority, and 15-bit/7-bit noise-channel LFSR behavior.
+- Added DS/DSi NiFi protocol v2 bounds checks, versioning, sequencing,
+  checksums, ROM identity, retransmission, input buffering, state hashes, and
+  initial SRAM transfer.
+- Added reproducible Nintendo DS, Nintendo DSi, and Nintendo 3DS CI builds.
+
+Version 0.5.2-ko.1:
+
+- Added Korean filename and cheat-list text support to the v0.5.2 homebrew
+  release while preserving the original emulator license and release layout.
+
 Version 0.5:
 
 - Added Gameboy Printer emulation
