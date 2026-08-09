@@ -29,6 +29,7 @@ jobs:
           --workdir /workspace/platform/3ds \
           devkitpro/devkitarm@sha256:15b79ce75822c289538d8153da5fa7aafe5e6adc32ad8a575a197beca0f0761b \
           bash -euo pipefail -c '
+            git config --global --add safe.directory /workspace &&
             sed -i "\|#include <3ds/console.h>|d" \
               "$DEVKITPRO/libctru/include/3ds.h" &&
             make 3dsx

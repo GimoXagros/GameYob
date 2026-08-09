@@ -6,6 +6,7 @@ void drawPixel(u8* framebuffer, int x, int y, u32 color);
 
 u8* gfxGetActiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
 u8* gfxGetInactiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
+void gfxInitFramebufferTracking();
 void gfxMySwapBuffers();
 
 inline u32 RGB24(int red, int green, int blue) {

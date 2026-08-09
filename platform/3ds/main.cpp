@@ -11,6 +11,7 @@
 #include "menu.h"
 #include "gbmanager.h"
 #include "printconsole.h"
+#include "3dsgfx.h"
 
 void audioInit();
 
@@ -21,6 +22,7 @@ int main(int argc, char* argv[])
     // time causes mismatched reference counts during shutdown on current
     // toolchains.
 	gfxInitDefault();
+    gfxInitFramebufferTracking();
 
     consoleInitBottom();
 

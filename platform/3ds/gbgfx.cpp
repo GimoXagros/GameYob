@@ -558,14 +558,16 @@ int loadBorder(const char* filename) {
 void checkBorder() {
     lastGameScreen = gameScreen;
 
-    u8** buffers;
+    u8* buffers[2];
     int screenWidth;
     if (gameScreen == 0) {
-        buffers = gfxTopLeftFramebuffers;
+        buffers[0] = gfxGetActiveFramebuffer(GFX_TOP, GFX_LEFT);
+        buffers[1] = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
         screenWidth = TOP_SCREEN_WIDTH;
     }
     else {
-        buffers = gfxBottomFramebuffers;
+        buffers[0] = gfxGetActiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
+        buffers[1] = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
         screenWidth = BOTTOM_SCREEN_WIDTH;
     }
 
@@ -720,14 +722,16 @@ void drawMaskedScanline(int scanline, u32 color) {
 }
 
 void clearGameArea(u32 color) {
-    u8** buffers;
+    u8* buffers[2];
     int screenWidth;
     if (gameScreen == 0) {
-        buffers = gfxTopLeftFramebuffers;
+        buffers[0] = gfxGetActiveFramebuffer(GFX_TOP, GFX_LEFT);
+        buffers[1] = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
         screenWidth = TOP_SCREEN_WIDTH;
     }
     else {
-        buffers = gfxBottomFramebuffers;
+        buffers[0] = gfxGetActiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
+        buffers[1] = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
         screenWidth = BOTTOM_SCREEN_WIDTH;
     }
     const int offsetX = screenWidth / 2 - 160/2;
