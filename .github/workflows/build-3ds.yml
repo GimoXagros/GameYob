@@ -2,6 +2,11 @@ name: Native 3DS build
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: Commit or branch to build (defaults to the triggering ref)
+        required: false
+        type: string
   push:
     paths:
       - "platform/3ds/**"
@@ -21,6 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref || github.sha }}
+
+      - name: Record source revision
+        id: source
+        shell: bash
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
 
       - name: Build 3DSX
         run: |
@@ -41,8 +53,10 @@ jobs:
       - name: Upload native 3DS build
         uses: actions/upload-artifact@v4
         with:
-          name: gameyob-3ds-${{ github.sha }}
+          name: gameyob-3ds-${{ steps.source.outputs.sha }}
           path: |
             platform/3ds/gameyob.3dsx
+            platform/3ds/gameyob.elf
+            platform/3ds/build/gameyob.map
             platform/3ds/SHA256SUMS.txt
           if-no-files-found: error
