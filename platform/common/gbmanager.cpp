@@ -5,6 +5,7 @@
 #include "gbmanager.h"
 #include "inputhelper.h"
 #include "gameboy.h"
+#include "cheats.h"
 #include "nifi.h"
 #include "gbs.h"
 #include "menu.h"
