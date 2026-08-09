@@ -14,8 +14,15 @@
 #define AUDIO_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
 #define AUDIO_CHANNEL 0
 
+enum AudioBackend {
+    AUDIO_BACKEND_NONE = 0,
+    AUDIO_BACKEND_NDSP,
+    AUDIO_BACKEND_CSND
+};
+
 bool audioInitialized = false;
 bool firstAudioBufferLogged = false;
+AudioBackend audioBackend = AUDIO_BACKEND_NONE;
 s16* bufferDat = NULL;
 s16* buffers[2] = {NULL, NULL};
 ndspWaveBuf waveBuffers[2];
@@ -35,10 +42,24 @@ void audioInit() {
     if (!bufferDat)
         return;
 
-    Result result = ndspInit();
-    if (R_FAILED(result)) {
-        printLog("3DS audio: NDSP init failed (%08lX)\n",
-            (unsigned long)result);
+    Result ndspResult = ndspInit();
+    if (R_SUCCEEDED(ndspResult)) {
+        audioBackend = AUDIO_BACKEND_NDSP;
+    }
+    else {
+        // NDSP requires sdmc:/3ds/dspfirm.cdc for homebrew. Azahar and
+        // systems without a local DSP dump can still use the older CSND
+        // service, so keep audio functional instead of silently disabling it.
+        Result csndResult = csndInit();
+        if (R_SUCCEEDED(csndResult))
+            audioBackend = AUDIO_BACKEND_CSND;
+        else {
+            printLog("3DS audio unavailable: NDSP=%08lX CSND=%08lX\n",
+                (unsigned long)ndspResult, (unsigned long)csndResult);
+        }
+    }
+
+    if (audioBackend == AUDIO_BACKEND_NONE) {
         linearFree(bufferDat);
         bufferDat = NULL;
         return;
@@ -50,24 +71,32 @@ void audioInit() {
     memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
     memset(waveBuffers, 0, sizeof(waveBuffers));
 
-    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
-    ndspChnReset(AUDIO_CHANNEL);
-    ndspChnSetInterp(AUDIO_CHANNEL, NDSP_INTERP_LINEAR);
-    ndspChnSetRate(AUDIO_CHANNEL, AUDIO_FREQUENCY);
-    ndspChnSetFormat(AUDIO_CHANNEL, NDSP_FORMAT_MONO_PCM16);
-    float mix[12] = {0};
-    mix[0] = 1.0f;
-    mix[1] = 1.0f;
-    ndspChnSetMix(AUDIO_CHANNEL, mix);
-    printLog("3DS audio: NDSP ready at %.0f Hz\n", AUDIO_FREQUENCY);
+    if (audioBackend == AUDIO_BACKEND_NDSP) {
+        ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+        ndspChnReset(AUDIO_CHANNEL);
+        ndspChnSetInterp(AUDIO_CHANNEL, NDSP_INTERP_LINEAR);
+        ndspChnSetRate(AUDIO_CHANNEL, AUDIO_FREQUENCY);
+        ndspChnSetFormat(AUDIO_CHANNEL, NDSP_FORMAT_MONO_PCM16);
+        float mix[12] = {0};
+        mix[0] = 1.0f;
+        mix[1] = 1.0f;
+        ndspChnSetMix(AUDIO_CHANNEL, mix);
+        printLog("3DS audio: NDSP ready at %.0f Hz\n", AUDIO_FREQUENCY);
+    }
+    else {
+        printLog("3DS audio: CSND fallback at %.0f Hz\n", AUDIO_FREQUENCY);
+    }
 }
 
 void audioExit() {
-    if (audioInitialized) {
+    if (audioBackend == AUDIO_BACKEND_NDSP) {
         ndspChnWaveBufClear(AUDIO_CHANNEL);
         ndspExit();
-        audioInitialized = false;
     }
+    else if (audioBackend == AUDIO_BACKEND_CSND)
+        csndExit();
+    audioBackend = AUDIO_BACKEND_NONE;
+    audioInitialized = false;
     if (bufferDat) {
         linearFree(bufferDat);
         bufferDat = NULL;
@@ -79,7 +108,8 @@ void audioExit() {
 void initSampler() {
     if (!audioInitialized)
         return;
-    ndspChnWaveBufClear(AUDIO_CHANNEL);
+    if (audioBackend == AUDIO_BACKEND_NDSP)
+        ndspChnWaveBufClear(AUDIO_CHANNEL);
     memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
     memset(waveBuffers, 0, sizeof(waveBuffers));
     recordingBuffer = 0;
@@ -105,11 +135,6 @@ void swapBuffers() {
     if (framecnt < FRAMES_PER_BUFFER && recordingPos < AUDIO_BUFFER_SIZE)
         return;
 
-    ndspWaveBuf* wave = &waveBuffers[recordingBuffer];
-    if (wave->status == NDSP_WBUF_QUEUED ||
-            wave->status == NDSP_WBUF_PLAYING)
-        return;
-
     if (recordingPos <= 0)
         return;
     if (recordingPos < AUDIO_BUFFER_SIZE) {
@@ -117,15 +142,33 @@ void swapBuffers() {
             (AUDIO_BUFFER_SIZE - recordingPos) * sizeof(s16));
     }
 
-    memset(wave, 0, sizeof(*wave));
-    wave->data_pcm16 = buffers[recordingBuffer];
-    wave->nsamples = AUDIO_BUFFER_SIZE;
-    DSP_FlushDataCache(wave->data_pcm16,
-        AUDIO_BUFFER_SIZE * sizeof(s16));
-    ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
+    if (audioBackend == AUDIO_BACKEND_NDSP) {
+        ndspWaveBuf* wave = &waveBuffers[recordingBuffer];
+        if (wave->status == NDSP_WBUF_QUEUED ||
+                wave->status == NDSP_WBUF_PLAYING)
+            return;
+        memset(wave, 0, sizeof(*wave));
+        wave->data_pcm16 = buffers[recordingBuffer];
+        wave->nsamples = AUDIO_BUFFER_SIZE;
+        DSP_FlushDataCache(wave->data_pcm16,
+            AUDIO_BUFFER_SIZE * sizeof(s16));
+        ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
+    }
+    else {
+        const u32 byteCount = AUDIO_BUFFER_SIZE * sizeof(s16);
+        GSPGPU_FlushDataCache(buffers[recordingBuffer], byteCount);
+        const int channel = 8 + recordingBuffer;
+        const Result result = csndPlaySound(channel,
+            SOUND_ONE_SHOT | SOUND_FORMAT_16BIT | SOUND_LINEAR_INTERP,
+            (u32)AUDIO_FREQUENCY, 1.0f, 0.0f,
+            buffers[recordingBuffer], NULL, byteCount);
+        if (R_FAILED(result))
+            printLog("3DS audio: CSND queue failed (%08lX)\n",
+                (unsigned long)result);
+    }
     if (!firstAudioBufferLogged) {
         printLog("3DS audio: queued %u PCM16 samples\n",
-            (unsigned)wave->nsamples);
+            (unsigned)AUDIO_BUFFER_SIZE);
         firstAudioBufferLogged = true;
     }
 
