@@ -15,6 +15,7 @@
 #define AUDIO_CHANNEL 0
 
 bool audioInitialized = false;
+bool firstAudioBufferLogged = false;
 s16* bufferDat = NULL;
 s16* buffers[2] = {NULL, NULL};
 ndspWaveBuf waveBuffers[2];
@@ -36,6 +37,8 @@ void audioInit() {
 
     Result result = ndspInit();
     if (R_FAILED(result)) {
+        printLog("3DS audio: NDSP init failed (%08lX)\n",
+            (unsigned long)result);
         linearFree(bufferDat);
         bufferDat = NULL;
         return;
@@ -56,6 +59,7 @@ void audioInit() {
     mix[0] = 1.0f;
     mix[1] = 1.0f;
     ndspChnSetMix(AUDIO_CHANNEL, mix);
+    printLog("3DS audio: NDSP ready at %.0f Hz\n", AUDIO_FREQUENCY);
 }
 
 void audioExit() {
@@ -81,6 +85,7 @@ void initSampler() {
     recordingBuffer = 0;
     recordingPos = 0;
     framecnt = 0;
+    firstAudioBufferLogged = false;
 }
 
 // Called once every 4 cycles
@@ -118,6 +123,11 @@ void swapBuffers() {
     DSP_FlushDataCache(wave->data_pcm16,
         AUDIO_BUFFER_SIZE * sizeof(s16));
     ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
+    if (!firstAudioBufferLogged) {
+        printLog("3DS audio: queued %u PCM16 samples\n",
+            (unsigned)wave->nsamples);
+        firstAudioBufferLogged = true;
+    }
 
     recordingBuffer ^= 1;
     recordingPos = 0;
