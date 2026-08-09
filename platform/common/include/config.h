@@ -1,5 +1,7 @@
 #pragma once
 
+#include "io.h"
+
 // Function keys
 enum {
     FUNC_KEY_NONE,
@@ -25,7 +27,7 @@ void writeConfigFile();
 bool createCustomLanguageTemplate();
 const char* getAutoloadRomPath();
 
-extern char languagePath[];
+extern char languagePath[MAX_FILENAME_LEN];
 
 void startKeyConfigChooser();
 
