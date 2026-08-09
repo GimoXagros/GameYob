@@ -326,33 +326,9 @@ void mgr_selectRom() {
         fatalerr("Filechooser error");
     }
 
-    // On DS/DSi, keep the exact byte sequence returned by FatFs readdir() and
-    // open it relative to the selected directory.  Some launchers expose
-    // legacy Korean LFNs that display correctly but cannot be reopened after
-    // prefixing the cwd (for example, "sd:/gb/").  Native 3DS still needs the
-    // stable logical absolute path because its file layer owns a separate cwd.
-    char resolvedFilename[MAX_FILENAME_LEN];
-#ifdef DS
-    strncpy(resolvedFilename, filename, sizeof(resolvedFilename) - 1);
-    resolvedFilename[sizeof(resolvedFilename) - 1] = '\0';
-#else
-    if (filename[0] == '/') {
-        strncpy(resolvedFilename, filename, sizeof(resolvedFilename) - 1);
-        resolvedFilename[sizeof(resolvedFilename) - 1] = '\0';
-    }
-    else {
-        char cwd[MAX_FILENAME_LEN];
-        fs_getcwd(cwd, sizeof(cwd));
-        const size_t cwdLength = strlen(cwd);
-        const int written = snprintf(resolvedFilename,
-            sizeof(resolvedFilename), "%s%s%s", cwd,
-            cwdLength && cwd[cwdLength - 1] == '/' ? "" : "/", filename);
-        if (written < 0 || written >= (int)sizeof(resolvedFilename))
-            fatalerr("ROM path is too long.");
-    }
-#endif
-
-    mgr_loadRom(resolvedFilename);
+    // Keep the v0.5.4 cartridge launch path: the chooser leaves its selected
+    // directory active and the exact d_name is opened relative to that cwd.
+    mgr_loadRom(filename);
     free(filename);
 
     // These things shouldn't be here?

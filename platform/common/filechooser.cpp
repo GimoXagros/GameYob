@@ -497,10 +497,6 @@ lowerDirectory:
         }
     }
 end:
-    // The selected file is opened immediately after returning.  Keeping an
-    // exhausted FatFs directory object alive here caused reopen failures on
-    // some DSi SD implementations and leaked one handle across ROM changes.
-    fs_closeDirectory();
     clearConsole();
 #ifdef DS
     consoleSelectedRow = -1;
