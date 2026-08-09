@@ -53,9 +53,7 @@ static DecodedImage customBorderImage = {0, 0, NULL};
 
 u8 spritePixels[256];
 u32 spritePixelsTrue[256]; // Holds the palettized colors
-
-u8 spritePixelsLow[256];
-u32 spritePixelsTrueLow[256];
+bool spriteBehindBg[256];
 
 u8 bgPixels[256];
 u32 bgPixelsTrue[256];
@@ -213,8 +211,9 @@ void drawScanline_P2(int scanline) {
 	}
     */
     memset(bgPixels, 0, sizeof(bgPixels));
+    memset(bgPixelsLow, 0, sizeof(bgPixelsLow));
     memset(spritePixels, 0, sizeof(spritePixels));
-    memset(spritePixelsLow, 0, sizeof(spritePixelsLow));
+    memset(spriteBehindBg, 0, sizeof(spriteBehindBg));
     for (int x=0; x<160; ++x) {
         bgPixelsTrueLow[x] = *bgPalettesRef[0][0];
     }
@@ -385,26 +384,26 @@ void drawScanline_P2(int scanline) {
     int y = offsetY+scanline;
     for (int i=0; i<160; i++)
     {
-        if (gameboy->gbMode == CGB && !(gameboy->ioRam[0x40] & 1)) {
-            if (spritePixels[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, spritePixelsTrue[i]);
-            else if (spritePixelsLow[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, spritePixelsTrueLow[i]);
-            else if (bgPixels[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, bgPixelsTrue[i]);
-            else
-                drawPixel(framebuffer, offsetX+i, y, bgPixelsTrueLow[i]);
+        bool spriteWins = false;
+        if (spritePixels[i] != 0) {
+            if (gameboy->gbMode == CGB) {
+                spriteWins = gb_render::cgbSpriteWins(
+                        (gameboy->ioRam[0x40] & 1) != 0,
+                        bgPixels[i] != 0, bgPixelsLow[i],
+                        spriteBehindBg[i]);
+            }
+            else {
+                spriteWins = !BGOn || bgPixelsLow[i] == 0 ||
+                    !spriteBehindBg[i];
+            }
         }
-        else {
-            if (bgPixels[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, bgPixelsTrue[i]);
-            else if (spritePixels[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, spritePixelsTrue[i]);
-            else if (spritePixelsLow[i] == 0 || bgPixelsLow[i] != 0)
-                drawPixel(framebuffer, offsetX+i, y, bgPixelsTrueLow[i]);
-            else
-                drawPixel(framebuffer, offsetX+i, y, spritePixelsTrueLow[i]);
-        }
+
+        if (spriteWins)
+            drawPixel(framebuffer, offsetX+i, y, spritePixelsTrue[i]);
+        else if (bgPixels[i] != 0)
+            drawPixel(framebuffer, offsetX+i, y, bgPixelsTrue[i]);
+        else
+            drawPixel(framebuffer, offsetX+i, y, bgPixelsTrueLow[i]);
     }
 }
 
@@ -429,7 +428,7 @@ void drawSprite(int scanline, int spriteNum)
 	int bank = 0;
 	int flipX = (gameboy->hram[spriteNum+3] & 0x20);
 	int flipY = (gameboy->hram[spriteNum+3] & 0x40);
-	int priority = !(gameboy->hram[spriteNum+3] & 0x80);
+	const bool behindBg = (gameboy->hram[spriteNum+3] & 0x80) != 0;
 	int paletteid;
     int dmgPalette = 0;
 
@@ -460,8 +459,6 @@ void drawSprite(int scanline, int spriteNum)
         if (height == 16)
             tileNum = tileNum^1;
     }
-    u32* trueDest = (priority ? spritePixelsTrue : spritePixelsTrueLow);
-    u8* idDest = (priority ? spritePixels : spritePixelsLow);
     for (int j=0; j<8; j++)
     {
         int color;
@@ -478,17 +475,9 @@ void drawSprite(int scanline, int spriteNum)
                 paletteid = dmgPalette +
                     (gameboy->sgbMap[(scanline / 8) * 20 + (writeX / 8)] & 3);
             trueColor = *sprPalettesRef[paletteid][color];
-
-            if (flipX)
-            {
-                idDest[x+(7-j)] = color;
-                trueDest[x+(7-j)] = trueColor;
-            }
-            else
-            {
-                idDest[x+j] = color;
-                trueDest[x+j] = trueColor;
-            }
+            spritePixels[writeX] = color;
+            spritePixelsTrue[writeX] = trueColor;
+            spriteBehindBg[writeX] = behindBg;
         }
     }
 }
