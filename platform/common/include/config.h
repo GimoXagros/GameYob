@@ -25,7 +25,7 @@ void writeConfigFile();
 bool createCustomLanguageTemplate();
 const char* getAutoloadRomPath();
 
-extern char languagePath[256];
+extern char languagePath[];
 
 void startKeyConfigChooser();
 
