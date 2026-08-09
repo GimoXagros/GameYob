@@ -138,10 +138,5 @@ void system_cleanup() {
     mgr_exit();
 
     audioExit();
-
-    fsExit();
     gfxExit();
-    hidExit();
-    aptExit();
-    srvExit();
 }

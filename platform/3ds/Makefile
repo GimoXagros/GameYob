@@ -56,7 +56,7 @@ CFLAGS	:=	-Wall -O3 -mthumb-interwork \
 CFLAGS	+=	-DGIT_REVISION=\"`git rev-parse --short=12 HEAD`\"\
 			-include "3ds/types.h"
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DNIFI
+CFLAGS	+=	$(INCLUDE) -D__3DS__ -D_3DS -DNIFI
 
 ifeq ($(EMBEDDED_ROM), true)
 # Embedded rom from file "data/rom.gb"

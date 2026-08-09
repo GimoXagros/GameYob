@@ -16,12 +16,11 @@ void audioInit();
 
 int main(int argc, char* argv[])
 {
-    srvInit();
-
-	aptInit();
-	hidInit();
+    // libctru's default application bootstrap already initializes srv, APT,
+    // HID, FS, and mounts the SD card. Initializing those services a second
+    // time causes mismatched reference counts during shutdown on current
+    // toolchains.
 	gfxInitDefault();
-    fsInit();
 
     consoleInitBottom();
 

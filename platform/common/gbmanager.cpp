@@ -1,4 +1,6 @@
 #include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 #include <new>
 #include "gbmanager.h"
 #include "inputhelper.h"
@@ -11,6 +13,7 @@
 #include "soundengine.h"
 #include "error.h"
 #include "timer.h"
+#include "io.h"
 
 Gameboy* gameboy = NULL;
 Gameboy* gb2 = NULL;
@@ -293,7 +296,29 @@ void mgr_selectRom() {
     if (filename == NULL) {
         fatalerr("Filechooser error");
     }
-    mgr_loadRom(filename);
+
+    // Keep ROM and save-file access independent of later working-directory
+    // changes. This is especially important for multibyte FAT names: the
+    // directory entry already contains the exact UTF-8 spelling, so preserve
+    // it once in a fully resolved path instead of asking the C runtime to
+    // resolve the basename again after ROM initialization.
+    char resolvedFilename[MAX_FILENAME_LEN];
+    if (filename[0] == '/') {
+        strncpy(resolvedFilename, filename, sizeof(resolvedFilename) - 1);
+        resolvedFilename[sizeof(resolvedFilename) - 1] = '\0';
+    }
+    else {
+        char cwd[MAX_FILENAME_LEN];
+        fs_getcwd(cwd, sizeof(cwd));
+        const size_t cwdLength = strlen(cwd);
+        const int written = snprintf(resolvedFilename,
+            sizeof(resolvedFilename), "%s%s%s", cwd,
+            cwdLength && cwd[cwdLength - 1] == '/' ? "" : "/", filename);
+        if (written < 0 || written >= (int)sizeof(resolvedFilename))
+            fatalerr("ROM path is too long.");
+    }
+
+    mgr_loadRom(resolvedFilename);
     free(filename);
 
     // These things shouldn't be here?
