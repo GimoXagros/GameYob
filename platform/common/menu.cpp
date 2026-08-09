@@ -287,6 +287,54 @@ void biosEnableFunc(int value) {
     biosEnabled = value;
 }
 
+void selectBiosFileFunc(int value) {
+    (void)value;
+    static FileChooserState biosChooserState = {0, "/"};
+    static bool chooserInitialized = false;
+
+    if (!chooserInitialized && biosPath[0]) {
+        char directory[MAX_FILENAME_LEN];
+        snprintf(directory, sizeof(directory), "%s", biosPath);
+        char* slash = strrchr(directory, '/');
+        if (slash) {
+            setFileChooserMatchFile(slash + 1);
+            if (slash == directory)
+                slash[1] = '\0';
+            else
+                *slash = '\0';
+            biosChooserState.directory = directory;
+        }
+        chooserInitialized = true;
+    }
+
+    loadFileChooserState(&biosChooserState);
+    const char* extensions[] = {"bin"};
+    char* filename = startFileChooser(extensions, 1, false, true);
+    if (filename) {
+        char cwd[MAX_FILENAME_LEN];
+        char selectedPath[MAX_FILENAME_LEN];
+        fs_getcwd(cwd, sizeof(cwd));
+        const bool needsSlash = cwd[0] && cwd[strlen(cwd)-1] != '/';
+        const int written = snprintf(selectedPath, sizeof(selectedPath),
+            "%s%s%s", cwd, needsSlash ? "/" : "", filename);
+        free(filename);
+
+        RomFile* romFile = gameboy ? gameboy->getRomFile() : NULL;
+        if (written >= 0 && written < (int)sizeof(selectedPath) &&
+                romFile && romFile->loadBios(selectedPath)) {
+            snprintf(biosPath, sizeof(biosPath), "%s", selectedPath);
+            enableMenuOption("GBC Bios");
+            printMenuMessage("GBC BIOS selected. Reset the game to apply it.");
+        }
+        else {
+            printMenuMessage("Invalid GBC BIOS file.");
+        }
+    }
+
+    saveFileChooserState(&biosChooserState);
+    loadFileChooserState(&romChooserState);
+}
+
 void setScreenFunc(int value) {
     gameScreen = value;
     updateScreens();
@@ -517,8 +565,9 @@ SubMenu menuList[] = {
     },
     {
         "GB Modes",
-        4,
+        5,
         {
+            {"Select GBC BIOS", selectBiosFileFunc, 0, {}, 0, MENU_ALL},
             {"GBC Bios", biosEnableFunc, 3, {"Off","GB Only","On"}, 1, MENU_ALL},
             {"Detect GBA", gbaModeFunc, 2, {"Off","On"}, 0, MENU_ALL},
             {"GBC Mode", gameboyModeFunc, 3, {"Off","If Needed","On"}, 2, MENU_ALL},

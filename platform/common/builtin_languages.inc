@@ -33,6 +33,7 @@ static const char* const kEnglishKeys[] = {
     "SGB Borders",
     "Custom Border",
     "Select Border",
+    "Select GBC BIOS",
     "GBC Bios",
     "Detect GBA",
     "GBC Mode",
@@ -127,6 +128,8 @@ static const char* const kEnglishKeys[] = {
     "Disconnected.",
     "Language template could not be created.",
     "Local link started.",
+    "GBC BIOS selected. Reset the game to apply it.",
+    "Invalid GBC BIOS file.",
 };
 
 static const BuiltinLanguageEntry kBuiltinJa[] = {
@@ -162,6 +165,7 @@ static const BuiltinLanguageEntry kBuiltinJa[] = {
     {"SGB Borders", "SGBボーダー"},
     {"Custom Border", "カスタム枠"},
     {"Select Border", "枠を選択"},
+    {"Select GBC BIOS", "GBC BIOSを選択"},
     {"GBC Bios", "GBC BIOS"},
     {"Detect GBA", "GBA検出"},
     {"GBC Mode", "GBCモード"},
@@ -255,6 +259,8 @@ static const BuiltinLanguageEntry kBuiltinJa[] = {
     {"Disconnected.", "切断しました"},
     {"Language template could not be created.", "言語テンプレートを作成できません"},
     {"Local link started.", "本体内通信を開始しました"},
+    {"GBC BIOS selected. Reset the game to apply it.", "GBC BIOSを選択しました。ゲームをリセットすると適用されます"},
+    {"Invalid GBC BIOS file.", "GBC BIOSファイルが不正です"},
 };
 
 static const BuiltinLanguageEntry kBuiltinKo[] = {
@@ -290,6 +296,7 @@ static const BuiltinLanguageEntry kBuiltinKo[] = {
     {"SGB Borders", "SGB 보더"},
     {"Custom Border", "사용자 보더"},
     {"Select Border", "보더 선택"},
+    {"Select GBC BIOS", "GBC BIOS 선택"},
     {"GBC Bios", "GBC BIOS"},
     {"Detect GBA", "GBA 감지"},
     {"GBC Mode", "GBC 모드"},
@@ -383,6 +390,8 @@ static const BuiltinLanguageEntry kBuiltinKo[] = {
     {"Disconnected.", "연결을 해제했습니다"},
     {"Language template could not be created.", "언어 템플릿을 만들 수 없습니다"},
     {"Local link started.", "로컬 링크를 시작했습니다"},
+    {"GBC BIOS selected. Reset the game to apply it.", "GBC BIOS를 선택했습니다. 게임을 초기화하면 적용됩니다"},
+    {"Invalid GBC BIOS file.", "올바르지 않은 GBC BIOS 파일입니다"},
 };
 
 static const BuiltinLanguage kBuiltinLanguages[] = {

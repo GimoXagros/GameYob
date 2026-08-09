@@ -36,7 +36,7 @@ class RomFile {
         const char* getFilename();
 
         char* getRomTitle();
-        void loadBios(const char* filename);
+        bool loadBios(const char* filename);
 
         // Half memory mode for running multiple gameboys
         void halfMemoryMode();

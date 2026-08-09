@@ -55,6 +55,11 @@ existing licenses. No ROM image or BIOS is included.
   SRAM header table through 128 KiB, and an explicit 8 MiB hardware boundary
 - Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
   attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
+- Completed-frame native 3DS output with Off/Aspect/Full scaling and optional
+  filtering, preventing partially updated scanout frames during fast scenes
+- DS, DSi, and native 3DS GBC BIOS selection with exact 0x900-byte validation;
+  **Save Settings** records the selected absolute path as `biosfile` in
+  `gameyobds.ini`
 - Independent DS NR50 SO1/SO2 volume/routing behavior and GameShark `0x8x`
   external-SRAM bank writes
 - 2026 maintenance pass: table-driven CRC32, allocation-free DS packet sends,
@@ -97,6 +102,10 @@ See [language-file documentation](languages/README.md),
   표준 SRAM 헤더 및 8MiB 하드웨어 경계를 반영한 패치 ROM 안정화
 - 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
   명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
+- 빠른 장면 전환 중 불완전한 화면이 표시되지 않는 네이티브 3DS 완성 프레임
+  출력과 끄기/비율/전체 화면 확대 및 선택형 필터
+- DS·DSi·네이티브 3DS의 GBC BIOS 파일 선택과 정확한 0x900바이트 검사;
+  **설정 저장** 시 선택한 절대 경로를 `gameyobds.ini`의 `biosfile`로 기록
 - DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기
 - 2026년 유지보수 최적화: 테이블 CRC32, DS 패킷 송신 힙 할당 제거,
   DS 글리프 해시 캐시, 경계가 있는 문자열·경로 처리, 엄격한 치트 코드 검사,

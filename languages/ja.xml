@@ -33,6 +33,7 @@
     <string key="SGB Borders">SGBボーダー</string>
     <string key="Custom Border">カスタム枠</string>
     <string key="Select Border">枠を選択</string>
+    <string key="Select GBC BIOS">GBC BIOSを選択</string>
     <string key="GBC Bios">GBC BIOS</string>
     <string key="Detect GBA">GBA検出</string>
     <string key="GBC Mode">GBCモード</string>
@@ -127,5 +128,7 @@
     <string key="Disconnected.">切断しました</string>
     <string key="Language template could not be created.">言語テンプレートを作成できません</string>
     <string key="Local link started.">本体内通信を開始しました</string>
+    <string key="GBC BIOS selected. Reset the game to apply it.">GBC BIOSを選択しました。ゲームをリセットすると適用されます</string>
+    <string key="Invalid GBC BIOS file.">GBC BIOSファイルが不正です</string>
   </strings>
 </language>

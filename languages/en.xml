@@ -33,6 +33,7 @@
     <string key="SGB Borders">SGB Borders</string>
     <string key="Custom Border">Custom Border</string>
     <string key="Select Border">Select Border</string>
+    <string key="Select GBC BIOS">Select GBC BIOS</string>
     <string key="GBC Bios">GBC Bios</string>
     <string key="Detect GBA">Detect GBA</string>
     <string key="GBC Mode">GBC Mode</string>
@@ -127,5 +128,7 @@
     <string key="Disconnected.">Disconnected.</string>
     <string key="Language template could not be created.">Language template could not be created.</string>
     <string key="Local link started.">Local link started.</string>
+    <string key="GBC BIOS selected. Reset the game to apply it.">GBC BIOS selected. Reset the game to apply it.</string>
+    <string key="Invalid GBC BIOS file.">Invalid GBC BIOS file.</string>
   </strings>
 </language>

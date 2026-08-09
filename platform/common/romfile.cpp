@@ -253,25 +253,35 @@ uint32_t RomFile::getContentId() {
 }
 
 
-void RomFile::loadBios(const char* filename) {
-    FileHandle* file;
+bool RomFile::loadBios(const char* filename) {
+    // biosExists is shared platform state, but the BIOS buffer belongs to
+    // each RomFile. Always reload it for a newly selected cartridge instead
+    // of assuming a previous RomFile's buffer is still alive.
+    biosExists = false;
+    if (!filename || !filename[0])
+        return false;
 
-    if (biosExists)
-        goto load;
+    FileHandle* file = file_open(filename, "rb");
+    if (!file)
+        return false;
 
-    file = file_open(filename, "rb");
-    biosExists = file != NULL;
-    if (biosExists) {
-        file_read(bios, 1, 0x900, file);
+    // GameYob implements the 0x900-byte Game Boy Color boot ROM. Rejecting
+    // partial or unrelated files prevents uninitialised BIOS bytes from
+    // being mapped into the emulated address space.
+    if (file_getSize(file) != (int)sizeof(bios)) {
         file_close(file);
+        return false;
     }
-    else
-        return;
-load:
+
+    file_read(bios, 1, sizeof(bios), file);
+    file_close(file);
+    biosExists = true;
+
     // Little hack to preserve "quickread" from gbcpu.cpp.
     for (int i=0x100; i<0x150; i++)
         bios[i] = romSlot0[i];
 
+    return true;
 }
 
 char* RomFile::getRomTitle() {

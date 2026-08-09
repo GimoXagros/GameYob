@@ -16,7 +16,8 @@ ENGLISH_KEYS = (
     "Button Mapping", "Manage Cheats", "Language", "Select Language File",
     "Rumble Pak", "GB Camera", "Console Output", "GB Printer", "Autosaving",
     "Save Settings", "Game Screen", "Single Screen", "Scaling", "Scale Filter",
-    "SGB Borders", "Custom Border", "Select Border", "GBC Bios", "Detect GBA",
+    "SGB Borders", "Custom Border", "Select Border", "Select GBC BIOS",
+    "GBC Bios", "Detect GBA",
     "GBC Mode", "SGB Mode", "Wait for Vblank", "Hblank", "Window", "Sound",
     "Sound Timing Fix", "Audio Status", "ROM Info", "Version Info", "Channel 1", "Channel 2",
     "Channel 3", "Channel 4", "Wireless Link", "Local Link", "Swap Focus",
@@ -39,7 +40,9 @@ ENGLISH_KEYS = (
     "Please restart GameYob.", "Error opening border.", "Invalid border image.",
     "Waiting for room...", "Searching for rooms...", "Room found.",
     "No room found.", "Network unavailable.", "Disconnected.",
-    "Language template could not be created.", "Local link started."
+    "Language template could not be created.", "Local link started.",
+    "GBC BIOS selected. Reset the game to apply it.",
+    "Invalid GBC BIOS file."
 )
 
 
@@ -58,6 +61,7 @@ JA = {
     "Game Screen": "ゲーム画面", "Single Screen": "単画面",
     "Scaling": "拡大", "Scale Filter": "補間", "SGB Borders": "SGBボーダー",
     "Custom Border": "カスタム枠", "Select Border": "枠を選択",
+    "Select GBC BIOS": "GBC BIOSを選択",
     "GBC Bios": "GBC BIOS", "Detect GBA": "GBA検出", "GBC Mode": "GBCモード",
     "SGB Mode": "SGBモード", "Wait for Vblank": "VBlank待機",
     "Hblank": "HBlank", "Window": "ウィンドウ", "Sound": "サウンド",
@@ -101,7 +105,9 @@ JA = {
     "Room found.": "ルームを検出", "No room found.": "ルームが見つかりません",
     "Network unavailable.": "ネットワークを利用できません", "Disconnected.": "切断しました",
     "Language template could not be created.": "言語テンプレートを作成できません",
-    "Local link started.": "本体内通信を開始しました"
+    "Local link started.": "本体内通信を開始しました",
+    "GBC BIOS selected. Reset the game to apply it.": "GBC BIOSを選択しました。ゲームをリセットすると適用されます",
+    "Invalid GBC BIOS file.": "GBC BIOSファイルが不正です"
 }
 
 
@@ -117,6 +123,7 @@ KO = {
     "Autosaving": "자동 저장", "Save Settings": "설정 저장", "Game Screen": "게임 화면",
     "Single Screen": "한 화면", "Scaling": "화면 확대", "Scale Filter": "확대 필터",
     "SGB Borders": "SGB 보더", "Custom Border": "사용자 보더", "Select Border": "보더 선택",
+    "Select GBC BIOS": "GBC BIOS 선택",
     "GBC Bios": "GBC BIOS", "Detect GBA": "GBA 감지", "GBC Mode": "GBC 모드",
     "SGB Mode": "SGB 모드", "Wait for Vblank": "VBlank 대기", "Hblank": "HBlank",
     "Window": "윈도우", "Sound": "사운드", "Sound Timing Fix": "사운드 동기화",
@@ -156,7 +163,9 @@ KO = {
     "Room found.": "방을 찾았습니다", "No room found.": "방을 찾지 못했습니다",
     "Network unavailable.": "네트워크를 사용할 수 없습니다", "Disconnected.": "연결을 해제했습니다",
     "Language template could not be created.": "언어 템플릿을 만들 수 없습니다",
-    "Local link started.": "로컬 링크를 시작했습니다"
+    "Local link started.": "로컬 링크를 시작했습니다",
+    "GBC BIOS selected. Reset the game to apply it.": "GBC BIOS를 선택했습니다. 게임을 초기화하면 적용됩니다",
+    "Invalid GBC BIOS file.": "올바르지 않은 GBC BIOS 파일입니다"
 }
 
 

@@ -15,6 +15,7 @@
 #include "error.h"
 #include "timer.h"
 #include "io.h"
+#include "config.h"
 
 Gameboy* gameboy = NULL;
 Gameboy* gb2 = NULL;
@@ -245,6 +246,12 @@ void mgr_loadRom(const char* filename) {
     if (romFile == 0)
         fatalerr("Not enough RAM to load rom");
     gameboy->setRomFile(romFile);
+
+    // A configured BIOS path is absolute and survives file-chooser cwd
+    // changes. An empty path preserves the traditional gbc_bios.bin lookup
+    // in the current GameYob/ROM directory.
+    romFile->loadBios(biosPath[0] ? biosPath : "gbc_bios.bin");
+
     if (gameboy->loadSave(1) != 0)
         printLog("Unable to open the ROM save file; continuing without persistence.\n");
 
@@ -353,10 +360,6 @@ void mgr_selectRom() {
     mgr_loadRom(filename);
     free(filename);
 
-    // These things shouldn't be here?
-    if (!biosExists) {
-        gameboy->getRomFile()->loadBios("gbc_bios.bin");
-    }
     updateScreens();
     if (!mgr_isPaused())
         unmuteSND();

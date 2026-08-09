@@ -33,6 +33,7 @@
     <string key="SGB Borders">SGB 보더</string>
     <string key="Custom Border">사용자 보더</string>
     <string key="Select Border">보더 선택</string>
+    <string key="Select GBC BIOS">GBC BIOS 선택</string>
     <string key="GBC Bios">GBC BIOS</string>
     <string key="Detect GBA">GBA 감지</string>
     <string key="GBC Mode">GBC 모드</string>
@@ -127,5 +128,7 @@
     <string key="Disconnected.">연결을 해제했습니다</string>
     <string key="Language template could not be created.">언어 템플릿을 만들 수 없습니다</string>
     <string key="Local link started.">로컬 링크를 시작했습니다</string>
+    <string key="GBC BIOS selected. Reset the game to apply it.">GBC BIOS를 선택했습니다. 게임을 초기화하면 적용됩니다</string>
+    <string key="Invalid GBC BIOS file.">올바르지 않은 GBC BIOS 파일입니다</string>
   </strings>
 </language>

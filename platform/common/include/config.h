@@ -28,6 +28,7 @@ bool createCustomLanguageTemplate();
 const char* getAutoloadRomPath();
 
 extern char languagePath[MAX_FILENAME_LEN];
+extern char biosPath[MAX_FILENAME_LEN];
 
 void startKeyConfigChooser();
 

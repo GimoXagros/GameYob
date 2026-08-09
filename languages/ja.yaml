@@ -35,6 +35,7 @@ strings:
   "SGB Borders": "SGBボーダー"
   "Custom Border": "カスタム枠"
   "Select Border": "枠を選択"
+  "Select GBC BIOS": "GBC BIOSを選択"
   "GBC Bios": "GBC BIOS"
   "Detect GBA": "GBA検出"
   "GBC Mode": "GBCモード"
@@ -129,3 +130,5 @@ strings:
   "Disconnected.": "切断しました"
   "Language template could not be created.": "言語テンプレートを作成できません"
   "Local link started.": "本体内通信を開始しました"
+  "GBC BIOS selected. Reset the game to apply it.": "GBC BIOSを選択しました。ゲームをリセットすると適用されます"
+  "Invalid GBC BIOS file.": "GBC BIOSファイルが不正です"
