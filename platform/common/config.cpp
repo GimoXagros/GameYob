@@ -27,6 +27,7 @@
 char biosPath[MAX_FILENAME_LEN] = "";
 char borderPath[MAX_FILENAME_LEN] = "";
 char romPath[MAX_FILENAME_LEN] = "";
+static char autoloadRomPath[MAX_FILENAME_LEN] = "";
 bool borderPathExists = true;
 char languagePath[MAX_FILENAME_LEN] = "";
 static char configuredLanguage[16] = "en";
@@ -49,6 +50,10 @@ void generalParseConfig(char* line) {
             strncpy(romPath, value, sizeof(romPath));
             romPath[sizeof(romPath)-1] = '\0';
             romChooserState.directory = romPath;
+        }
+        else if (strcasecmp(parameter, "autoloadrom") == 0) {
+            strncpy(autoloadRomPath, value, sizeof(autoloadRomPath));
+            autoloadRomPath[sizeof(autoloadRomPath)-1] = '\0';
         }
         else if (strcasecmp(parameter, "biosfile") == 0) {
             strncpy(biosPath, value, sizeof(biosPath));
@@ -75,6 +80,8 @@ void generalParseConfig(char* line) {
 
 void generalPrintConfig(FileHandle* file) {
         file_printf(file, "rompath=%s\n", romPath);
+        if (*autoloadRomPath)
+            file_printf(file, "autoloadrom=%s\n", autoloadRomPath);
         file_printf(file, "biosfile=%s\n", biosPath);
         file_printf(file, "borderfile=%s\n", borderPath);
         file_printf(file, "language=%s\n", languageGetCode());
@@ -147,6 +154,10 @@ void writeConfigFile() {
     file_printf(file, "[controls]\n");
     controlsPrintConfig(file);
     file_close(file);
+}
+
+const char* getAutoloadRomPath() {
+    return autoloadRomPath;
 }
 
 bool createCustomLanguageTemplate() {

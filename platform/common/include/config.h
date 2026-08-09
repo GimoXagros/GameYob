@@ -23,6 +23,7 @@ enum {
 bool readConfigFile();
 void writeConfigFile();
 bool createCustomLanguageTemplate();
+const char* getAutoloadRomPath();
 
 extern char languagePath[256];
 

@@ -105,7 +105,12 @@ int main(int argc, char* argv[])
 
     consoleInitialized = false;
 
-    if (argc >= 2) {
+    const char* autoloadRom = getAutoloadRomPath();
+    if (autoloadRom && *autoloadRom) {
+        mgr_loadRom(autoloadRom);
+        updateScreens();
+    }
+    else if (argc >= 2) {
         char* filename = argv[1];
         mgr_loadRom(filename);
         updateScreens();
