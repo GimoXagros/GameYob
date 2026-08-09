@@ -986,7 +986,11 @@ void setSgbTiles(u8* src, u8 flags) {
 
 void setSgbMap(u8* src) {
     for (int i=0; i<32*32; i++) {
-        u16 val = ((u16*)src)[i];
+        // sgbData is a byte buffer inside Gameboy and is not guaranteed to be
+        // halfword aligned. ARM9 LDRH and DMA reads from a misaligned source
+        // can data-abort on hardware (and corrupt the border on permissive
+        // emulators), so decode the little-endian values explicitly.
+        u16 val = src[i * 2] | ((u16)src[i * 2 + 1] << 8);
         int tile = val&0xff;
         int paletteid = ((val>>10)&3)+8;
         int flipX = (val>>14)&1;
@@ -994,8 +998,11 @@ void setSgbMap(u8* src) {
         borderMap[i] = tile | (paletteid<<12) | (flipX<<10) | (flipY<<11);
     }
 
-    DC_FlushRange(src+0x800, 0x80);
-    dmaCopy(src+0x800, BG_PALETTE+8*16, 0x80);
+    for (int i=0; i<0x40; i++) {
+        const int offset = 0x800 + i * 2;
+        BG_PALETTE[8*16+i] =
+            src[offset] | ((u16)src[offset + 1] << 8);
+    }
 
     sgbBorderLoaded = true;
     if (sgbBordersEnabled) {
