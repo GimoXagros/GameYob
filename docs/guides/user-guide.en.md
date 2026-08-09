@@ -38,7 +38,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 ## 6. Display, borders, and Game Boy modes
 
 - **Game Screen** chooses the top or bottom screen; **Single Screen** hides the unused console screen.
-- DS, DSi, and native 3DS builds provide **Scaling** (Off/Aspect/Full) and **Scale Filter**. Native 3DS hides the border while enlarged and restores it when Scaling returns to Off.
+- DS, DSi, and native 3DS builds provide **Scaling** (Off/Aspect/Full) and **Scale Filter**. Native 3DS enlargement and filtering run on PICA200 through Citro2D instead of scaling every output pixel on the ARM11. It hides the border while enlarged and restores it when Scaling returns to Off.
 - **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP; native 3DS also accepts PNG.
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS, DSi, and native 3DS. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
 - **GBC Mode** chooses GB, automatic, or forced GBC behavior. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** exposes the GBA-detection flag used by a small number of games.

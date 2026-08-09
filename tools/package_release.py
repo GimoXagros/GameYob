@@ -32,6 +32,8 @@ def main() -> None:
         "LICENSE": (root / "LICENSE").read_bytes(),
         "OFL.txt": (root / "assets/fonts/OFL.txt").read_bytes(),
         "STB_LICENSE.txt": (root / "third_party/stb/LICENSE.txt").read_bytes(),
+        "CITRO2D_LICENSE.txt": (root / "licenses/LICENSE-citro2d-zlib.txt").read_bytes(),
+        "CITRO3D_LICENSE.txt": (root / "licenses/LICENSE-citro3d-zlib.txt").read_bytes(),
         "THIRD_PARTY_NOTICES.txt": (root / "THIRD_PARTY_NOTICES.txt").read_bytes(),
         "RELEASE_NOTES.md": (root / "docs/releases/v0.5.5-ko.md").read_bytes(),
         "gameyob/docs/user-guide.en.md": (root / "docs/guides/user-guide.en.md").read_bytes(),
