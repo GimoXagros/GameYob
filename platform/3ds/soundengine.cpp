@@ -522,13 +522,20 @@ void SoundEngine::updateSound(int cycles)
 
         }
         if (chanEnabled[3] && chanOn[3]) {
-            int polarityLen = clockSpeed/((int)(524288 / chan4FreqRatio) >> (chanFreq[3]+1));
-            chanPolarityCounter[3] -= c;
-            int flips = -(chanPolarityCounter[3] - polarityLen) / polarityLen;
-            chanPolarityCounter[3] += flips*polarityLen;
+            int divisor = (int)(524288 / chan4FreqRatio) >>
+                (chanFreq[3] + 1);
+            if (divisor < 1)
+                divisor = 1;
+            int polarityLen = clockSpeed / divisor;
+            if (polarityLen < 1)
+                polarityLen = 1;
 
-            lfsr = gbNoiseAdvance(lfsr, chan4Width != 0, flips);
-            chanPolarity[3] = gbNoisePolarity(lfsr);
+            const unsigned flips = gbNoiseElapsedClocks(
+                    &chanPolarityCounter[3], polarityLen, c);
+            if (flips) {
+                lfsr = gbNoiseAdvance(lfsr, chan4Width != 0, flips);
+                chanPolarity[3] = gbNoisePolarity(lfsr);
+            }
 
             if (chanToOut1[3])
                 tone1 += chanPolarity[3]*chanVol[3];

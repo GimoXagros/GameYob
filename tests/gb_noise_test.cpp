@@ -24,5 +24,23 @@ int main() {
     assert(gbNoisePolarity(state) == -1);
     state = gbNoiseAdvance(state, false, 14);
     assert(gbNoisePolarity(state) == 1);
+
+    int counter = 1000;
+    assert(gbNoiseElapsedClocks(&counter, 100, 84) == 0);
+    assert(counter == 916);
+
+    counter = 0;
+    assert(gbNoiseElapsedClocks(&counter, 100, 84) == 1);
+    assert(counter == 16);
+
+    counter = 100;
+    assert(gbNoiseElapsedClocks(&counter, 100, 100) == 1);
+    assert(counter == 100);
+
+    counter = 0;
+    assert(gbNoiseElapsedClocks(&counter, 100, 100) == 2);
+    assert(counter == 100);
+
+    assert(gbNoiseElapsedClocks(&counter, 0, 84) == 0);
     return 0;
 }
