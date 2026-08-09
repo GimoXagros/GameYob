@@ -311,12 +311,16 @@ void mgr_selectRom() {
         fatalerr("Filechooser error");
     }
 
-    // Keep ROM and save-file access independent of later working-directory
-    // changes. This is especially important for multibyte FAT names: the
-    // directory entry already contains the exact UTF-8 spelling, so preserve
-    // it once in a fully resolved path instead of asking the C runtime to
-    // resolve the basename again after ROM initialization.
+    // On DS/DSi, keep the exact byte sequence returned by FatFs readdir() and
+    // open it relative to the selected directory.  Some launchers expose
+    // legacy Korean LFNs that display correctly but cannot be reopened after
+    // prefixing the cwd (for example, "sd:/gb/").  Native 3DS still needs the
+    // stable logical absolute path because its file layer owns a separate cwd.
     char resolvedFilename[MAX_FILENAME_LEN];
+#ifdef DS
+    strncpy(resolvedFilename, filename, sizeof(resolvedFilename) - 1);
+    resolvedFilename[sizeof(resolvedFilename) - 1] = '\0';
+#else
     if (filename[0] == '/') {
         strncpy(resolvedFilename, filename, sizeof(resolvedFilename) - 1);
         resolvedFilename[sizeof(resolvedFilename) - 1] = '\0';
@@ -331,6 +335,7 @@ void mgr_selectRom() {
         if (written < 0 || written >= (int)sizeof(resolvedFilename))
             fatalerr("ROM path is too long.");
     }
+#endif
 
     mgr_loadRom(resolvedFilename);
     free(filename);

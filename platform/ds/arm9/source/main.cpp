@@ -114,6 +114,10 @@ int main(int argc, char* argv[])
 
     const char* autoloadRom = getAutoloadRomPath();
     if (autoloadRom && *autoloadRom) {
+        // Match the file chooser's DS/DSi behavior: relative autoload names
+        // are resolved from rompath, preserving the exact FAT LFN bytes.
+        loadFileChooserState(&romChooserState);
+        fs_closeDirectory();
         mgr_loadRom(autoloadRom);
         updateScreens();
     }
