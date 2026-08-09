@@ -237,3 +237,6 @@ void fs_closeDirectory() {
         directory = NULL;
     }
 }
+
+void fs_cacheDirectoryAliases() {
+}

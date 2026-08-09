@@ -117,6 +117,7 @@ int main(int argc, char* argv[])
         // Match the file chooser's DS/DSi behavior: relative autoload names
         // are resolved from rompath, preserving the exact FAT LFN bytes.
         loadFileChooserState(&romChooserState);
+        fs_cacheDirectoryAliases();
         fs_closeDirectory();
         mgr_loadRom(autoloadRom);
         updateScreens();

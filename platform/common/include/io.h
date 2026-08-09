@@ -49,3 +49,4 @@ struct dirent* fs_readdir(); // reads from current working directory
 void        fs_getcwd(char*, size_t);
 void        fs_chdir(const char*);
 void        fs_closeDirectory();
+void        fs_cacheDirectoryAliases();

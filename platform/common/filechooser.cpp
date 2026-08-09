@@ -256,6 +256,7 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 
     while (true) {
         fs_getcwd(cwd, MAX_FILENAME_LEN);
+        fs_cacheDirectoryAliases();
 
         numFiles=0;
         std::vector<string> filenames;

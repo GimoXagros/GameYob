@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <string>
+#include <vector>
 #include "io.h"
 
 #ifdef DS
@@ -15,10 +17,45 @@
 DIR* directory = 0;
 
 #ifdef DS
+struct FatAlias {
+    std::string longName;
+    std::string shortName;
+};
+
+static std::vector<FatAlias> fatAliases;
+
+static bool cachedFatAlias(const char* filename, char* openedPath,
+                           size_t openedPathCapacity) {
+    const char* slash = strrchr(filename, '/');
+    const char* basename = slash ? slash + 1 : filename;
+    for (size_t i = 0; i < fatAliases.size(); i++) {
+        if (fatAliases[i].longName != basename)
+            continue;
+
+        const size_t prefixLength = slash ?
+            static_cast<size_t>(slash - filename) + 1 : 0;
+        const size_t shortLength = fatAliases[i].shortName.size();
+        if (prefixLength + shortLength >= openedPathCapacity)
+            return false;
+        if (prefixLength)
+            memcpy(openedPath, filename, prefixLength);
+        memcpy(openedPath + prefixLength, fatAliases[i].shortName.c_str(),
+               shortLength + 1);
+        return true;
+    }
+    return false;
+}
+
 static FILE* openFatAlias(const char* filename, const char* params,
                           char* openedPath, size_t openedPathCapacity) {
     if (!filename || !params || !openedPath || !openedPathCapacity)
         return NULL;
+
+    if (cachedFatAlias(filename, openedPath, openedPathCapacity)) {
+        FILE* cached = fopen(openedPath, params);
+        if (cached)
+            return cached;
+    }
 
     char shortName[FAT_SHORT_FILE_NAME_MAX + 1];
     if (!FAT_getShortNameFor(filename, shortName) || !shortName[0])
@@ -178,6 +215,30 @@ void fs_closeDirectory() {
         closedir(directory);
         directory = 0;
     }
+}
+
+void fs_cacheDirectoryAliases() {
+#ifdef DS
+    fatAliases.clear();
+    if (!directory)
+        return;
+
+    rewinddir(directory);
+    struct dirent* entry;
+    while ((entry = readdir(directory)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+                strcmp(entry->d_name, "..") == 0)
+            continue;
+        char shortName[FAT_SHORT_FILE_NAME_MAX + 1] = "";
+        if (FAT_getShortNameFor(entry->d_name, shortName) && shortName[0]) {
+            FatAlias alias;
+            alias.longName = entry->d_name;
+            alias.shortName = shortName;
+            fatAliases.push_back(alias);
+        }
+    }
+    rewinddir(directory);
+#endif
 }
 
 #endif
