@@ -4,6 +4,10 @@
 #include <string.h>
 
 int main() {
+    assert(textEquivalent("GameYob", "GameYob"));
+    assert(!textEquivalent("GameYob", "GameYob2"));
+    assert(textEquivalent("\xED\x95\x9C\xEA\xB8\x80",
+                          "\xED\x95\x9C\xEA\xB8\x80"));
     assert(textColumns("GameYob") == 7);
     assert(textColumns("한글 이름") == 5);
     assert(textColumns("日本語") == 3);

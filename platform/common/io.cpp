@@ -9,6 +9,7 @@
 
 #ifdef DS
 #include <fat.h>
+#include "text.h"
 #endif
 
 
@@ -29,7 +30,8 @@ static bool cachedFatAlias(const char* filename, char* openedPath,
     const char* slash = strrchr(filename, '/');
     const char* basename = slash ? slash + 1 : filename;
     for (size_t i = 0; i < fatAliases.size(); i++) {
-        if (fatAliases[i].longName != basename)
+        if (fatAliases[i].longName != basename &&
+                !textEquivalent(fatAliases[i].longName.c_str(), basename))
             continue;
 
         const size_t prefixLength = slash ?

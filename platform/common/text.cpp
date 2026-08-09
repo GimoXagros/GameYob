@@ -231,6 +231,36 @@ void textResetGlyphCache() {
 #endif
 }
 
+bool textEquivalent(const char* first, const char* second) {
+    if (!first || !second)
+        return first == second;
+
+    const bool firstUtf8 = isValidUtf8(first);
+    const bool secondUtf8 = isValidUtf8(second);
+    const unsigned char* firstCursor =
+        reinterpret_cast<const unsigned char*>(first);
+    const unsigned char* secondCursor =
+        reinterpret_cast<const unsigned char*>(second);
+    unsigned int firstRemaining = strlen(first);
+    unsigned int secondRemaining = strlen(second);
+
+    while (firstRemaining && secondRemaining) {
+        unsigned int firstBytes;
+        unsigned int secondBytes;
+        const unsigned int firstCodepoint = decodeCharacter(firstCursor,
+            firstRemaining, firstUtf8, &firstBytes);
+        const unsigned int secondCodepoint = decodeCharacter(secondCursor,
+            secondRemaining, secondUtf8, &secondBytes);
+        if (firstCodepoint != secondCodepoint)
+            return false;
+        firstCursor += firstBytes;
+        firstRemaining -= firstBytes;
+        secondCursor += secondBytes;
+        secondRemaining -= secondBytes;
+    }
+    return firstRemaining == 0 && secondRemaining == 0;
+}
+
 unsigned int textColumns(const char* text) {
     if (!text)
         return 0;

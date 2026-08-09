@@ -3,6 +3,7 @@
 #include <stddef.h>
 
 void textResetGlyphCache();
+bool textEquivalent(const char* first, const char* second);
 unsigned int textColumns(const char* text);
 void textCopyColumns(char* destination, size_t destinationSize,
                      const char* source, unsigned int maxColumns);
