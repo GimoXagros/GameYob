@@ -22,6 +22,7 @@
 #include "menu.h"
 #include "gbmanager.h"
 #include "config.h"
+#include "error.h"
 
 void updateVBlank();
 
@@ -81,8 +82,14 @@ int main(int argc, char* argv[])
 
     fifoSetValue32Handler(FIFO_USER_02, fifoValue32Handler, NULL);
 
-    sharedData = (SharedData*)memUncached(malloc(sizeof(SharedData)));
-    dummySharedData = (SharedData*)memUncached(malloc(sizeof(SharedData)));
+    SharedData* sharedAllocation =
+        (SharedData*)calloc(1, sizeof(SharedData));
+    SharedData* dummyAllocation =
+        (SharedData*)calloc(1, sizeof(SharedData));
+    if (!sharedAllocation || !dummyAllocation)
+        fatalerr("Unable to allocate ARM7 shared memory.");
+    sharedData = (SharedData*)memUncached(sharedAllocation);
+    dummySharedData = (SharedData*)memUncached(dummyAllocation);
     sharedData->scalingOn = false;
     sharedData->enableSleepMode = true;
     // It might make more sense to use "fifoSendAddress" here.
