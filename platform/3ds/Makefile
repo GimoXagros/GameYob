@@ -46,11 +46,10 @@ export	OUTPUT_FORMAT ?= 3dsx
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-marm
+ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS	:=	-Wall -O3 -mthumb-interwork \
-			-mcpu=mpcore -mtune=mpcore -fomit-frame-pointer \
-			-mfpu=vfp -ffast-math -mword-relocations \
+CFLAGS	:=	-Wall -O3 -fomit-frame-pointer -ffast-math \
+			-mword-relocations -ffunction-sections \
 			$(ARCH)
 
 CFLAGS	+=	-DGIT_REVISION=\"`git rev-parse --short=12 HEAD`\"\
@@ -67,14 +66,13 @@ endif
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
 
 ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) \
-			-Wl,-d,-q,--use-blx,-Map,$(TARGET).map
+LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
 ifneq ($(strip $(CRT0DIR)),)
 LDFLAGS	+=	-B$(CRT0DIR)/
 endif
 
-LIBS	:= -lctru
+LIBS	:= -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
