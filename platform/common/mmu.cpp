@@ -40,7 +40,7 @@ void Gameboy::refreshRomBank(int bank)
 
 void Gameboy::refreshRamBank (int bank) 
 {
-    if (bank < getNumSramBanks()) {
+    if (bank >= 0 && bank < getNumSramBanks() && externRam != NULL) {
         currentRamBank = bank;
         memory[0xa] = externRam+currentRamBank*0x2000;
         memory[0xb] = externRam+currentRamBank*0x2000+0x1000; 
@@ -54,16 +54,27 @@ void Gameboy::refreshRamBank (int bank)
 }
 
 void Gameboy::writeSram(u16 addr, u8 val) {
+    // MBC registers can select banks that are not physically present. Reads
+    // are mapped to unavailableRam above and writes must be ignored; indexing
+    // externRam with that invalid bank corrupts unrelated heap allocations.
+    if (externRam == NULL || currentRamBank < 0 ||
+            currentRamBank >= getNumSramBanks() || addr >= 0x2000)
+        return;
+
     int pos = addr + currentRamBank*0x2000;
     if (externRam[pos] != val) {
         externRam[pos] = val;
-        if (autoSavingEnabled) {
+        if (autoSavingEnabled && fatBytesPerSector > 0) {
             /*
             file_seek(saveFile, currentRamBank*0x2000+addr, SEEK_SET);
             file_putc(val, saveFile);
             */
             saveModified = true;
-            dirtySectors[pos/fatBytesPerSector] = true;
+            const int dirtyIndex = pos / fatBytesPerSector;
+            if (dirtyIndex >= 0 &&
+                    dirtyIndex < (int)(sizeof(dirtySectors) /
+                                       sizeof(dirtySectors[0])))
+                dirtySectors[dirtyIndex] = true;
             numSaveWrites++;
         }
     }
