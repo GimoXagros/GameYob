@@ -72,7 +72,7 @@ ifneq ($(strip $(CRT0DIR)),)
 LDFLAGS	+=	-B$(CRT0DIR)/
 endif
 
-LIBS	:= -lctru -lm
+LIBS	:= -lcitro2d -lcitro3d -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing

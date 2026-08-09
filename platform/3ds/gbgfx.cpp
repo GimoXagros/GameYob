@@ -510,6 +510,17 @@ void drawScreen()
 
     const int offsetX = (screenWidth-drawWidth)/2;
     const int offsetY = (TOP_SCREEN_HEIGHT-drawHeight)/2;
+
+    // Scaling and filtering are performed by the PICA200 through Citro2D.
+    // Only the 160x144 RGB565 texture is refreshed by the CPU; the GPU expands
+    // it to the requested screen rectangle. This avoids the old per-output-
+    // pixel software bilinear loop on the Old 3DS/2DS ARM11.
+    if (scaleMode != 0 && gfxDrawAcceleratedGameFrame(
+            gameScreen == 0 ? GFX_TOP : GFX_BOTTOM, gameFrame,
+            offsetX, offsetY, drawWidth, drawHeight, scaleFilter != 0,
+            !(fastForwardMode || fastForwardKey)))
+        return;
+
     drawRgb24FrameScaled(framebuffer, offsetX, offsetY,
         drawWidth, drawHeight, gameFrame, 160, 144,
         scaleMode != 0 && scaleFilter != 0);
@@ -588,6 +599,11 @@ int loadBorder(const char* filename) {
 }
 
 void checkBorder() {
+    // A Citro3D presentation may still be completing asynchronously. Drain it
+    // and recover the raw front/back pointers before drawing borders or menu
+    // backgrounds directly into both framebuffers.
+    gfxFinishAcceleratedGameFrame();
+    gfxResyncFramebufferTracking();
     lastGameScreen = gameScreen;
 
     u8* buffers[2];
@@ -645,10 +661,12 @@ void refreshSgbPalette() {
 void setSgbMask(int mask) {
     gfxMask = mask & 3;
     if (gfxMask == 1) {
-        const gfxScreen_t screen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
-        memcpy(gfxGetInactiveFramebuffer(screen, GFX_LEFT),
-            gfxGetActiveFramebuffer(screen, GFX_LEFT),
-            framebufferSizes[gameScreen]);
+        if (scaleMode == 0) {
+            const gfxScreen_t screen = gameScreen == 0 ? GFX_TOP : GFX_BOTTOM;
+            memcpy(gfxGetInactiveFramebuffer(screen, GFX_LEFT),
+                gfxGetActiveFramebuffer(screen, GFX_LEFT),
+                framebufferSizes[gameScreen]);
+        }
     }
 }
 void setSgbTiles(u8* src, u8 flags) {
@@ -723,6 +741,14 @@ void drawMaskedScanline(int scanline, u32 color) {
 }
 
 void clearGameArea(u32 color) {
+    for (int i=0; i<160*144; ++i)
+        gameFrame[i] = color;
+
+    // The accelerated path keeps displaying gameFrame, so no raw framebuffer
+    // write is needed while scaled. Avoid racing a pending GPU transfer.
+    if (scaleMode != 0)
+        return;
+
     u8* buffers[2];
     int screenWidth;
     if (gameScreen == 0) {
@@ -737,8 +763,6 @@ void clearGameArea(u32 color) {
     }
     const int offsetX = screenWidth / 2 - 160/2;
     const int offsetY = TOP_SCREEN_HEIGHT / 2 - 144/2;
-    for (int i=0; i<160*144; ++i)
-        gameFrame[i] = color;
     for (int buffer=0; buffer<2; ++buffer) {
         drawRgb24Frame(buffers[buffer], offsetX, offsetY,
             gameFrame, 160, 144);

@@ -22,8 +22,9 @@ int main(int argc, char* argv[])
     // HID, FS, and mounts the SD card. Initializing those services a second
     // time causes mismatched reference counts during shutdown on current
     // toolchains.
-	gfxInitDefault();
+    gfxInitDefault();
     gfxInitFramebufferTracking();
+    gfxInitAcceleratedGameRenderer();
     // Initialize renderer-owned palette references before any ROM is run.
     // SGB probing can populate only the DMG palette subset; without this,
     // a later CGB screen using palettes 4-7 dereferences a null pointer.

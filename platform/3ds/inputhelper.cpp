@@ -123,8 +123,21 @@ void system_checkPolls() {
         exit(0);
     }
 
-    gfxFlushBuffers();
-    gfxMySwapBuffers();
+    if (gfxConsumeAcceleratedGameFrame()) {
+        // Citro3D presents the GPU-rendered game screen itself. Preserve the
+        // software-rendered menu/debug screen with one independent swap.
+        const gfxScreen_t consoleScreen =
+            gameScreen == 0 ? GFX_BOTTOM : GFX_TOP;
+        u8* consoleFramebuffer = gfxGetInactiveFramebuffer(
+            consoleScreen, GFX_LEFT);
+        GSPGPU_FlushDataCache(consoleFramebuffer,
+            framebufferSizes[consoleScreen]);
+        gfxMySwapBuffer(consoleScreen);
+    }
+    else {
+        gfxFlushBuffers();
+        gfxMySwapBuffers();
+    }
     consoleCheckFramebuffers();
 }
 
@@ -138,5 +151,6 @@ void system_cleanup() {
     mgr_exit();
 
     audioExit();
+    gfxExitAcceleratedGameRenderer();
     gfxExit();
 }

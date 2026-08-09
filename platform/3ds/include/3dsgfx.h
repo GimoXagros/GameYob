@@ -12,6 +12,15 @@ void drawRgb24FrameScaled(u8* framebuffer, int destX, int destY,
 u8* gfxGetActiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
 u8* gfxGetInactiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
 void gfxInitFramebufferTracking();
+bool gfxInitAcceleratedGameRenderer();
+void gfxExitAcceleratedGameRenderer();
+bool gfxDrawAcceleratedGameFrame(gfxScreen_t screen, const u32* pixels,
+        int destX, int destY, int destWidth, int destHeight,
+        bool filter, bool syncToVBlank);
+bool gfxConsumeAcceleratedGameFrame();
+void gfxFinishAcceleratedGameFrame();
+void gfxResyncFramebufferTracking();
+void gfxMySwapBuffer(gfxScreen_t screen);
 void gfxMySwapBuffers();
 
 inline u32 RGB24(int red, int green, int blue) {
