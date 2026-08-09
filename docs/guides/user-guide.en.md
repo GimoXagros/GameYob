@@ -76,6 +76,7 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - If a language does not change, select English once, reselect the target language, and save settings. For Custom, verify UTF-8 encoding and unchanged English keys.
 - If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
 - If native 3DS audio is silent in Azahar, confirm that your own DSP dump exists at Azahar's virtual SD path `sdmc:/3ds/dspfirm.cdc`. Do not download or redistribute another console's firmware.
+- Occasional frame drops can occur in the native 3DS build. `v0.5.5-ko` intentionally provides only the fixed centered 160×144 display; scaling is deferred to `v0.5.6-ko` rather than shipping the unstable prototypes.
 - If networking is unavailable, confirm Wi-Fi/LAN state, AP isolation, and UDP port 35553 for native 3DS. DS raw NiFi does not use the Internet connection.
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01/MBC4 and parts of MBC7/HuC hardware remain compatibility limits.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.

@@ -39,7 +39,7 @@ existing licenses. No ROM image or BIOS is included.
   list handling on DS/DSi and native 3DS; native 3DS UTF-16 directory entries
   are converted to UTF-8 without lossy narrowing
 - Current native-3DS devkitPro/libctru ABI, public framebuffer and UTF-8 SD
-  APIs, stable absolute ROM paths, and NDSP audio with a CSND hardware fallback;
+  APIs, stable absolute ROM paths, and CSND audio with an NDSP fallback;
   the user's DSP firmware remains external and is never distributed
 - Native 3DS LAN link backend with room discovery, host/client connection,
   link-cable and SGB multiplayer modes, ACK/retry, fragmentation, buffered
@@ -76,6 +76,15 @@ See [language-file documentation](languages/README.md),
 - [日本語](docs/guides/user-guide.ja.md)
 - [한국어](docs/guides/user-guide.ko.md)
 
+### Known limitations
+
+- The native `gameyob.3dsx` build has been confirmed to run ROMs correctly on
+  real hardware with the fixed centered 160x144 display, but occasional frame
+  drops can still occur during gameplay.
+- Native 3DS aspect/full-screen scaling is intentionally unavailable in this
+  release. A stable, hardware-verified implementation is planned for
+  `v0.5.6-ko`. DS/DSi scaling remains available.
+
 ### 완료된 작업
 
 - 기존 devkitARM Makefile에서 고정된 BlocksDS 1.22.2 SDK와 Wonderful
@@ -88,7 +97,7 @@ See [language-file documentation](languages/README.md),
 - DS/DSi 및 네이티브 3DS의 전체 Galmuri BMP 유니코드 UI 글꼴,
   UTF-8/CP949 한글 파일명·치트 목록, 3DS UTF-16 파일명의 무손실 UTF-8 변환
 - 최신 네이티브 3DS devkitPro/libctru ABI, 공개 프레임버퍼 및 UTF-8 SD API,
-  안정적인 ROM 절대 경로와 NDSP 사운드·실기 CSND 대체 경로 적용;
+  안정적인 ROM 절대 경로와 실기 CSND 사운드·NDSP 대체 경로 적용;
   사용자 소유 DSP 펌웨어는 외부 파일로 유지하며 배포하지 않음
 - 방 검색, 호스트/클라이언트 연결, 링크 케이블·SGB 멀티플레이, 재전송,
   분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM/RTC 동기화를 갖춘
@@ -111,6 +120,14 @@ See [language-file documentation](languages/README.md),
 - 2026년 유지보수 최적화: 테이블 CRC32, DS 패킷 송신 힙 할당 제거,
   DS 글리프 해시 캐시, 경계가 있는 문자열·경로 처리, 엄격한 치트 코드 검사,
   불필요한 3DS 컴파일 임시 파일 제거
+
+### 알려진 제한 사항
+
+- 네이티브 `gameyob.3dsx`는 실기에서 중앙 160x144 고정 화면으로 ROM이
+  정상 구동되는 것을 확인했지만, 게임 중 간헐적인 프레임 드롭이 남아 있습니다.
+- 네이티브 3DS의 비율/전체 화면 확대는 이번 릴리스에서 의도적으로 제공하지
+  않습니다. 실기에서 안정적으로 검증된 구현을 `v0.5.6-ko` 목표로 진행하며
+  DS/DSi판의 확대 기능은 계속 사용할 수 있습니다.
 
 ## GameYob v0.5.3-ko
 
