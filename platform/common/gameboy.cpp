@@ -694,6 +694,7 @@ void Gameboy::setRomFile(RomFile* r) {
 
 void Gameboy::unloadRom() {
     gameboySyncAutosave();
+    cheatEngine->unloadCheats();
     if (saveFile != NULL)
         file_close(saveFile);
     saveFile = NULL;

@@ -230,3 +230,10 @@ void fs_chdir(const char* path) {
     directory = replacement;
     copyString(fsCwd, sizeof(fsCwd), next);
 }
+
+void fs_closeDirectory() {
+    if (directory) {
+        closedir(directory);
+        directory = NULL;
+    }
+}

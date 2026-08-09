@@ -52,6 +52,16 @@ void CheatEngine::setRomFile(RomFile* r) {
     romFile = r;
 }
 
+void CheatEngine::unloadCheats() {
+    if (romFile) {
+        for (int i = 0; i < numCheats; i++)
+            unapplyGGCheat(i);
+    }
+    numCheats = 0;
+    cheatsRomTitle[0] = '\0';
+    disableMenuOption("Manage Cheats");
+}
+
 void CheatEngine::enableCheats (bool enable)
 {
     cheatsEnabled = enable;

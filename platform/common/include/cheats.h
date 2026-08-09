@@ -32,6 +32,7 @@ class CheatEngine {
     public:
         CheatEngine(Gameboy* g);
         void setRomFile(RomFile* r);
+        void unloadCheats();
 
         void enableCheats(bool enable);
         bool addCheat(const char *str);

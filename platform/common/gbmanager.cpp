@@ -229,6 +229,17 @@ void mgr_loadRom(const char* filename) {
 
     gameboy->init();
 
+    char cheatFilename[MAX_FILENAME_LEN];
+    if (gbsMode) {
+        gameboy->getCheatEngine()->loadCheats("");
+    }
+    else {
+        const int written = snprintf(cheatFilename, sizeof(cheatFilename),
+            "%s.cht", romFile->getBasename());
+        if (written >= 0 && written < (int)sizeof(cheatFilename))
+            gameboy->getCheatEngine()->loadCheats(cheatFilename);
+    }
+
     if (gbsMode) {
         disableMenuOption("State Slot");
         disableMenuOption("Save State");
@@ -267,19 +278,21 @@ void mgr_unloadRom() {
     stopDebugger();
 #endif
 
+    RomFile* mainRom = gameboy ? gameboy->getRomFile() : NULL;
     if (gb2) {
-        if (gb2->getRomFile() != NULL && gb2->getRomFile() != gameboy->getRomFile())  {
-            delete gb2->getRomFile();
-            gb2->unloadRom();
-        }
+        RomFile* secondaryRom = gb2->getRomFile();
+        gb2->unloadRom();
+        if (secondaryRom != NULL && secondaryRom != mainRom)
+            delete secondaryRom;
         delete gb2;
     }
-    if (gameboy->getRomFile() != NULL) {
-        delete gameboy->getRomFile();
+    if (gameboy && mainRom != NULL) {
         gameboy->unloadRom();
+        delete mainRom;
     }
 
-    gameboy->linkedGameboy = NULL;
+    if (gameboy)
+        gameboy->linkedGameboy = NULL;
     gbUno = gameboy;
     gb2 = NULL;
     gbDuo = NULL;
@@ -326,6 +339,8 @@ void mgr_selectRom() {
         gameboy->getRomFile()->loadBios("gbc_bios.bin");
     }
     updateScreens();
+    if (!mgr_isPaused())
+        unmuteSND();
 }
 
 void mgr_save() {

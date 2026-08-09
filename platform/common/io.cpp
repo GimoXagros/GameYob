@@ -5,31 +5,72 @@
 #include <string.h>
 #include "io.h"
 
+#ifdef DS
+#include <fat.h>
+#endif
+
 
 #ifdef C_IO_FUNCTIONS
 
 DIR* directory = 0;
 
+#ifdef DS
+static FILE* openFatAlias(const char* filename, const char* params,
+                          char* openedPath, size_t openedPathCapacity) {
+    if (!filename || !params || !openedPath || !openedPathCapacity)
+        return NULL;
+
+    char shortName[FAT_SHORT_FILE_NAME_MAX + 1];
+    if (!FAT_getShortNameFor(filename, shortName) || !shortName[0])
+        return NULL;
+
+    const char* slash = strrchr(filename, '/');
+    const size_t prefixLength = slash ?
+        static_cast<size_t>(slash - filename) + 1 : 0;
+    const size_t shortLength = strlen(shortName);
+    if (prefixLength + shortLength >= openedPathCapacity)
+        return NULL;
+
+    if (prefixLength)
+        memcpy(openedPath, filename, prefixLength);
+    memcpy(openedPath + prefixLength, shortName, shortLength + 1);
+    return fopen(openedPath, params);
+}
+#endif
+
 FileHandle* file_open(const char* filename, const char* params) {
     if (!filename || !params)
         return NULL;
-    FileHandle* h = (FileHandle*)malloc(sizeof(FileHandle));
-    if (!h)
-        return NULL;
-    h->filename = (char*)malloc(strlen(filename)+1);
-    if (!h->filename) {
-        free(h);
-        return NULL;
-    }
-    strcpy(h->filename, filename);
-    h->file = fopen(filename, params);
 
-    if (h->file == NULL) {
-        free(h->filename);
-        free(h);
-        h = NULL;
+    char openedPath[MAX_FILENAME_LEN];
+    strncpy(openedPath, filename, sizeof(openedPath) - 1);
+    openedPath[sizeof(openedPath) - 1] = '\0';
+
+    FILE* file = fopen(openedPath, params);
+#ifdef DS
+    // FatFs exposes UTF-8 LFNs, but a few DSi launchers and legacy FAT images
+    // still fail to reopen an LFN returned by readdir().  Resolve the same
+    // directory entry through its ASCII 8.3 alias before reporting failure.
+    if (!file)
+        file = openFatAlias(filename, params, openedPath,
+                            sizeof(openedPath));
+#endif
+    if (!file)
+        return NULL;
+
+    FileHandle* h = (FileHandle*)malloc(sizeof(FileHandle));
+    if (!h) {
+        fclose(file);
         return NULL;
     }
+    h->filename = (char*)malloc(strlen(openedPath)+1);
+    if (!h->filename) {
+        fclose(file);
+        free(h);
+        return NULL;
+    }
+    strcpy(h->filename, openedPath);
+    h->file = file;
 
     strncpy(h->flags, params, sizeof(h->flags) - 1);
     h->flags[sizeof(h->flags) - 1] = '\0';
@@ -130,6 +171,13 @@ void fs_chdir(const char* s) {
     if (directory != 0)
         closedir(directory);
     directory = replacement;
+}
+
+void fs_closeDirectory() {
+    if (directory != 0) {
+        closedir(directory);
+        directory = 0;
+    }
 }
 
 #endif
