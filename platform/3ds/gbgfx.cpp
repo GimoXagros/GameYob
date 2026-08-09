@@ -60,6 +60,12 @@ u32 bgPixelsTrue[256];
 u8 bgPixelsLow[256];
 u32 bgPixelsTrueLow[256];
 
+// The native 3DS backend renders a complete Game Boy frame here first. This
+// avoids exposing a framebuffer while its scanlines still belong to different
+// emulated frames and mirrors the completed-frame submission used by the DS
+// backend.
+u32 gameFrame[160*144];
+
 
 bool bgPalettesModified[8];
 bool sprPalettesModified[8];
@@ -378,18 +384,6 @@ void drawScanline_P2(int scanline) {
         }
 	}
 
-    u8* framebuffer;
-    int offsetX, offsetY = TOP_SCREEN_HEIGHT / 2 - 144/2;
-    if (gameScreen == 0) {
-        framebuffer = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
-        offsetX = TOP_SCREEN_WIDTH / 2 - 160/2;
-    }
-    else {
-        framebuffer = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
-        offsetX = BOTTOM_SCREEN_WIDTH / 2 - 160/2;
-    }
-
-    int y = offsetY+scanline;
     for (int i=0; i<160; i++)
     {
         bool spriteWins = false;
@@ -407,11 +401,11 @@ void drawScanline_P2(int scanline) {
         }
 
         if (spriteWins)
-            drawPixel(framebuffer, offsetX+i, y, spritePixelsTrue[i]);
+            gameFrame[scanline*160+i] = spritePixelsTrue[i];
         else if (bgPixels[i] != 0)
-            drawPixel(framebuffer, offsetX+i, y, bgPixelsTrue[i]);
+            gameFrame[scanline*160+i] = bgPixelsTrue[i];
         else
-            drawPixel(framebuffer, offsetX+i, y, bgPixelsTrueLow[i]);
+            gameFrame[scanline*160+i] = bgPixelsTrueLow[i];
     }
 }
 
@@ -492,6 +486,34 @@ void drawSprite(int scanline, int spriteNum)
 
 void drawScreen()
 {
+    u8* framebuffer;
+    int screenWidth;
+    if (gameScreen == 0) {
+        framebuffer = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
+        screenWidth = TOP_SCREEN_WIDTH;
+    }
+    else {
+        framebuffer = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
+        screenWidth = BOTTOM_SCREEN_WIDTH;
+    }
+
+    int drawWidth = 160;
+    int drawHeight = 144;
+    if (scaleMode == 1) {
+        drawHeight = TOP_SCREEN_HEIGHT;
+        drawWidth = (160 * drawHeight + 72) / 144;
+    }
+    else if (scaleMode == 2) {
+        drawWidth = screenWidth;
+        drawHeight = TOP_SCREEN_HEIGHT;
+    }
+
+    const int offsetX = (screenWidth-drawWidth)/2;
+    const int offsetY = (TOP_SCREEN_HEIGHT-drawHeight)/2;
+    drawRgb24FrameScaled(framebuffer, offsetX, offsetY,
+        drawWidth, drawHeight, gameFrame, 160, 144,
+        scaleMode != 0 && scaleFilter != 0);
+
     if (!(fastForwardMode || fastForwardKey))
         system_waitForVBlank();
 }
@@ -582,10 +604,10 @@ void checkBorder() {
     }
 
     loadedBorderType = BORDER_NONE;
-    if (sgbBordersEnabled && sgbBorderLoaded) {
+    if (scaleMode == 0 && sgbBordersEnabled && sgbBorderLoaded) {
         loadedBorderType = BORDER_SGB;
     }
-    else if (customBordersEnabled) {
+    else if (scaleMode == 0 && customBordersEnabled) {
         if (!customBorderExists)
             loadBorder(borderPath);
         if (customBorderExists)
@@ -602,7 +624,7 @@ void checkBorder() {
 }
 
 void refreshScaleMode() {
-
+    checkBorder();
 }
 
 
@@ -694,22 +716,10 @@ void drawCustomBorder(u8* framebuffer, int screenWidth) {
 }
 
 void drawMaskedScanline(int scanline, u32 color) {
-    u8* framebuffer;
-    int offsetX;
-    const int offsetY = TOP_SCREEN_HEIGHT / 2 - 144/2;
-    if (gameScreen == 0) {
-        framebuffer = gfxGetInactiveFramebuffer(GFX_TOP, GFX_LEFT);
-        offsetX = TOP_SCREEN_WIDTH / 2 - 160/2;
-    }
-    else {
-        framebuffer = gfxGetInactiveFramebuffer(GFX_BOTTOM, GFX_LEFT);
-        offsetX = BOTTOM_SCREEN_WIDTH / 2 - 160/2;
-    }
-
-    const int y = offsetY + scanline;
-    for (int x=0; x<160; x++) {
-        drawPixel(framebuffer, offsetX+x, y, color);
-    }
+    if (scanline < 0 || scanline >= 144)
+        return;
+    for (int x=0; x<160; x++)
+        gameFrame[scanline*160+x] = color;
 }
 
 void clearGameArea(u32 color) {
@@ -727,10 +737,11 @@ void clearGameArea(u32 color) {
     }
     const int offsetX = screenWidth / 2 - 160/2;
     const int offsetY = TOP_SCREEN_HEIGHT / 2 - 144/2;
+    for (int i=0; i<160*144; ++i)
+        gameFrame[i] = color;
     for (int buffer=0; buffer<2; ++buffer) {
-        for (int y=0; y<144; ++y)
-            for (int x=0; x<160; ++x)
-                drawPixel(buffers[buffer], offsetX+x, offsetY+y, color);
+        drawRgb24Frame(buffers[buffer], offsetX, offsetY,
+            gameFrame, 160, 144);
     }
 }
 

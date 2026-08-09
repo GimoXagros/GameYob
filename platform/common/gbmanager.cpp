@@ -455,7 +455,14 @@ void mgr_updateVBlank() {
         }
 
         if (keyJustPressed(mapFuncKey(FUNC_KEY_SCALE))) {
+#ifdef _3DS
+            // Native 3DS exposes all three output sizes. Keep the original
+            // DS/DSi two-state shortcut unchanged while cycling every 3DS
+            // mode from the mapped Scale key.
+            setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
+#else
             setMenuOption("Scaling", !getMenuOption("Scaling"));
+#endif
         }
 
 #ifdef DS
