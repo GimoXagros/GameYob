@@ -434,11 +434,14 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 lowerDirectory:
                     // Select this directory when going up
                     fs_getcwd(cwd, MAX_FILENAME_LEN);
+                    char parentPath[MAX_FILENAME_LEN];
                     char parentMatch[MAX_FILENAME_LEN];
-                    if (fileChooserParentMatch(cwd, parentMatch,
-                                               sizeof(parentMatch))) {
+                    if (fileChooserParentInfo(cwd,
+                                              parentPath, sizeof(parentPath),
+                                              parentMatch,
+                                              sizeof(parentMatch))) {
                         matchFile = parentMatch;
-                        fs_chdir("..");
+                        fs_chdir(parentPath);
                         readDirectory = true;
                     }
                     break;

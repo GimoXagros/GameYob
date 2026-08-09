@@ -2,8 +2,11 @@
 
 #include <string.h>
 
-bool fileChooserParentMatch(const char* currentPath, char* matchName,
-                            size_t matchNameCapacity) {
+bool fileChooserParentInfo(const char* currentPath,
+                           char* parentPath, size_t parentPathCapacity,
+                           char* matchName, size_t matchNameCapacity) {
+    if (parentPath && parentPathCapacity)
+        parentPath[0] = '\0';
     if (matchName && matchNameCapacity)
         matchName[0] = '\0';
     if (!currentPath || !currentPath[0])
@@ -38,6 +41,25 @@ bool fileChooserParentMatch(const char* currentPath, char* matchName,
     const size_t componentLength = length - componentStart;
     if (!componentLength)
         return false;
+
+    size_t parentLength = componentStart;
+    while (parentLength > 1 && currentPath[parentLength - 1] == '/' &&
+           currentPath[parentLength - 2] != ':') {
+        parentLength--;
+    }
+    if (parentPath && parentPathCapacity) {
+        if (parentLength == 0) {
+            if (parentPathCapacity < 3)
+                return false;
+            memcpy(parentPath, "..", 3);
+        }
+        else {
+            if (parentLength >= parentPathCapacity)
+                return false;
+            memcpy(parentPath, currentPath, parentLength);
+            parentPath[parentLength] = '\0';
+        }
+    }
     if (matchName && matchNameCapacity) {
         const size_t copyLength = componentLength < matchNameCapacity - 1 ?
             componentLength : matchNameCapacity - 1;
