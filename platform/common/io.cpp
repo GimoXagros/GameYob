@@ -123,7 +123,10 @@ const char* file_getPath(FileHandle* h) {
 }
 
 void file_close(FileHandle* h) {
-    fclose(h->file);
+    if (!h)
+        return;
+    if (h->file)
+        fclose(h->file);
     free(h->filename);
     free(h);
 }
@@ -132,28 +135,38 @@ void file_flush(FileHandle* h) {
         fflush(h->file);
 }
 void file_read(void* buf, int bs, int size, FileHandle* h) {
-    fread(buf, bs, size, h->file);
+    if (h && h->file && buf && bs > 0 && size > 0)
+        fread(buf, bs, size, h->file);
 }
 void file_write(const void* buf, int bs, int size, FileHandle* h) {
-    fwrite(buf, bs, size, h->file);
+    if (h && h->file && buf && bs > 0 && size > 0)
+        fwrite(buf, bs, size, h->file);
 }
 void file_gets(char* buf, int size, FileHandle* h) {
-    fgets(buf, size, h->file);
+    if (!buf || size <= 0)
+        return;
+    if (!h || !h->file || !fgets(buf, size, h->file))
+        buf[0] = '\0';
 }
 void file_putc(char c, FileHandle* h) {
-    fputc(c, h->file);
+    if (h && h->file)
+        fputc(c, h->file);
 }
 
 void file_rewind(FileHandle* h) {
-    rewind(h->file);
+    if (h && h->file)
+        rewind(h->file);
 }
 int file_tell(FileHandle* h) {
-    return ftell(h->file);
+    return h && h->file ? ftell(h->file) : -1;
 }
 void file_seek(FileHandle* h, int pos, int flags) {
-    fseek(h->file, pos, flags);
+    if (h && h->file)
+        fseek(h->file, pos, flags);
 }
 int file_getSize(FileHandle* h) {
+    if (!h || !h->file)
+        return 0;
     int pos = ftell(h->file);
     fseek(h->file, 0, SEEK_END);
     int ret = ftell(h->file);
@@ -161,16 +174,31 @@ int file_getSize(FileHandle* h) {
     return ret;
 }
 void file_setSize(FileHandle* h, size_t neededSize) {
-    size_t fileSize = file_getSize(h);
+    if (!h || !h->file)
+        return;
+    const int currentSize = file_getSize(h);
+    if (currentSize < 0)
+        return;
+    const size_t fileSize = static_cast<size_t>(currentSize);
+    if (fileSize >= neededSize)
+        return;
     fclose(h->file);
-    h->file = fopen(h->filename, "ab");
-    for (; fileSize<neededSize; fileSize++)
-        fputc(0, h->file);
-    fclose(h->file);
-    h->file = fopen(h->filename, h->flags);
+    h->file = fopen(h->filename, "r+b");
+    if (h->file) {
+        if (neededSize > 0 &&
+                fseek(h->file, static_cast<long>(neededSize - 1),
+                      SEEK_SET) == 0)
+            fputc(0, h->file);
+        fclose(h->file);
+    }
+    // Reopen without a truncating mode such as "w+b". file_setSize() must
+    // preserve both the existing contents and the new length.
+    h->file = fopen(h->filename, "r+b");
 }
 
 void file_printf(FileHandle* h, const char* s, ...) {
+    if (!h || !h->file || !s)
+        return;
     va_list args;
     va_start(args, s);
 

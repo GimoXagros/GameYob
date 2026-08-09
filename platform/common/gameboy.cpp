@@ -802,6 +802,11 @@ int Gameboy::loadSave(int saveId)
         }
         else {
             file_setSize(saveFile, neededFileSize);
+            if (!saveFile || file_getSize(saveFile) < neededFileSize) {
+                file_close(saveFile);
+                saveFile = NULL;
+                return 1;
+            }
         }
     }
 

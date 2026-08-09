@@ -75,6 +75,12 @@ jobs:
             tests/localization_test.cpp platform/common/localization.cpp \
             platform/common/io.cpp -o /tmp/localization_test
           /tmp/localization_test
+      - name: Build and run file I/O tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -DC_IO_FUNCTIONS \
+            -Iplatform/common/include \
+            tests/io_test.cpp platform/common/io.cpp -o /tmp/io_test
+          /tmp/io_test
       - name: Build and run Unicode text tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

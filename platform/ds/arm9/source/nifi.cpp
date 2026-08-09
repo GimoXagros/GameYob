@@ -1,5 +1,6 @@
 #include <nds.h>
 #include <dswifi9.h>
+#include <new>
 #include "romfile.h"
 #include "nifi.h"
 #include "mmu.h"
@@ -634,18 +635,23 @@ int loadOtherRom() {
 
     gameboy->getRomFile()->halfMemoryMode();
 
-    if (gb2->getRomFile() != NULL && gameboy->getRomFile() != gb2->getRomFile())
-        delete gb2->getRomFile();
-    RomFile* linkedRom = new RomFile(linkedFilename, true);
+    RomFile* linkedRom = new (std::nothrow) RomFile(linkedFilename, true);
     if (!linkedRom || linkedRom->getContentId() != linkedRomId) {
         delete linkedRom;
         return 1;
     }
+
+    RomFile* previousRom = gb2->getRomFile();
+    gb2->unloadRom();
+    if (previousRom && previousRom != gameboy->getRomFile())
+        delete previousRom;
     gb2->setRomFile(linkedRom);
 
     // Size and map SRAM before initMMU stores its bank pointers.
-    if (gb2->loadSave(-1) != 0)
+    if (gb2->loadSave(-1) != 0) {
+        mgr_stopGb2();
         return 1;
+    }
     gb2->init();
 
     return 0;
@@ -664,7 +670,8 @@ int nifiStartLink() {
         if (!mgr_startGb2(-1))
             return 1;
         if (loadOtherRom() != 0) {
-            printf("Error loading \"%s\".\n");
+            printf("Error loading \"%s\".\n", linkedFilename);
+            mgr_stopGb2();
             return 1;
         }
     }
@@ -756,7 +763,7 @@ void nifiHostMenu() {
     nextSequence = 1;
 
     printf("Waiting for client...\n");
-    printf("Host ID: %d\n\n", hostId);
+    printf("Host ID: %lu\n\n", (unsigned long)hostId);
     printf("Press B to give up.\n\n");
 
     bool willConnect=false;
@@ -863,7 +870,8 @@ void nifiClientMenu() {
 
                 willConnect = true;
 
-                printf("Connected to host.\nHost Id: %d\n", hostId);
+                printf("Connected to host.\nHost Id: %lu\n",
+                       (unsigned long)hostId);
                 status = CLIENT_CONNECTED;
 
                 memset((void*)receivedInputReady, 0, sizeof(receivedInputReady));

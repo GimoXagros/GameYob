@@ -141,15 +141,13 @@ void clearGFX() {
 }
 
 void resetSgbBorder() {
-    const bool wasShowingSgbBorder = loadedBorderType == BORDER_SGB;
     sgbBorderLoaded = false;
     gfxMask = 0;
     sgbBorderReset(&sgbBorderData);
 
     // checkBorder() clears both active and inactive framebuffers before it
     // applies an optional user-selected custom border.
-    if (wasShowingSgbBorder)
-        checkBorder();
+    checkBorder();
 }
 
 void drawScanline(int scanline)
@@ -219,8 +217,9 @@ void drawScanline_P2(int scanline) {
     memset(bgPixels, 0, sizeof(bgPixels));
     memset(spritePixels, 0, sizeof(spritePixels));
     memset(spritePixelsLow, 0, sizeof(spritePixelsLow));
-    for (int x=0; x<160; ++x)
+    for (int x=0; x<160; ++x) {
         bgPixelsTrueLow[x] = *bgPalettesRef[0][0];
+    }
 
 	if (gameboy->ioRam[0x40] & 0x2) { // Sprites enabled
         gb_render::SpriteRef sprites[10];
@@ -247,8 +246,9 @@ void drawScanline_P2(int scanline) {
     bool drawingWindow = window.visible;
 
     int BGOn = 1;
-    if (!(gameboy->gbMode == CGB) && (gameboy->ioRam[0x40] & 1) == 0)
+    if (!(gameboy->gbMode == CGB) && (gameboy->ioRam[0x40] & 1) == 0) {
         BGOn = 0;
+    }
 
 	if (BGOn) {
 		u8 scrollX = gameboy->ioRam[0x43];
@@ -426,8 +426,9 @@ void drawSprite(int scanline, int spriteNum)
 	else
 		height = 8;
 
-    if (scanline < y || scanline >= y+height)
+    if (scanline < y || scanline >= y+height) {
         return;
+    }
 
 	int x = (gameboy->hram[spriteNum+1]-8);
 	int tileNum = gameboy->hram[spriteNum+2];
@@ -535,13 +536,14 @@ void selectBorder() {
         char cwd[MAX_FILENAME_LEN];
         fs_getcwd(cwd, sizeof(cwd));
         const size_t cwdLength = strlen(cwd);
-        snprintf(borderPath, sizeof(borderPath), "%s%s%s", cwd,
-            cwdLength > 0 && cwd[cwdLength-1] == '/' ? "" : "/", filename);
-        borderPath[sizeof(borderPath)-1] = '\0';
+        const int written = snprintf(borderPath, sizeof(borderPath), "%s%s%s",
+            cwd, cwdLength > 0 && cwd[cwdLength-1] == '/' ? "" : "/",
+            filename);
         free(filename);
 
-        borderPathExists = true;
-        if (loadBorder(borderPath) == 0) {
+        borderPathExists = written >= 0 &&
+            static_cast<size_t>(written) < sizeof(borderPath);
+        if (borderPathExists && loadBorder(borderPath) == 0) {
             customBordersEnabled = true;
             setMenuOption("Custom Border", 1);
         }

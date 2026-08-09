@@ -47,30 +47,25 @@ void generalParseConfig(char* line) {
         const char* value = equalsPos+1;
 
         if (strcasecmp(parameter, "rompath") == 0) {
-            strncpy(romPath, value, sizeof(romPath));
-            romPath[sizeof(romPath)-1] = '\0';
+            snprintf(romPath, sizeof(romPath), "%s", value);
             romChooserState.directory = romPath;
         }
         else if (strcasecmp(parameter, "autoloadrom") == 0) {
-            strncpy(autoloadRomPath, value, sizeof(autoloadRomPath));
-            autoloadRomPath[sizeof(autoloadRomPath)-1] = '\0';
+            snprintf(autoloadRomPath, sizeof(autoloadRomPath), "%s", value);
         }
         else if (strcasecmp(parameter, "biosfile") == 0) {
-            strncpy(biosPath, value, sizeof(biosPath));
-            biosPath[sizeof(biosPath)-1] = '\0';
+            snprintf(biosPath, sizeof(biosPath), "%s", value);
         }
         else if (strcasecmp(parameter, "borderfile") == 0) {
-            strncpy(borderPath, value, sizeof(borderPath));
-            borderPath[sizeof(borderPath)-1] = '\0';
+            snprintf(borderPath, sizeof(borderPath), "%s", value);
             borderPathExists = true;
         }
         else if (strcasecmp(parameter, "language") == 0) {
-            strncpy(configuredLanguage, value, sizeof(configuredLanguage));
-            configuredLanguage[sizeof(configuredLanguage)-1] = '\0';
+            snprintf(configuredLanguage, sizeof(configuredLanguage), "%s",
+                     value);
         }
         else if (strcasecmp(parameter, "languagefile") == 0) {
-            strncpy(languagePath, value, sizeof(languagePath));
-            languagePath[sizeof(languagePath)-1] = '\0';
+            snprintf(languagePath, sizeof(languagePath), "%s", value);
         }
     }
     if (*borderPath == '\0') {
@@ -221,14 +216,15 @@ void loadKeyConfig() {
     for (int i=0; i<NUM_FUNC_KEYS; i++)
         keyMapping[i] = 0;
     for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {
-        keyMapping[keyConfig->funcKeys[i]] |= BIT(i);
+        const int function = keyConfig->funcKeys[i];
+        if (function >= 0 && function < NUM_FUNC_KEYS)
+            keyMapping[function] |= BIT(i);
     }
 }
 
 void controlsParseConfig(char* line2) {
     char line[100];
-    strncpy(line, line2, 100);
-    line[99] = '\0';
+    snprintf(line, sizeof(line), "%s", line2);
     while (strlen(line) > 0 && (line[strlen(line)-1] == '\n' || line[strlen(line)-1] == ' '))
         line[strlen(line)-1] = '\0';
     if (line[0] == '(') {
@@ -239,8 +235,7 @@ void controlsParseConfig(char* line2) {
 
             keyConfigs.push_back(KeyConfig());
             KeyConfig* config = &keyConfigs.back();
-            strncpy(config->name, name, 32);
-            config->name[31] = '\0';
+            snprintf(config->name, sizeof(config->name), "%s", name);
             for (int i=0; i<NUM_BINDABLE_BUTTONS; i++)
                 config->funcKeys[i] = FUNC_KEY_NONE;
         }
@@ -270,6 +265,8 @@ void controlsParseConfig(char* line2) {
             }
 
             if (gbKey != -1 && dsKey != -1) {
+                if (keyConfigs.empty())
+                    keyConfigs.push_back(defaultKeyConfig);
                 KeyConfig* config = &keyConfigs.back();
                 config->funcKeys[dsKey] = gbKey;
             }
@@ -290,7 +287,11 @@ void controlsPrintConfig(FileHandle* file) {
     for (unsigned int i=0; i<keyConfigs.size(); i++) {
         file_printf(file, "(%s)\n", keyConfigs[i].name);
         for (int j=0; j<NUM_BINDABLE_BUTTONS; j++) {
-            file_printf(file, "%s=%s\n", dsKeyNames[j], gbKeyNames[keyConfigs[i].funcKeys[j]]);
+            const int function = keyConfigs[i].funcKeys[j];
+            const char* functionName = function >= 0 &&
+                function < NUM_FUNC_KEYS ? gbKeyNames[function] :
+                gbKeyNames[FUNC_KEY_NONE];
+            file_printf(file, "%s=%s\n", dsKeyNames[j], functionName);
         }
     }
 }
@@ -350,9 +351,8 @@ void updateKeyConfigChooser() {
         char name[32];
         snprintf(name, sizeof(name), "Custom %u",
                  (unsigned int)keyConfigs.size()-1);
-        strncpy(keyConfigs.back().name, name,
-                sizeof(keyConfigs.back().name) - 1);
-        keyConfigs.back().name[sizeof(keyConfigs.back().name) - 1] = '\0';
+        snprintf(keyConfigs.back().name, sizeof(keyConfigs.back().name),
+                 "%s", name);
         option = -1;
         redraw = true;
     }

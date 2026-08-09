@@ -53,11 +53,9 @@ RomFile::RomFile(const char* f, bool halfMemory) {
 
     if (!f)
         fatalerr("ROM filename is missing.");
-    strncpy(filename, f, sizeof(filename));
-    filename[sizeof(filename)-1] = '\0';
+    snprintf(filename, sizeof(filename), "%s", f);
 
-    strncpy(basename, filename, sizeof(basename));
-    basename[sizeof(basename)-1] = '\0';
+    snprintf(basename, sizeof(basename), "%s", filename);
     char* extension = strrchr(basename, '.');
     if (extension)
         *extension = '\0';

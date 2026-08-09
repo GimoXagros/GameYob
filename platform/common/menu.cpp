@@ -351,7 +351,7 @@ void windowEnableFunc(int value) {
 void soundEnableFunc(int value) {
     soundDisabled = !value;
 #ifdef DS
-    sharedData->fifosSent++;
+    sharedData->fifosSent = sharedData->fifosSent + 1;
     fifoSendValue32(FIFO_USER_01, GBSND_MUTE_COMMAND<<20);
 #endif
 }
@@ -401,7 +401,7 @@ void hyperSoundFunc(int value) {
     hyperSound = value;
 #ifdef DS
     sharedData->hyperSound = value;
-    sharedData->fifosSent++;
+    sharedData->fifosSent = sharedData->fifosSent + 1;
     fifoSendValue32(FIFO_USER_01, GBSND_HYPERSOUND_ENABLE_COMMAND<<20 | hyperSound);
 #endif
 }

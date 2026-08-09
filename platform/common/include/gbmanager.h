@@ -11,6 +11,7 @@ void mgr_init();
 void mgr_reset();
 void mgr_runFrame();
 bool mgr_startGb2(int saveId);
+void mgr_stopGb2();
 void mgr_swapFocus();
 void mgr_setInternalClockGb(Gameboy* g);
 bool mgr_isInternalClockGb(Gameboy* g);

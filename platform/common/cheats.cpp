@@ -223,9 +223,11 @@ void CheatEngine::loadCheats(const char* filename) {
         for (int i=0; i<numCheats; i++)
             unapplyGGCheat(i);
     }
-    else
+    else {
         // Rom has been changed
-        strncpy(cheatsRomTitle, romFile->getRomTitle(), 20);
+        snprintf(cheatsRomTitle, sizeof(cheatsRomTitle), "%s",
+                 romFile->getRomTitle());
+    }
     numCheats = 0;
 
     // Begin loading new cheat file
@@ -246,6 +248,8 @@ void CheatEngine::loadCheats(const char* filename) {
             char remainder[128];
             do {
                 file_gets(remainder, sizeof(remainder), file);
+                if (!remainder[0])
+                    break;
             } while (!strchr(remainder, '\n') &&
                      file_tell(file) < file_getSize(file));
         }

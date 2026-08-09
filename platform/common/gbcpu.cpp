@@ -204,13 +204,13 @@ DTCM_BSS
 int Gameboy::runOpcode(int cycles) {
     cyclesToExecute = cycles;
     // Having these commonly-used registers in local variables should improve speed
-    register u8* pcAddr;
+    u8* pcAddr;
     pcAddr = memory[g_gbRegs.pc.w>>12]+(g_gbRegs.pc.w&0xfff);
     firstPcAddr = pcAddr;
     int locSP=g_gbRegs.sp.w;
     int  locF =g_gbRegs.af.b.l;
 
-    register int totalCycles=0;
+    int totalCycles=0;
 
     while (totalCycles < cyclesToExecute)
     {

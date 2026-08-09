@@ -456,7 +456,7 @@ void vblankHandler()
         REG_DISPCAPCNT = 15 | 3<<16 | 0<<18 | 3<<20 | 0<<29 | 1<<31;
     }
     didVblank = true;
-    dsFrameCounter++;
+    dsFrameCounter = dsFrameCounter + 1;
 
     memset(lineCompleted, 0, sizeof(lineCompleted));
     if (scaleFilter == 1) {
@@ -754,13 +754,15 @@ void selectBorder() {
         char cwd[MAX_FILENAME_LEN];
         fs_getcwd(cwd, sizeof(cwd));
         const size_t length = strlen(cwd);
-        snprintf(borderPath, sizeof(borderPath), "%s%s%s", cwd,
-                 length && cwd[length - 1] == '/' ? "" : "/", filename);
+        const int written = snprintf(borderPath, sizeof(borderPath), "%s%s%s",
+                 cwd, length && cwd[length - 1] == '/' ? "" : "/", filename);
 
         free(filename);
 
-        loadedBorderType = BORDER_NONE; // Force reload
-        checkBorder();
+        if (written >= 0 && static_cast<size_t>(written) < sizeof(borderPath)) {
+            loadedBorderType = BORDER_NONE; // Force reload
+            checkBorder();
+        }
     }
 
     saveFileChooserState(&borderChooserState);

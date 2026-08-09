@@ -16,6 +16,7 @@
 #include "soundengine.h"
 #include "common.h"
 #include "menu.h"
+#include "error.h"
 
 const DutyCycle dutyIndex[4] = {DutyCycle_12, DutyCycle_25, DutyCycle_50, DutyCycle_75};
 
@@ -25,7 +26,7 @@ const DutyCycle dutyIndex[4] = {DutyCycle_12, DutyCycle_25, DutyCycle_50, DutyCy
 
 inline void FIFO_SEND(u32 message) {
     if (sharedData->fifosSent-sharedData->fifosReceived < MAX_FIFOS_WAITING) {
-        sharedData->fifosSent++;
+        sharedData->fifosSent = sharedData->fifosSent + 1;
         fifoSendValue32(FIFO_USER_01, message);
     }
     else {
@@ -38,6 +39,8 @@ inline void FIFO_SEND(u32 message) {
 SoundEngine::SoundEngine(Gameboy* g) {
     setGameboy(g);
     sampleDataAlloc = (u8*)malloc(0x20);
+    if (!sampleDataAlloc)
+        fatalerr("Unable to allocate sound sample memory.");
     sampleData = (u8*)memUncached(sampleDataAlloc);
 
     unmute();
@@ -611,11 +614,11 @@ void SoundEngine::refreshSoundDuty(int i) {
 // Global functions
 
 void muteSND() {
-    sharedData->fifosSent++;
+    sharedData->fifosSent = sharedData->fifosSent + 1;
     fifoSendValue32(FIFO_USER_01, GBSND_MUTE_COMMAND<<20);
 }
 void unmuteSND() {
-    sharedData->fifosSent++;
+    sharedData->fifosSent = sharedData->fifosSent + 1;
     fifoSendValue32(FIFO_USER_01, GBSND_UNMUTE_COMMAND<<20);
 }
 

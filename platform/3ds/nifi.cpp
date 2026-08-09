@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <malloc.h>
 #include <netinet/in.h>
+#include <new>
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <string.h>
@@ -423,16 +424,21 @@ int loadOtherRom() {
         return 1;
 
     gameboy->getRomFile()->halfMemoryMode();
-    if (gb2->getRomFile() && gameboy->getRomFile() != gb2->getRomFile())
-        delete gb2->getRomFile();
-    RomFile* linkedRom = new RomFile(linkedFilename, true);
+    RomFile* linkedRom = new (std::nothrow) RomFile(linkedFilename, true);
     if (!linkedRom || linkedRom->getContentId() != linkedRomId) {
         delete linkedRom;
         return 1;
     }
+
+    RomFile* previousRom = gb2->getRomFile();
+    gb2->unloadRom();
+    if (previousRom && previousRom != gameboy->getRomFile())
+        delete previousRom;
     gb2->setRomFile(linkedRom);
-    if (gb2->loadSave(-1) != 0)
+    if (gb2->loadSave(-1) != 0) {
+        mgr_stopGb2();
         return 1;
+    }
     gb2->init();
     return 0;
 }
@@ -450,8 +456,10 @@ int startLink() {
     if (nifiLinkType == LINK_CABLE) {
         if (!mgr_startGb2(-1))
             return 1;
-        if (loadOtherRom())
+        if (loadOtherRom()) {
+            mgr_stopGb2();
             return 1;
+        }
     }
 
     if (isHost) {

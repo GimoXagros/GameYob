@@ -149,7 +149,7 @@ bool mgr_startGb2(int saveId) {
     }
     gb2->setRomFile(gameboy->getRomFile());
     if (gb2->loadSave(saveId) != 0) {
-        gb2->unloadRom();
+        mgr_stopGb2();
         return false;
     }
     gb2->init();
@@ -161,6 +161,25 @@ bool mgr_startGb2(int saveId) {
 
     gbDuo = gb2;
     return true;
+}
+
+void mgr_stopGb2() {
+    if (!gb2)
+        return;
+
+    RomFile* focusedRom = gameboy ? gameboy->getRomFile() : NULL;
+    RomFile* secondaryRom = gb2->getRomFile();
+    gb2->unloadRom();
+    if (secondaryRom && secondaryRom != focusedRom)
+        delete secondaryRom;
+    delete gb2;
+    gb2 = NULL;
+
+    if (gameboy)
+        gameboy->linkedGameboy = NULL;
+    gbUno = gameboy;
+    gbDuo = NULL;
+    hostGb = gameboy;
 }
 
 void mgr_swapFocus() {
@@ -222,7 +241,7 @@ void mgr_loadRom(const char* filename) {
     // slow SD read cannot leave the previous border visible on screen.
     resetSgbBorder();
 
-    RomFile* romFile = new RomFile(filename);
+    RomFile* romFile = new (std::nothrow) RomFile(filename);
     if (romFile == 0)
         fatalerr("Not enough RAM to load rom");
     gameboy->setRomFile(romFile);
@@ -477,11 +496,15 @@ void mgr_updateVBlank() {
     if (isConsoleOn() && !isMenuOn() && !consoleDebugOutput && (rawTime > lastRawTime))
     {
         setPrintConsole(menuConsole);
+#ifdef DS
         int line=0;
+#endif
         if (fpsOutput) {
             clearConsole();
             printf("FPS: %d\n", fps);
+#ifdef DS
             line++;
+#endif
         }
         fps = 0;
 #ifdef DS
@@ -495,8 +518,8 @@ void mgr_updateVBlank() {
                     break;
                 }
             }
-            char s[50];
-            strncpy(s, timeString, 50);
+            char s[6];
+            memcpy(s, timeString, 5);
             s[5] = '\0';
             int spaces = 31-strlen(s);
             for (int i=0; i<spaces; i++)
