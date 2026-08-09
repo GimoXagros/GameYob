@@ -23,6 +23,8 @@
 #include "gbmanager.h"
 #include "3dsgfx.h"
 
+void audioExit();
+
 u32 lastKeysPressed = 0;
 u32 keysPressed = 0;
 u32 keysJustPressed = 0;
@@ -116,28 +118,9 @@ void system_getCamera(u8* memory, const u8* camRegisters)
 }
 
 void system_checkPolls() {
-    APP_STATUS status;
-
-	while((status=aptGetStatus()) != APP_RUNNING) {
-
-        if(status == APP_SUSPENDING)
-        {
-            aptReturnToMenu();
-        }
-        else if(status == APP_PREPARE_SLEEPMODE)
-        {
-			aptSignalReadyForSleep();
-            aptWaitStatusEvent();
-        }
-        else if (status == APP_SLEEPMODE) {
-
-        }
-        else if (status == APP_EXITING) {
-            system_cleanup();
-            exit(0);
-        }
-
-        gspWaitForVBlank();
+    if (!aptMainLoop()) {
+        system_cleanup();
+        exit(0);
     }
 
     gfxFlushBuffers();
@@ -154,7 +137,7 @@ void system_cleanup() {
     mgr_save();
     mgr_exit();
 
-    CSND_shutdown();
+    audioExit();
 
     fsExit();
     gfxExit();

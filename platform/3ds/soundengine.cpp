@@ -7,61 +7,85 @@
 #include <math.h>
 #include <time.h>
 
-extern "C" Result CSND_sharedmemtype0_cmd9(u32, u32);
-
-void CSND_setchannel_enabled(u32 channel, u32 value)
-{
-	u32 cmdparams[0x18>>2];
-
-	memset(cmdparams, 0, 0x18);
-
-	cmdparams[0] = channel & 0x1f;
-	cmdparams[1] = value;
-
-	CSND_writesharedmem_cmdtype0(0x0, (u8*)&cmdparams);
-}
-
-
-
 #define FRAMES_PER_BUFFER 8
 
 #define CYCLES_UNTIL_SAMPLE (0x54)
-#define CSND_FREQUENCY (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
-#define CSND_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
+#define AUDIO_FREQUENCY (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
+#define AUDIO_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
+#define AUDIO_CHANNEL 0
 
+bool audioInitialized = false;
+s16* bufferDat = NULL;
+s16* buffers[2] = {NULL, NULL};
+ndspWaveBuf waveBuffers[2];
 
-bool csndInitialized = false;
-
-s16* bufferDat = (s16*)linearAlloc(2*CSND_BUFFER_SIZE*2);
-
-s16* buffers[2];
-int playingBuffer = 0;
-int recordingBuffer = 1;
+int recordingBuffer = 0;
 int recordingPos = 0;
 int framecnt;
 
 bool chanEnabled[4] = {true, true, true, true};
 
 
-void csnd_init() {
-    Result r = CSND_initialize(NULL);
+void audioInit() {
+    if (audioInitialized)
+        return;
 
-    csndInitialized = r == 0;
+    bufferDat = (s16*)linearAlloc(2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    if (!bufferDat)
+        return;
+
+    Result result = ndspInit();
+    if (R_FAILED(result)) {
+        linearFree(bufferDat);
+        bufferDat = NULL;
+        return;
+    }
+
+    audioInitialized = true;
+    buffers[0] = bufferDat;
+    buffers[1] = bufferDat + AUDIO_BUFFER_SIZE;
+    memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    memset(waveBuffers, 0, sizeof(waveBuffers));
+
+    ndspSetOutputMode(NDSP_OUTPUT_STEREO);
+    ndspChnReset(AUDIO_CHANNEL);
+    ndspChnSetInterp(AUDIO_CHANNEL, NDSP_INTERP_LINEAR);
+    ndspChnSetRate(AUDIO_CHANNEL, AUDIO_FREQUENCY);
+    ndspChnSetFormat(AUDIO_CHANNEL, NDSP_FORMAT_MONO_PCM16);
+    float mix[12] = {0};
+    mix[0] = 1.0f;
+    mix[1] = 1.0f;
+    ndspChnSetMix(AUDIO_CHANNEL, mix);
+}
+
+void audioExit() {
+    if (audioInitialized) {
+        ndspChnWaveBufClear(AUDIO_CHANNEL);
+        ndspExit();
+        audioInitialized = false;
+    }
+    if (bufferDat) {
+        linearFree(bufferDat);
+        bufferDat = NULL;
+    }
+    buffers[0] = NULL;
+    buffers[1] = NULL;
 }
 
 void initSampler() {
-    buffers[0] = bufferDat;
-    buffers[1] = bufferDat+CSND_BUFFER_SIZE;
-
-    playingBuffer = 0;
-    recordingBuffer = 1;
+    if (!audioInitialized)
+        return;
+    ndspChnWaveBufClear(AUDIO_CHANNEL);
+    memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    memset(waveBuffers, 0, sizeof(waveBuffers));
+    recordingBuffer = 0;
     recordingPos = 0;
     framecnt = 0;
 }
 
 // Called once every 4 cycles
 void addSample(s16 sample) {
-    if (recordingPos >= CSND_BUFFER_SIZE) {
+    if (!audioInitialized || recordingPos >= AUDIO_BUFFER_SIZE) {
         printLog("RECORD LOOP\n");
         return;
     }
@@ -69,23 +93,35 @@ void addSample(s16 sample) {
 }
 
 void swapBuffers() {
-    if (!csndInitialized)
+    if (!audioInitialized)
         return;
 
-    if (--framecnt <= 0) {
-        framecnt = FRAMES_PER_BUFFER;
+    framecnt++;
+    if (framecnt < FRAMES_PER_BUFFER && recordingPos < AUDIO_BUFFER_SIZE)
+        return;
 
-        playingBuffer = !playingBuffer;
-        recordingBuffer = !recordingBuffer;
+    ndspWaveBuf* wave = &waveBuffers[recordingBuffer];
+    if (wave->status == NDSP_WBUF_QUEUED ||
+            wave->status == NDSP_WBUF_PLAYING)
+        return;
 
-        if (recordingPos != CSND_BUFFER_SIZE) {
-            printLog("recordingpos %d\n", recordingPos);
-        }
-        recordingPos = 0;
-
-        u32* addr = (u32*)buffers[playingBuffer];
-        CSND_playsound(8+playingBuffer, 0, CSND_ENCODING_PCM16, CSND_FREQUENCY, addr, addr, CSND_BUFFER_SIZE*2, 0, 0);
+    if (recordingPos <= 0)
+        return;
+    if (recordingPos < AUDIO_BUFFER_SIZE) {
+        memset(buffers[recordingBuffer] + recordingPos, 0,
+            (AUDIO_BUFFER_SIZE - recordingPos) * sizeof(s16));
     }
+
+    memset(wave, 0, sizeof(*wave));
+    wave->data_pcm16 = buffers[recordingBuffer];
+    wave->nsamples = AUDIO_BUFFER_SIZE;
+    DSP_FlushDataCache(wave->data_pcm16,
+        AUDIO_BUFFER_SIZE * sizeof(s16));
+    ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
+
+    recordingBuffer ^= 1;
+    recordingPos = 0;
+    framecnt = 0;
 }
 
 
@@ -252,7 +288,7 @@ void SoundEngine::updateSound(int cycles)
 		}
 	}
 
-    if (!csndInitialized)
+    if (!audioInitialized)
         return;
 
     cyclesUntilSample -= cycles;

@@ -12,20 +12,20 @@
 #include "gbmanager.h"
 #include "printconsole.h"
 
-void csnd_init();
+void audioInit();
 
 int main(int argc, char* argv[])
 {
     srvInit();
 
 	aptInit();
-	hidInit(NULL);
+	hidInit();
 	gfxInitDefault();
     fsInit();
 
     consoleInitBottom();
 
-    csnd_init();
+    audioInit();
     fs_init();
     mgr_init();
 
