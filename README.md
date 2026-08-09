@@ -55,9 +55,10 @@ existing licenses. No ROM image or BIOS is included.
   SRAM header table through 128 KiB, and an explicit 8 MiB hardware boundary
 - Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
   attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
-- Completed-frame native 3DS output with PICA200/Citro2D accelerated
-  Off/Aspect/Full scaling and optional GPU filtering, preventing partially
-  updated scanout frames while avoiding per-output-pixel ARM11 interpolation
+- Completed-frame native 3DS output with direct Off mode plus PICA200/Citro2D
+  accelerated Aspect/Full scaling and optional GPU filtering, preventing
+  partially updated scanout frames while avoiding per-output-pixel ARM11
+  interpolation
 - DS, DSi, and native 3DS GBC BIOS selection with exact 0x900-byte validation;
   **Save Settings** records the selected absolute path as `biosfile` in
   `gameyobds.ini`
@@ -104,8 +105,8 @@ See [language-file documentation](languages/README.md),
 - 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
   명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
 - 빠른 장면 전환 중 불완전한 화면이 표시되지 않는 네이티브 3DS 완성 프레임
-  출력과 출력 픽셀별 ARM11 보간을 피하는 PICA200/Citro2D 기반 끄기/비율/
-  전체 화면 확대 및 GPU 필터
+  출력, 직접 출력 방식의 끄기 모드, 출력 픽셀별 ARM11 보간을 피하는
+  PICA200/Citro2D 기반 비율/전체 화면 확대 및 GPU 필터
 - DS·DSi·네이티브 3DS의 GBC BIOS 파일 선택과 정확한 0x900바이트 검사;
   **설정 저장** 시 선택한 절대 경로를 `gameyobds.ini`의 `biosfile`로 기록
 - DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기
