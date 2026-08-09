@@ -279,27 +279,35 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 
             char* extensionSeparator = strrchr(entry->d_name, '.');
             char* ext = extensionSeparator ? extensionSeparator + 1 : 0;
-            bool isValidExtension = false;
-            bool isRomFile = false;
-            if (!(entry->d_type & DT_DIR)) {
-                if (ext) {
-                    for (int i=0; i<numExtensions; i++) {
-                        if (strcasecmp(ext, extensions[i]) == 0) {
-                            isValidExtension = true;
-                            break;
-                        }
-                    }
-                    if (romExtensions) {
-                        isRomFile = strcasecmp(ext, "cgb") == 0 || strcasecmp(ext, "gbc") == 0 || strcasecmp(ext, "gb") == 0 || strcasecmp(ext, "sgb") == 0;
-                        if (isRomFile)
-                            isValidExtension = true;
+            bool matchesRequestedExtension = false;
+            if (ext) {
+                for (int i=0; i<numExtensions; i++) {
+                    if (strcasecmp(ext, extensions[i]) == 0) {
+                        matchesRequestedExtension = true;
+                        break;
                     }
                 }
             }
+            const bool hasRomExtension = ext && romExtensions &&
+                (strcasecmp(ext, "cgb") == 0 ||
+                 strcasecmp(ext, "gbc") == 0 ||
+                 strcasecmp(ext, "gb") == 0 ||
+                 strcasecmp(ext, "sgb") == 0);
+            const bool hasStateExtension = ext &&
+                strcasecmp(ext, "yss") == 0;
+            const int pathType = fs_getPathType(entry->d_name);
+            const bool isDirectory = pathType == FS_PATH_DIRECTORY ||
+                (pathType == FS_PATH_UNKNOWN &&
+                 !matchesRequestedExtension && !hasRomExtension &&
+                 !hasStateExtension &&
+                 (entry->d_type & DT_DIR));
+            const bool isRomFile = !isDirectory && hasRomExtension;
+            const bool isValidExtension = !isDirectory &&
+                (matchesRequestedExtension || isRomFile);
 
-            if (entry->d_type & DT_DIR || isValidExtension) {
+            if (isDirectory || isValidExtension) {
                 int flag = 0;
-                if (entry->d_type & DT_DIR)
+                if (isDirectory)
                     flag |= FLAG_DIRECTORY;
                 if (isRomFile)
                     flag |= FLAG_ROM;
@@ -324,7 +332,7 @@ char* startFileChooser(const char* extensions[], int numExtensions,
                 filenames.push_back(string(entry->d_name));
                 numFiles++;
             }
-            else if (ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
+            else if (hasStateExtension && !isDirectory) {
                 bool matched = false;
                 char buffer2[MAX_FILENAME_LEN];
                 strncpy(buffer2, entry->d_name, sizeof(buffer2) - 1);

@@ -236,26 +236,49 @@ void CheatEngine::loadCheats(const char* filename) {
     }
 
     while (file_tell(file) < file_getSize(file)) {
-        int i = numCheats;
-
         char line[512];
         file_gets(line, sizeof(line), file);
+        const bool completeLine = strchr(line, '\n') != NULL ||
+            file_tell(file) >= file_getSize(file);
+        if (!completeLine) {
+            // A malformed overlong description must not become a second
+            // cheat entry on the next fgets() chunk.
+            char remainder[128];
+            do {
+                file_gets(remainder, sizeof(remainder), file);
+            } while (!strchr(remainder, '\n') &&
+                     file_tell(file) < file_getSize(file));
+        }
 
-        if (*line != '\0') {
-            char* spacePos = strchr(line, ' ');
-            if (spacePos != NULL) {
-                *spacePos = '\0';
-                if (strlen(spacePos+1) >= 1 && addCheat(line)) {
-                    textCopyColumns(cheats[i].name, sizeof(cheats[i].name),
-                                    spacePos+2, MAX_CHEAT_NAME_LEN);
-                    size_t nameLength = strlen(cheats[i].name);
-                    while (nameLength &&
-                            (cheats[i].name[nameLength - 1] == '\n' ||
-                             cheats[i].name[nameLength - 1] == '\r'))
-                        cheats[i].name[--nameLength] = '\0';
-                    toggleCheat(i, *(spacePos+1) == '1');
-                }
-            }
+        size_t lineLength = strlen(line);
+        while (lineLength && (line[lineLength - 1] == '\n' ||
+                              line[lineLength - 1] == '\r'))
+            line[--lineLength] = '\0';
+        if (!lineLength)
+            continue;
+
+        char* codeEnd = line;
+        while (*codeEnd && *codeEnd != ' ' && *codeEnd != '\t')
+            codeEnd++;
+        if (!*codeEnd)
+            continue;
+        *codeEnd++ = '\0';
+        while (*codeEnd == ' ' || *codeEnd == '\t')
+            codeEnd++;
+
+        bool enabled = false;
+        if (*codeEnd == '0' || *codeEnd == '1') {
+            enabled = *codeEnd == '1';
+            codeEnd++;
+        }
+        while (*codeEnd == ' ' || *codeEnd == '\t')
+            codeEnd++;
+
+        const int i = numCheats;
+        if (addCheat(line)) {
+            textCopyColumns(cheats[i].name, sizeof(cheats[i].name),
+                            codeEnd, MAX_CHEAT_NAME_LEN);
+            toggleCheat(i, enabled);
         }
     }
 
@@ -294,29 +317,34 @@ void redrawCheatMenu() {
 
     iprintfColored(CONSOLE_COLOR_WHITE, "          %s      ", tr("Cheat Menu"));
     printf("%d/%d\n\n", page+1, numPages);
+    const unsigned int nameFieldWidth = 24;
+    const unsigned int statusFieldWidth = 7;
     for (int i=page*cheatsPerPage; i<numCheats && i < (page+1)*cheatsPerPage; i++) {
         int nameColor = (cheatMenuSelection == i ? CONSOLE_COLOR_LIGHT_YELLOW : CONSOLE_COLOR_WHITE);
         iprintfColored(nameColor, "%s", ch->cheats[i].name);
-        for (unsigned int j=0; j<25-textColumns(ch->cheats[i].name); j++)
+        const unsigned int nameColumns = textColumns(ch->cheats[i].name);
+        for (unsigned int j=nameColumns; j<nameFieldWidth; j++)
             printf(" ");
-        if (ch->isCheatEnabled(i)) {
-            if (cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "%s", tr("On"));
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " * ");
-            }
-            else
-                iprintfColored(CONSOLE_COLOR_WHITE, "  %s   ", tr("On"));
+
+        char status[16];
+        textCopyColumns(status, sizeof(status),
+                        tr(ch->isCheatEnabled(i) ? "On" : "Off"), 3);
+        unsigned int statusColumns = textColumns(status);
+        unsigned int usedStatusColumns = 0;
+        if (cheatMenuSelection == i) {
+            iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
+            iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "%s", status);
+            iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " *");
+            usedStatusColumns = statusColumns + 4;
         }
         else {
-            if (cheatMenuSelection == i) {
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, "* ");
-                iprintfColored(CONSOLE_COLOR_LIGHT_GREEN, "%s", tr("Off"));
-                iprintfColored(CONSOLE_COLOR_LIGHT_YELLOW, " *");
-            }
-            else
-                iprintfColored(CONSOLE_COLOR_WHITE, "  %s  ", tr("Off"));
+            iprintfColored(CONSOLE_COLOR_WHITE, "  ");
+            iprintfColored(CONSOLE_COLOR_WHITE, "%s", status);
+            usedStatusColumns = statusColumns + 2;
         }
+        for (unsigned int j=usedStatusColumns; j<statusFieldWidth; j++)
+            printf(" ");
+        printf("\n");
     }
 
 }

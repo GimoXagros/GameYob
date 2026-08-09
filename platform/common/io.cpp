@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <string>
 #include <vector>
 #include "io.h"
@@ -225,6 +226,15 @@ void fs_chdir(const char* s) {
     if (directory != 0)
         closedir(directory);
     directory = replacement;
+}
+
+int fs_getPathType(const char* filename) {
+    if (!filename || !*filename)
+        return FS_PATH_UNKNOWN;
+    struct stat info;
+    if (stat(filename, &info) != 0)
+        return FS_PATH_UNKNOWN;
+    return S_ISDIR(info.st_mode) ? FS_PATH_DIRECTORY : FS_PATH_FILE;
 }
 
 void fs_closeDirectory() {

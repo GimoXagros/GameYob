@@ -235,6 +235,18 @@ void fs_chdir(const char* path) {
     copyString(fsCwd, sizeof(fsCwd), next);
 }
 
+int fs_getPathType(const char* path) {
+    if (!path || !*path)
+        return FS_PATH_UNKNOWN;
+    char physical[MAX_FILENAME_LEN + 6];
+    if (!physicalPath(physical, sizeof(physical), path))
+        return FS_PATH_UNKNOWN;
+    struct stat info;
+    if (stat(physical, &info) != 0)
+        return FS_PATH_UNKNOWN;
+    return S_ISDIR(info.st_mode) ? FS_PATH_DIRECTORY : FS_PATH_FILE;
+}
+
 void fs_closeDirectory() {
     if (directory) {
         closedir(directory);

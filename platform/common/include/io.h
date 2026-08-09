@@ -8,6 +8,12 @@
 // long Hangul and Japanese FAT names.
 #define MAX_FILENAME_LEN 768
 
+enum FsPathType {
+    FS_PATH_UNKNOWN = -1,
+    FS_PATH_FILE = 0,
+    FS_PATH_DIRECTORY = 1,
+};
+
 struct FileHandle;
 
 #ifdef C_IO_FUNCTIONS
@@ -49,5 +55,6 @@ struct dirent* fs_readdir(); // reads from current working directory
 
 void        fs_getcwd(char*, size_t);
 void        fs_chdir(const char*);
+int         fs_getPathType(const char*);
 void        fs_closeDirectory();
 void        fs_cacheDirectoryAliases();
