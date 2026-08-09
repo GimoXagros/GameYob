@@ -9,11 +9,16 @@
 
 #define FRAMES_PER_BUFFER 8
 #define AUDIO_BUFFER_COUNT 3
+#define CSND_BUFFER_COUNT 2
+#define AUDIO_BUFFER_ALIGNMENT 0x80
 
 #define CYCLES_UNTIL_SAMPLE (0x54)
 #define AUDIO_FREQUENCY (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
 #define SAMPLES_PER_FRAME ((CYCLES_PER_FRAME + CYCLES_UNTIL_SAMPLE - 1) / CYCLES_UNTIL_SAMPLE)
 #define AUDIO_BUFFER_SIZE ((SAMPLES_PER_FRAME + 1) * FRAMES_PER_BUFFER)
+#define AUDIO_BUFFER_BYTES (AUDIO_BUFFER_SIZE * sizeof(s16))
+#define AUDIO_BUFFER_STRIDE ((AUDIO_BUFFER_BYTES + AUDIO_BUFFER_ALIGNMENT - 1) & ~(AUDIO_BUFFER_ALIGNMENT - 1))
+#define AUDIO_ALLOCATION_SIZE (AUDIO_BUFFER_COUNT * AUDIO_BUFFER_STRIDE)
 #define AUDIO_CHANNEL 0
 
 enum AudioBackend {
@@ -43,13 +48,51 @@ int framecnt;
 
 bool chanEnabled[4] = {true, true, true, true};
 
+namespace {
+
+Result queueCsndBuffer(int channel, const s16* data, u32 byteCount) {
+    if (channel < 0 || !(csndChannelMask & BIT(channel)) || !data || !byteCount)
+        return 1;
+
+    // csndPlaySound() ends in csndExecCmds(true), whose implementation busy
+    // waits without a timeout. A lost CSND completion therefore freezes the
+    // entire emulator (video, audio and input). Submit the equivalent channel
+    // command asynchronously so the application loop always remains alive.
+    u32 timer = CSND_TIMER((u32)AUDIO_FREQUENCY);
+    if (timer < 0x0042)
+        timer = 0x0042;
+    else if (timer > 0xffff)
+        timer = 0xffff;
+
+    u32 flags = SOUND_ONE_SHOT | SOUND_FORMAT_16BIT |
+        SOUND_LINEAR_INTERP;
+    flags &= ~0xffff001f;
+    flags |= SOUND_ENABLE | SOUND_CHANNEL(channel) | (timer << 16);
+    const u32 volumes = CSND_VOL(1.0f, 0.0f);
+    CSND_SetChnRegs(flags, osConvertVirtToPhys(data), 0, byteCount,
+        volumes, volumes);
+    return csndExecCmds(false);
+}
+
+void stopCsndChannels() {
+    for (int i = 0; i < activeAudioBufferCount; ++i) {
+        if (csndBufferChannels[i] >= 0)
+            CSND_SetPlayStateR(csndBufferChannels[i], 0);
+    }
+    // Never use the unbounded wait mode here either. The buffers remain
+    // allocated until after csndExit(), so asynchronous completion is safe.
+    csndExecCmds(false);
+}
+
+} // namespace
+
 
 void audioInit() {
     if (audioInitialized)
         return;
 
     bufferDat = (s16*)linearAlloc(
-        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
+        AUDIO_ALLOCATION_SIZE);
     if (!bufferDat)
         return;
 
@@ -60,13 +103,13 @@ void audioInit() {
         csndChannelMask = csndChannels;
         int count = 0;
         for (int channel = 8;
-                channel < CSND_NUM_CHANNELS && count < AUDIO_BUFFER_COUNT;
+                channel < CSND_NUM_CHANNELS && count < CSND_BUFFER_COUNT;
                 ++channel) {
             if (csndChannelMask & BIT(channel))
                 csndBufferChannels[count++] = channel;
         }
         if (count >= 2) {
-            activeAudioBufferCount = count;
+            activeAudioBufferCount = CSND_BUFFER_COUNT;
             audioBackend = AUDIO_BACKEND_CSND;
         }
         else {
@@ -93,9 +136,9 @@ void audioInit() {
 
     audioInitialized = true;
     for (int i = 0; i < AUDIO_BUFFER_COUNT; i++)
-        buffers[i] = bufferDat + i * AUDIO_BUFFER_SIZE;
-    memset(bufferDat, 0,
-        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
+        buffers[i] = reinterpret_cast<s16*>(
+            reinterpret_cast<u8*>(bufferDat) + i * AUDIO_BUFFER_STRIDE);
+    memset(bufferDat, 0, AUDIO_ALLOCATION_SIZE);
     memset(waveBuffers, 0, sizeof(waveBuffers));
 
     if (audioBackend == AUDIO_BACKEND_NDSP) {
@@ -122,8 +165,10 @@ void audioExit() {
         ndspChnWaveBufClear(AUDIO_CHANNEL);
         ndspExit();
     }
-    else if (audioBackend == AUDIO_BACKEND_CSND)
+    else if (audioBackend == AUDIO_BACKEND_CSND) {
+        stopCsndChannels();
         csndExit();
+    }
     audioBackend = AUDIO_BACKEND_NONE;
     audioInitialized = false;
     if (bufferDat) {
@@ -139,8 +184,9 @@ void initSampler() {
         return;
     if (audioBackend == AUDIO_BACKEND_NDSP)
         ndspChnWaveBufClear(AUDIO_CHANNEL);
-    memset(bufferDat, 0,
-        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
+    else
+        stopCsndChannels();
+    memset(bufferDat, 0, AUDIO_ALLOCATION_SIZE);
     memset(waveBuffers, 0, sizeof(waveBuffers));
     recordingBuffer = 0;
     recordingPos = 0;
@@ -192,10 +238,8 @@ void swapBuffers() {
         const u32 byteCount = sampleCount * sizeof(s16);
         GSPGPU_FlushDataCache(buffers[recordingBuffer], byteCount);
         const int channel = csndBufferChannels[recordingBuffer];
-        lastAudioQueueResult = csndPlaySound(channel,
-            SOUND_ONE_SHOT | SOUND_FORMAT_16BIT | SOUND_LINEAR_INTERP,
-            (u32)AUDIO_FREQUENCY, 1.0f, 0.0f,
-            buffers[recordingBuffer], NULL, byteCount);
+        lastAudioQueueResult = queueCsndBuffer(channel,
+            buffers[recordingBuffer], byteCount);
         if (lastAudioQueueResult != 0) {
             printLog("3DS audio: CSND queue failed (%08lX)\n",
                 (unsigned long)lastAudioQueueResult);
