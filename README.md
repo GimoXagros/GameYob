@@ -38,6 +38,9 @@ existing licenses. No ROM image or BIOS is included.
 - Full Galmuri BMP Unicode UI font plus UTF-8/CP949 Korean filename and cheat
   list handling on DS/DSi and native 3DS; native 3DS UTF-16 directory entries
   are converted to UTF-8 without lossy narrowing
+- Current native-3DS devkitPro/libctru ABI, public framebuffer and UTF-8 SD
+  APIs, stable absolute ROM paths, and NDSP audio with a CSND hardware fallback;
+  the user's DSP firmware remains external and is never distributed
 - Native 3DS LAN link backend with room discovery, host/client connection,
   link-cable and SGB multiplayer modes, ACK/retry, fragmentation, buffered
   input, state hashes, timeout handling, initial SRAM/RTC synchronization, and a
@@ -79,6 +82,9 @@ See [language-file documentation](languages/README.md),
   `gameyob_language.ini`를 `gameyobds.ini` 옆에 생성
 - DS/DSi 및 네이티브 3DS의 전체 Galmuri BMP 유니코드 UI 글꼴,
   UTF-8/CP949 한글 파일명·치트 목록, 3DS UTF-16 파일명의 무손실 UTF-8 변환
+- 최신 네이티브 3DS devkitPro/libctru ABI, 공개 프레임버퍼 및 UTF-8 SD API,
+  안정적인 ROM 절대 경로와 NDSP 사운드·실기 CSND 대체 경로 적용;
+  사용자 소유 DSP 펌웨어는 외부 파일로 유지하며 배포하지 않음
 - 방 검색, 호스트/클라이언트 연결, 링크 케이블·SGB 멀티플레이, 재전송,
   분할 전송, 입력 버퍼, 상태 해시, 연결 시간 제한, 초기 SRAM/RTC 동기화를 갖춘
   네이티브 3DS LAN 링크와 네트워크 없음·상대 기기 없음 상태의 제한 시간 복귀

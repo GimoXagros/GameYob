@@ -47,6 +47,8 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 
 **Sound Channels** independently enables pulse 1, pulse 2, wave, and noise. **Debug → Sound** is the master switch. DS-only timing switches (**Wait for Vblank**, **Hblank**, **Window**, and **Sound Timing Fix**) should normally remain at their defaults; they are compatibility diagnostics. **ROM Info** shows mapper/ROM/RAM data and **Version Info** shows the exact build revision.
 
+Native 3DS audio uses NDSP first. Homebrew NDSP needs your own `sdmc:/3ds/dspfirm.cdc` dump; this firmware is not distributed with GameYob. When it is absent GameYob falls back to CSND for real hardware, but Azahar 2125.x does not implement CSND sample playback, so Azahar requires the DSP file for sound. **Console Output → Debug** reports the selected backend and the first queued PCM buffer.
+
 ## 8. Local and wireless link
 
 ### Local Link
@@ -72,6 +74,8 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 ## 10. Troubleshooting
 
 - If a language does not change, select English once, reselect the target language, and save settings. For Custom, verify UTF-8 encoding and unchanged English keys.
+- If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
+- If native 3DS audio is silent in Azahar, confirm that your own DSP dump exists at Azahar's virtual SD path `sdmc:/3ds/dspfirm.cdc`. Do not download or redistribute another console's firmware.
 - If networking is unavailable, confirm Wi-Fi/LAN state, AP isolation, and UDP port 35553 for native 3DS. DS raw NiFi does not use the Internet connection.
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01/MBC4 and parts of MBC7/HuC hardware remain compatibility limits.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.

@@ -8,10 +8,12 @@
 #include <time.h>
 
 #define FRAMES_PER_BUFFER 8
+#define AUDIO_BUFFER_COUNT 3
 
 #define CYCLES_UNTIL_SAMPLE (0x54)
 #define AUDIO_FREQUENCY (CYCLES_PER_FRAME * 59.7 / CYCLES_UNTIL_SAMPLE)
-#define AUDIO_BUFFER_SIZE ((CYCLES_PER_FRAME / CYCLES_UNTIL_SAMPLE) * FRAMES_PER_BUFFER)
+#define SAMPLES_PER_FRAME ((CYCLES_PER_FRAME + CYCLES_UNTIL_SAMPLE - 1) / CYCLES_UNTIL_SAMPLE)
+#define AUDIO_BUFFER_SIZE ((SAMPLES_PER_FRAME + 1) * FRAMES_PER_BUFFER)
 #define AUDIO_CHANNEL 0
 
 enum AudioBackend {
@@ -24,8 +26,8 @@ bool audioInitialized = false;
 bool firstAudioBufferLogged = false;
 AudioBackend audioBackend = AUDIO_BACKEND_NONE;
 s16* bufferDat = NULL;
-s16* buffers[2] = {NULL, NULL};
-ndspWaveBuf waveBuffers[2];
+s16* buffers[AUDIO_BUFFER_COUNT] = {NULL, NULL, NULL};
+ndspWaveBuf waveBuffers[AUDIO_BUFFER_COUNT];
 
 int recordingBuffer = 0;
 int recordingPos = 0;
@@ -38,7 +40,8 @@ void audioInit() {
     if (audioInitialized)
         return;
 
-    bufferDat = (s16*)linearAlloc(2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    bufferDat = (s16*)linearAlloc(
+        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
     if (!bufferDat)
         return;
 
@@ -66,9 +69,10 @@ void audioInit() {
     }
 
     audioInitialized = true;
-    buffers[0] = bufferDat;
-    buffers[1] = bufferDat + AUDIO_BUFFER_SIZE;
-    memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    for (int i = 0; i < AUDIO_BUFFER_COUNT; i++)
+        buffers[i] = bufferDat + i * AUDIO_BUFFER_SIZE;
+    memset(bufferDat, 0,
+        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
     memset(waveBuffers, 0, sizeof(waveBuffers));
 
     if (audioBackend == AUDIO_BACKEND_NDSP) {
@@ -101,8 +105,8 @@ void audioExit() {
         linearFree(bufferDat);
         bufferDat = NULL;
     }
-    buffers[0] = NULL;
-    buffers[1] = NULL;
+    for (int i = 0; i < AUDIO_BUFFER_COUNT; i++)
+        buffers[i] = NULL;
 }
 
 void initSampler() {
@@ -110,20 +114,22 @@ void initSampler() {
         return;
     if (audioBackend == AUDIO_BACKEND_NDSP)
         ndspChnWaveBufClear(AUDIO_CHANNEL);
-    memset(bufferDat, 0, 2 * AUDIO_BUFFER_SIZE * sizeof(s16));
+    memset(bufferDat, 0,
+        AUDIO_BUFFER_COUNT * AUDIO_BUFFER_SIZE * sizeof(s16));
     memset(waveBuffers, 0, sizeof(waveBuffers));
     recordingBuffer = 0;
     recordingPos = 0;
     framecnt = 0;
     firstAudioBufferLogged = false;
+    printLog("3DS audio backend: %s at %.0f Hz\n",
+        audioBackend == AUDIO_BACKEND_NDSP ? "NDSP" : "CSND",
+        AUDIO_FREQUENCY);
 }
 
 // Called once every 4 cycles
 void addSample(s16 sample) {
-    if (!audioInitialized || recordingPos >= AUDIO_BUFFER_SIZE) {
-        printLog("RECORD LOOP\n");
+    if (!audioInitialized || recordingPos >= AUDIO_BUFFER_SIZE)
         return;
-    }
     buffers[recordingBuffer][recordingPos++] = sample;
 }
 
@@ -137,10 +143,7 @@ void swapBuffers() {
 
     if (recordingPos <= 0)
         return;
-    if (recordingPos < AUDIO_BUFFER_SIZE) {
-        memset(buffers[recordingBuffer] + recordingPos, 0,
-            (AUDIO_BUFFER_SIZE - recordingPos) * sizeof(s16));
-    }
+    const int sampleCount = recordingPos;
 
     if (audioBackend == AUDIO_BACKEND_NDSP) {
         ndspWaveBuf* wave = &waveBuffers[recordingBuffer];
@@ -149,13 +152,13 @@ void swapBuffers() {
             return;
         memset(wave, 0, sizeof(*wave));
         wave->data_pcm16 = buffers[recordingBuffer];
-        wave->nsamples = AUDIO_BUFFER_SIZE;
+        wave->nsamples = sampleCount;
         DSP_FlushDataCache(wave->data_pcm16,
-            AUDIO_BUFFER_SIZE * sizeof(s16));
+            sampleCount * sizeof(s16));
         ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
     }
     else {
-        const u32 byteCount = AUDIO_BUFFER_SIZE * sizeof(s16);
+        const u32 byteCount = sampleCount * sizeof(s16);
         GSPGPU_FlushDataCache(buffers[recordingBuffer], byteCount);
         const int channel = 8 + recordingBuffer;
         const Result result = csndPlaySound(channel,
@@ -168,11 +171,11 @@ void swapBuffers() {
     }
     if (!firstAudioBufferLogged) {
         printLog("3DS audio: queued %u PCM16 samples\n",
-            (unsigned)AUDIO_BUFFER_SIZE);
+            (unsigned)sampleCount);
         firstAudioBufferLogged = true;
     }
 
-    recordingBuffer ^= 1;
+    recordingBuffer = (recordingBuffer + 1) % AUDIO_BUFFER_COUNT;
     recordingPos = 0;
     framecnt = 0;
 }
