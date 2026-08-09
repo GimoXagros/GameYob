@@ -32,6 +32,21 @@ bool borderPathExists = true;
 char languagePath[MAX_FILENAME_LEN] = "";
 static char configuredLanguage[16] = "en";
 
+static void copyConfigText(char* destination, size_t capacity,
+                           const char* source) {
+    if (!destination || !capacity)
+        return;
+    if (!source) {
+        destination[0] = '\0';
+        return;
+    }
+    size_t length = strlen(source);
+    if (length >= capacity)
+        length = capacity - 1;
+    memcpy(destination, source, length);
+    destination[length] = '\0';
+}
+
 
 void controlsParseConfig(char* line);
 void controlsPrintConfig(FileHandle* f);
@@ -47,25 +62,25 @@ void generalParseConfig(char* line) {
         const char* value = equalsPos+1;
 
         if (strcasecmp(parameter, "rompath") == 0) {
-            snprintf(romPath, sizeof(romPath), "%s", value);
+            copyConfigText(romPath, sizeof(romPath), value);
             romChooserState.directory = romPath;
         }
         else if (strcasecmp(parameter, "autoloadrom") == 0) {
-            snprintf(autoloadRomPath, sizeof(autoloadRomPath), "%s", value);
+            copyConfigText(autoloadRomPath, sizeof(autoloadRomPath), value);
         }
         else if (strcasecmp(parameter, "biosfile") == 0) {
-            snprintf(biosPath, sizeof(biosPath), "%s", value);
+            copyConfigText(biosPath, sizeof(biosPath), value);
         }
         else if (strcasecmp(parameter, "borderfile") == 0) {
-            snprintf(borderPath, sizeof(borderPath), "%s", value);
+            copyConfigText(borderPath, sizeof(borderPath), value);
             borderPathExists = true;
         }
         else if (strcasecmp(parameter, "language") == 0) {
-            snprintf(configuredLanguage, sizeof(configuredLanguage), "%s",
-                     value);
+            copyConfigText(configuredLanguage, sizeof(configuredLanguage),
+                           value);
         }
         else if (strcasecmp(parameter, "languagefile") == 0) {
-            snprintf(languagePath, sizeof(languagePath), "%s", value);
+            copyConfigText(languagePath, sizeof(languagePath), value);
         }
     }
     if (*borderPath == '\0') {
@@ -224,7 +239,7 @@ void loadKeyConfig() {
 
 void controlsParseConfig(char* line2) {
     char line[100];
-    snprintf(line, sizeof(line), "%s", line2);
+    copyConfigText(line, sizeof(line), line2);
     while (strlen(line) > 0 && (line[strlen(line)-1] == '\n' || line[strlen(line)-1] == ' '))
         line[strlen(line)-1] = '\0';
     if (line[0] == '(') {
@@ -235,7 +250,7 @@ void controlsParseConfig(char* line2) {
 
             keyConfigs.push_back(KeyConfig());
             KeyConfig* config = &keyConfigs.back();
-            snprintf(config->name, sizeof(config->name), "%s", name);
+            copyConfigText(config->name, sizeof(config->name), name);
             for (int i=0; i<NUM_BINDABLE_BUTTONS; i++)
                 config->funcKeys[i] = FUNC_KEY_NONE;
         }
@@ -351,8 +366,8 @@ void updateKeyConfigChooser() {
         char name[32];
         snprintf(name, sizeof(name), "Custom %u",
                  (unsigned int)keyConfigs.size()-1);
-        snprintf(keyConfigs.back().name, sizeof(keyConfigs.back().name),
-                 "%s", name);
+        copyConfigText(keyConfigs.back().name,
+                       sizeof(keyConfigs.back().name), name);
         option = -1;
         redraw = true;
     }

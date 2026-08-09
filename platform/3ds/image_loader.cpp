@@ -12,7 +12,14 @@
 #define STBI_NO_SIMD
 #define STBI_NO_THREAD_LOCALS
 #define STB_IMAGE_IMPLEMENTATION
+#if defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-function"
+#endif
 #include "stb_image.h"
+#if defined(__GNUC__)
+#pragma GCC diagnostic pop
+#endif
 
 bool decodeImageFile(const char* filename, DecodedImage* image) {
     if (!filename || !image)
