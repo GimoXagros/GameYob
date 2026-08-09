@@ -152,6 +152,12 @@ void clearGFX() {
 
 }
 
+void resetSgbBorder() {
+    sgbBorderLoaded = false;
+    loadedBorderType = BORDER_NONE;
+    gfxMask = 0;
+}
+
 void drawScanline(int scanline)
 {
     for (int i=0; i<8; i++) {

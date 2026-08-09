@@ -217,6 +217,11 @@ void mgr_loadRom(const char* filename) {
     nifiStop();
 #endif
 
+    // A cartridge-owned SGB border must never survive into the next ROM.
+    // Reset the platform renderer before opening the new cartridge so even a
+    // slow SD read cannot leave the previous border visible on screen.
+    resetSgbBorder();
+
     RomFile* romFile = new RomFile(filename);
     if (romFile == 0)
         fatalerr("Not enough RAM to load rom");
@@ -230,8 +235,6 @@ void mgr_loadRom(const char* filename) {
         // Enhanced dual-mode cartridges are briefly booted as SGB so their
         // border can be captured, then reset into the user's preferred mode.
         probingForBorder = true;
-
-    sgbBorderLoaded = false; // Effectively unloads any sgb border
 
     gameboy->init();
 

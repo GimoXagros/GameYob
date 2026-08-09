@@ -619,6 +619,30 @@ void clearGFX() {
     videoBgEnable(0);
 }
 
+void resetSgbBorder() {
+    sgbBorderLoaded = false;
+    gfxMask = 0;
+
+    // BG3 is dedicated to SGB/custom borders in the unscaled DS renderer.
+    // Disable it before clearing its SGB resources so a previous cartridge's
+    // map cannot remain visible while the next ROM is being read from SD.
+    if (loadedBorderType == BORDER_SGB) {
+        loadedBorderType = BORDER_NONE;
+        videoBgDisable(3);
+        WIN_OUT = 0;
+        REG_DISPCNT &= ~7;
+        BG_PALETTE[0] = BACKDROP_COLOUR;
+    }
+
+    memset(borderMap, 0, 32 * 32 * sizeof(*borderMap));
+    memset(BG_GFX + 0x18000, 0, 256 * 32);
+    memset(BG_PALETTE + 8 * 16, 0, 4 * 16 * sizeof(u16));
+
+    // Re-evaluate custom-border settings after removing only the
+    // cartridge-owned SGB border.
+    checkBorder();
+}
+
 // SGB palettes can't quite be perfect because SGB doesn't (necessarily) align 
 // palettes with tiles. Mostly problematic with scrolling around status bars.  
 // Bars on the bottom are favored by this code.
@@ -823,6 +847,7 @@ end:
     loadedBorderType = nextBorderType;
 
     if (nextBorderType == BORDER_NONE) {
+        videoBgDisable(3);
         WIN_OUT = 0;
         REG_DISPCNT &= ~7; // Mode 0
         BG_PALETTE[0] = BACKDROP_COLOUR; // Reset backdrop (SGB borders use the backdrop)

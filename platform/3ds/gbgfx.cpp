@@ -140,6 +140,18 @@ void clearGFX() {
 
 }
 
+void resetSgbBorder() {
+    const bool wasShowingSgbBorder = loadedBorderType == BORDER_SGB;
+    sgbBorderLoaded = false;
+    gfxMask = 0;
+    sgbBorderReset(&sgbBorderData);
+
+    // checkBorder() clears both active and inactive framebuffers before it
+    // applies an optional user-selected custom border.
+    if (wasShowingSgbBorder)
+        checkBorder();
+}
+
 void drawScanline(int scanline)
 {
 }

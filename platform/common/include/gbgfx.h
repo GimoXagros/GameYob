@@ -29,6 +29,7 @@ void doAtVBlank(void (*func)(void));
 void initGFX();
 void refreshGFX();
 void clearGFX();
+void resetSgbBorder();
 
 void drawScanline(int scanline);
 void drawScanline_P2(int scanline);
