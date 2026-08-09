@@ -105,21 +105,31 @@ void fs_deleteFile(const char* filename) {
 
 
 struct dirent* fs_readdir() {
-    return readdir(directory);
+    return directory ? readdir(directory) : NULL;
 }
 
 void fs_getcwd(char* dest, size_t maxLen) {
-    getcwd(dest, maxLen);
+    if (!dest || !maxLen)
+        return;
+    if (!getcwd(dest, maxLen))
+        dest[0] = '\0';
 }
 void fs_chdir(const char* s) {
-    chdir(s);
+    if (!s)
+        return;
+    if (chdir(s) != 0 && directory != 0)
+        return;
 
+    char cwd[MAX_FILENAME_LEN];
+    if (!getcwd(cwd, MAX_FILENAME_LEN))
+        return;
+
+    DIR* replacement = opendir(cwd);
+    if (!replacement)
+        return;
     if (directory != 0)
         closedir(directory);
-    char cwd[MAX_FILENAME_LEN];
-    getcwd(cwd, MAX_FILENAME_LEN);
-
-    directory = opendir(cwd);
+    directory = replacement;
 }
 
 #endif

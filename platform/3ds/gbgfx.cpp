@@ -125,6 +125,11 @@ void initGFX()
 }
 
 void refreshGFX() {
+    // SGB border capture can leave MASK_EN active while the cartridge is
+    // reset into its requested GB/GBC mode. The DS renderer clears this mask
+    // during refresh; do the same here or the captured border surrounds a
+    // permanently white/black game area.
+    gfxMask = 0;
     for (int i=0; i<8; i++) {
         bgPalettesModified[i] = true;
         sprPalettesModified[i] = true;

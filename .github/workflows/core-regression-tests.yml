@@ -82,3 +82,11 @@ jobs:
             tests/text_test.cpp platform/common/text.cpp \
             -o /tmp/text_test
           /tmp/text_test
+      - name: Build and run file chooser path tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/filechooser_path_test.cpp \
+            platform/common/filechooser_path.cpp \
+            -o /tmp/filechooser_path_test
+          /tmp/filechooser_path_test

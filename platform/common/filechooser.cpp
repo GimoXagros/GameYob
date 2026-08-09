@@ -10,6 +10,7 @@
 #include "error.h"
 #include "localization.h"
 #include "text.h"
+#include "filechooser_path.h"
 #ifdef _3DS
 #include <3ds.h>
 #include "3dsgfx.h"
@@ -265,9 +266,8 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 
         // Read file list
         while ((entry = fs_readdir()) != NULL) {
-            char* ext = strrchr(entry->d_name, '.')+1;
-            if (strrchr(entry->d_name, '.') == 0)
-                ext = 0;
+            char* extensionSeparator = strrchr(entry->d_name, '.');
+            char* ext = extensionSeparator ? extensionSeparator + 1 : 0;
             bool isValidExtension = false;
             bool isRomFile = false;
             if (!(entry->d_type & DT_DIR)) {
@@ -434,12 +434,13 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 lowerDirectory:
                     // Select this directory when going up
                     fs_getcwd(cwd, MAX_FILENAME_LEN);
-                    if (strlen(cwd) != 1 && strrchr(cwd, '/') == cwd+strlen(cwd)-1)
-                        *(strrchr(cwd, '/')) = '\0';
-                    matchFile = string(strrchr(cwd, '/')+1);
-
-                    fs_chdir("..");
-                    readDirectory = true;
+                    char parentMatch[MAX_FILENAME_LEN];
+                    if (fileChooserParentMatch(cwd, parentMatch,
+                                               sizeof(parentMatch))) {
+                        matchFile = parentMatch;
+                        fs_chdir("..");
+                        readDirectory = true;
+                    }
                     break;
                 }
                 else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
