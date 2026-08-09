@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <errno.h>
 #include "main.h"
 #include "romfile.h"
 #include "gbs.h"
@@ -324,6 +325,13 @@ void RomFile::loadBanks() {
         romFile = file_open(filename, "rb");
     if (romFile == NULL)
     {
+        const int openError = errno;
+        FileHandle* diagnostic = file_open("/gameyob_error.log", "w");
+        if (diagnostic) {
+            file_printf(diagnostic, "ROM open failed (errno %d): %s\n",
+                        openError, filename);
+            file_close(diagnostic);
+        }
         fatalerr("Error opening %s.", filename);
         return;
     }
