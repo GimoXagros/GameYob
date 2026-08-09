@@ -72,6 +72,7 @@ void updateBgPalette(int paletteid);
 void updateBgPaletteDMG();
 void updateSprPalette(int paletteid);
 void updateSprPaletteDMG(int paletteid);
+void resetPaletteReferences();
 void drawSgbBorder(u8* framebuffer, int screenWidth);
 void drawCustomBorder(u8* framebuffer, int screenWidth);
 void drawMaskedScanline(int scanline, u32 color);
@@ -83,6 +84,23 @@ void clearGameArea(u32 color);
 void doAtVBlank(void (*func)(void)) {
     func();
 }
+
+void resetPaletteReferences() {
+    // DMG/SGB palette registers are implemented by redirecting these
+    // pointers. A dual-mode cartridge is first run as SGB to capture its
+    // border and then reset as CGB; without restoring the identity mapping,
+    // that CGB run keeps the last SGB shade permutation and displays valid
+    // sprite/background pixels as black or with the wrong colour.
+    for (int palette=0; palette<8; ++palette) {
+        for (int color=0; color<4; ++color) {
+            sprPalettesRef[palette][color] =
+                &sprPalettes[palette][color];
+            bgPalettesRef[palette][color] =
+                &bgPalettes[palette][color];
+        }
+    }
+}
+
 void initGFX()
 {
     sgbBorderReset(&sgbBorderData);
@@ -103,18 +121,7 @@ void initGFX()
 	sprPalettes[1][2] = RGB24(94, 94, 94);
 	sprPalettes[1][3] = RGB24(0, 0, 0);
 
-	for (int i=0; i<8; i++)
-	{
-		sprPalettesRef[i][0] = &sprPalettes[i][0];
-		sprPalettesRef[i][1] = &sprPalettes[i][1];
-		sprPalettesRef[i][2] = &sprPalettes[i][2];
-		sprPalettesRef[i][3] = &sprPalettes[i][3];
-
-		bgPalettesRef[i][0] = &bgPalettes[i][0];
-		bgPalettesRef[i][1] = &bgPalettes[i][1];
-		bgPalettesRef[i][2] = &bgPalettes[i][2];
-		bgPalettesRef[i][3] = &bgPalettes[i][3];
-	}
+    resetPaletteReferences();
 
     memset(bgPalettesModified, 0, sizeof(bgPalettesModified));
     memset(sprPalettesModified, 0, sizeof(sprPalettesModified));
@@ -126,6 +133,7 @@ void refreshGFX() {
     // during refresh; do the same here or the captured border surrounds a
     // permanently white/black game area.
     gfxMask = 0;
+    resetPaletteReferences();
     for (int i=0; i<8; i++) {
         bgPalettesModified[i] = true;
         sprPalettesModified[i] = true;
@@ -747,12 +755,16 @@ void handleVideoRegister(u8 ioReg, u8 val) {
                 bgPalettesModified[0] = true;
             break;
         case 0x48:
-            if (gameboy->gbMode == GB)
-                sprPalettesModified[0] = true;
+            if (gameboy->gbMode == GB) {
+                for (int i=0; i<4; ++i)
+                    sprPalettesModified[i] = true;
+            }
             break;
         case 0x49:
-            if (gameboy->gbMode == GB)
-                sprPalettesModified[1] = true;
+            if (gameboy->gbMode == GB) {
+                for (int i=4; i<8; ++i)
+                    sprPalettesModified[i] = true;
+            }
             break;
         case 0x69:
             if (gameboy->gbMode == CGB)
@@ -809,7 +821,10 @@ void updateSprPalette(int paletteid)
 
 void updateSprPaletteDMG(int paletteid)
 {
-    const int registerIndex = gameboy->sgbMode ? (paletteid >= 4 ? 1 : 0) : paletteid;
+    // Palettes 0-3 use OBP0 and palettes 4-7 use OBP1. The groups allow SGB
+    // attribute regions to select a base palette while retaining the two DMG
+    // object-palette registers; normal DMG rendering uses groups 0 and 4.
+    const int registerIndex = paletteid >= 4 ? 1 : 0;
 	int val = gameboy->ioRam[0x48+registerIndex];
 	int palette[] = {val&3, (val>>2)&3, (val>>4)&3, (val>>6)};
 
