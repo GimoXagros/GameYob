@@ -24,6 +24,10 @@ int main(int argc, char* argv[])
     // toolchains.
 	gfxInitDefault();
     gfxInitFramebufferTracking();
+    // Initialize renderer-owned palette references before any ROM is run.
+    // SGB probing can populate only the DMG palette subset; without this,
+    // a later CGB screen using palettes 4-7 dereferences a null pointer.
+    initGFX();
 
     consoleInitBottom();
 
