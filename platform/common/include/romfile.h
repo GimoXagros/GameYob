@@ -32,6 +32,7 @@ class RomFile {
         bool isRomBankLoaded(int bank);
         u8* getRomBank(int bank);
         const char* getBasename();
+        const char* getStorageBasename();
         const char* getFilename();
 
         char* getRomTitle();
@@ -76,7 +77,9 @@ class RomFile {
 
         char filename[MAX_FILENAME_LEN];
         char basename[MAX_FILENAME_LEN];
+        char storageBasename[MAX_FILENAME_LEN];
         char romTitle[20];
 
         void loadBanks();
+        void setStorageBasename(const char* openedPath);
 };

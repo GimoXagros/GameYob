@@ -117,6 +117,10 @@ FileHandle* file_open(const char* filename, const char* params) {
     return h;
 }
 
+const char* file_getPath(FileHandle* h) {
+    return h ? h->filename : NULL;
+}
+
 void file_close(FileHandle* h) {
     fclose(h->file);
     free(h->filename);
@@ -177,11 +181,21 @@ void file_printf(FileHandle* h, const char* s, ...) {
 }
 
 bool file_exists(const char* filename) {
-    return access(filename, R_OK) == 0;
+    FileHandle* file = file_open(filename, "rb");
+    if (!file)
+        return false;
+    file_close(file);
+    return true;
 }
 
 void fs_deleteFile(const char* filename) {
-    unlink(filename);
+    if (unlink(filename) == 0)
+        return;
+#ifdef DS
+    char aliasPath[MAX_FILENAME_LEN];
+    if (cachedFatAlias(filename, aliasPath, sizeof(aliasPath)))
+        unlink(aliasPath);
+#endif
 }
 
 

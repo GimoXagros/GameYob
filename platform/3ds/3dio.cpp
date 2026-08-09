@@ -95,6 +95,10 @@ FileHandle* file_open(const char* filename, const char* flags) {
     return handle;
 }
 
+const char* file_getPath(FileHandle* handle) {
+    return handle ? handle->filename : NULL;
+}
+
 void file_close(FileHandle* handle) {
     if (!handle)
         return;

@@ -209,6 +209,10 @@ bool mgr_isPaused() {
 void mgr_loadRom(const char* filename) {
     mgr_unloadRom();
 
+    // A previous SGB probe may have been interrupted by choosing another ROM.
+    // Never let that transient boot state leak into the next cartridge.
+    probingForBorder = false;
+
 #ifdef NIFI
     nifiStop();
 #endif
@@ -217,7 +221,8 @@ void mgr_loadRom(const char* filename) {
     if (romFile == 0)
         fatalerr("Not enough RAM to load rom");
     gameboy->setRomFile(romFile);
-    gameboy->loadSave(1);
+    if (gameboy->loadSave(1) != 0)
+        printLog("Unable to open the ROM save file; continuing without persistence.\n");
 
     hostGb = gameboy;
 
@@ -239,6 +244,16 @@ void mgr_loadRom(const char* filename) {
             "%s.cht", romFile->getBasename());
         if (written >= 0 && written < (int)sizeof(cheatFilename))
             gameboy->getCheatEngine()->loadCheats(cheatFilename);
+        if (gameboy->getCheatEngine()->getNumCheats() == 0 &&
+                strcmp(romFile->getBasename(),
+                       romFile->getStorageBasename()) != 0) {
+            const int fallbackWritten = snprintf(cheatFilename,
+                sizeof(cheatFilename), "%s.cht",
+                romFile->getStorageBasename());
+            if (fallbackWritten >= 0 &&
+                    fallbackWritten < (int)sizeof(cheatFilename))
+                gameboy->getCheatEngine()->loadCheats(cheatFilename);
+        }
     }
 
     if (gbsMode) {

@@ -698,6 +698,13 @@ void Gameboy::unloadRom() {
     if (saveFile != NULL)
         file_close(saveFile);
     saveFile = NULL;
+    if (externRam != NULL)
+        free(externRam);
+    externRam = NULL;
+    saveModified = false;
+    autosaveStarted = false;
+    framesSinceAutosaveStarted = 0;
+    memset(dirtySectors, 0, sizeof(dirtySectors));
     romFile = NULL;
     cheatEngine->setRomFile(NULL);
 }
@@ -723,12 +730,19 @@ int Gameboy::loadSave(int saveId)
         saveFile = NULL;
     }
 
-    if (saveId == 1)
-        snprintf(savename, sizeof(savename), "%s.sav",
+    char legacySavename[MAX_FILENAME_LEN];
+    if (saveId == 1) {
+        snprintf(legacySavename, sizeof(legacySavename), "%s.sav",
                  romFile->getBasename());
-    else
-        snprintf(savename, sizeof(savename), "%s.sa%d",
+        snprintf(savename, sizeof(savename), "%s.sav",
+                 romFile->getStorageBasename());
+    }
+    else {
+        snprintf(legacySavename, sizeof(legacySavename), "%s.sa%d",
                  romFile->getBasename(), saveId);
+        snprintf(savename, sizeof(savename), "%s.sa%d",
+                 romFile->getStorageBasename(), saveId);
+    }
 
     if (externRam != NULL)
         free(externRam);
@@ -756,7 +770,11 @@ int Gameboy::loadSave(int saveId)
     }
 
     // Now load the data.
-    saveFile = file_open(savename, "r+b");
+    // Prefer an existing traditional same-name save. New files use the
+    // writable FAT-safe basename captured while opening the ROM.
+    saveFile = file_open(legacySavename, "r+b");
+    if (!saveFile && strcmp(legacySavename, savename) != 0)
+        saveFile = file_open(savename, "r+b");
 
     int neededFileSize = ramSize;
     if (hasClock)
@@ -975,10 +993,10 @@ void Gameboy::saveState(int stateNum) {
 
     if (stateNum == -1)
         snprintf(statename, sizeof(statename), "%s.yss",
-                 romFile->getBasename());
+                 romFile->getStorageBasename());
     else
         snprintf(statename, sizeof(statename), "%s.ys%d",
-                 romFile->getBasename(), stateNum);
+                 romFile->getStorageBasename(), stateNum);
     outFile = file_open(statename, "w");
 
     if (outFile == 0) {
@@ -1044,18 +1062,30 @@ int Gameboy::loadState(int stateNum) {
 
     FileHandle *inFile;
     StateStruct state;
-    char statename[256];
+    char statename[MAX_FILENAME_LEN];
+    char legacyStatename[MAX_FILENAME_LEN];
     int version;
 
     memset(&state, 0, sizeof(StateStruct));
 
-    if (stateNum == -1)
+    if (stateNum == -1) {
         snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getStorageBasename());
+        snprintf(legacyStatename, sizeof(legacyStatename), "%s.yss",
                  romFile->getBasename());
-    else
+    }
+    else {
         snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getStorageBasename(), stateNum);
+        snprintf(legacyStatename, sizeof(legacyStatename), "%s.ys%d",
                  romFile->getBasename(), stateNum);
+    }
     inFile = file_open(statename, "r");
+    if (inFile == 0 && strcmp(statename, legacyStatename) != 0) {
+        strncpy(statename, legacyStatename, sizeof(statename) - 1);
+        statename[sizeof(statename) - 1] = '\0';
+        inFile = file_open(statename, "r");
+    }
 
     if (inFile == 0) {
         printMenuMessage("State doesn't exist.");
@@ -1175,11 +1205,21 @@ void Gameboy::deleteState(int stateNum) {
 
     if (stateNum == -1)
         snprintf(statename, sizeof(statename), "%s.yss",
-                 romFile->getBasename());
+                 romFile->getStorageBasename());
     else
         snprintf(statename, sizeof(statename), "%s.ys%d",
-                 romFile->getBasename(), stateNum);
+                 romFile->getStorageBasename(), stateNum);
     fs_deleteFile(statename);
+
+    if (strcmp(romFile->getStorageBasename(), romFile->getBasename()) != 0) {
+        if (stateNum == -1)
+            snprintf(statename, sizeof(statename), "%s.yss",
+                     romFile->getBasename());
+        else
+            snprintf(statename, sizeof(statename), "%s.ys%d",
+                     romFile->getBasename(), stateNum);
+        fs_deleteFile(statename);
+    }
 }
 
 bool Gameboy::checkStateExists(int stateNum) {
@@ -1188,6 +1228,16 @@ bool Gameboy::checkStateExists(int stateNum) {
 
     char statename[MAX_FILENAME_LEN];
 
+    if (stateNum == -1)
+        snprintf(statename, sizeof(statename), "%s.yss",
+                 romFile->getStorageBasename());
+    else
+        snprintf(statename, sizeof(statename), "%s.ys%d",
+                 romFile->getStorageBasename(), stateNum);
+    if (file_exists(statename))
+        return true;
+    if (strcmp(romFile->getStorageBasename(), romFile->getBasename()) == 0)
+        return false;
     if (stateNum == -1)
         snprintf(statename, sizeof(statename), "%s.yss",
                  romFile->getBasename());

@@ -268,6 +268,8 @@ void CheatEngine::saveCheats(const char* filename) {
     if (numCheats == 0)
         return;
     FileHandle* file = file_open(filename, "w");
+    if (!file)
+        return;
     for (int i=0; i<numCheats; i++) {
         file_printf(file, "%s %d%s\n", cheats[i].cheatString, !!(cheats[i].flags & CHEAT_FLAG_ENABLED), cheats[i].name);
     }

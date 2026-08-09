@@ -49,6 +49,7 @@ RomFile::RomFile(const char* f, bool halfMemory) {
     romFile=NULL;
     maxLoadedRomBanks = 0;
     contentId = 0;
+    storageBasename[0] = '\0';
 
     if (!f)
         fatalerr("ROM filename is missing.");
@@ -196,6 +197,10 @@ const char* RomFile::getBasename() {
     return basename;
 }
 
+const char* RomFile::getStorageBasename() {
+    return storageBasename[0] ? storageBasename : basename;
+}
+
 const char* RomFile::getFilename() {
     return filename;
 }
@@ -336,6 +341,11 @@ void RomFile::loadBanks() {
         return;
     }
 
+    // Keep the path that actually succeeded. On DS/DSi this may be the FAT
+    // 8.3 alias of a Korean or Japanese long filename. Sidecar files must use
+    // a path that can also be created again after the directory is closed.
+    setStorageBasename(file_getPath(romFile));
+
     int payloadSize = 0;
     if (gbsMode) {
         file_read(gbsHeader, 1, 0x70, romFile);
@@ -405,4 +415,38 @@ void RomFile::loadBanks() {
         file_close(romFile);
         romFile = NULL;
     }
+}
+
+void RomFile::setStorageBasename(const char* openedPath) {
+    if (!openedPath || !*openedPath)
+        openedPath = basename;
+
+    strncpy(storageBasename, openedPath, sizeof(storageBasename) - 1);
+    storageBasename[sizeof(storageBasename) - 1] = '\0';
+    char* extension = strrchr(storageBasename, '.');
+    char* slash = strrchr(storageBasename, '/');
+    if (extension && (!slash || extension > slash))
+        *extension = '\0';
+
+#ifdef DS
+    bool asciiPath = true;
+    for (const unsigned char* p =
+            reinterpret_cast<const unsigned char*>(storageBasename);
+            *p; ++p) {
+        if (*p >= 0x80) {
+            asciiPath = false;
+            break;
+        }
+    }
+    if (!asciiPath) {
+        // Some DLDI drivers enumerate a legacy Korean LFN but provide no SFN.
+        // Use a deterministic, strict 8.3 basename for writable sidecars in
+        // the already-selected directory. The original LFN is still retained
+        // for display and for opening an existing same-name cheat/save file.
+        uint32_t id = nifi::romIdentifier(
+            reinterpret_cast<const uint8_t*>(filename), strlen(filename));
+        snprintf(storageBasename, sizeof(storageBasename), "%08lX",
+                 static_cast<unsigned long>(id));
+    }
+#endif
 }
