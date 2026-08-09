@@ -12,6 +12,7 @@
 #include "gbmanager.h"
 #include "printconsole.h"
 #include "3dsgfx.h"
+#include "config.h"
 
 void audioInit();
 
@@ -36,7 +37,11 @@ int main(int argc, char* argv[])
 
     printf("GameYob 3DS\n\n");
 
-    mgr_selectRom();
+    const char* autoloadRom = getAutoloadRomPath();
+    if (autoloadRom && *autoloadRom)
+        mgr_loadRom(autoloadRom);
+    else
+        mgr_selectRom();
 
     for (;;) {
         mgr_runFrame();
