@@ -118,3 +118,6 @@ void muteSND();
 void unmuteSND();
 void enableChannel(int i);
 void disableChannel(int i);
+#ifdef _3DS
+void printAudioInfo();
+#endif

@@ -28,6 +28,14 @@ AudioBackend audioBackend = AUDIO_BACKEND_NONE;
 s16* bufferDat = NULL;
 s16* buffers[AUDIO_BUFFER_COUNT] = {NULL, NULL, NULL};
 ndspWaveBuf waveBuffers[AUDIO_BUFFER_COUNT];
+int csndBufferChannels[AUDIO_BUFFER_COUNT] = {-1, -1, -1};
+int activeAudioBufferCount = AUDIO_BUFFER_COUNT;
+Result csndInitResult = -1;
+Result ndspInitResult = -1;
+Result lastAudioQueueResult = 0;
+u32 csndChannelMask = 0;
+u32 queuedAudioBuffers = 0;
+u32 nonZeroAudioSamples = 0;
 
 int recordingBuffer = 0;
 int recordingPos = 0;
@@ -45,20 +53,35 @@ void audioInit() {
     if (!bufferDat)
         return;
 
-    Result ndspResult = ndspInit();
-    if (R_SUCCEEDED(ndspResult)) {
-        audioBackend = AUDIO_BACKEND_NDSP;
-    }
-    else {
-        // NDSP requires sdmc:/3ds/dspfirm.cdc for homebrew. Azahar and
-        // systems without a local DSP dump can still use the older CSND
-        // service, so keep audio functional instead of silently disabling it.
-        Result csndResult = csndInit();
-        if (R_SUCCEEDED(csndResult))
+    // Prefer the original hardware CSND path for 3DSX. It does not depend on
+    // an extracted dspfirm.cdc and was the backend used by the native port.
+    csndInitResult = csndInit();
+    if (R_SUCCEEDED(csndInitResult)) {
+        csndChannelMask = csndChannels;
+        int count = 0;
+        for (int channel = 8;
+                channel < CSND_NUM_CHANNELS && count < AUDIO_BUFFER_COUNT;
+                ++channel) {
+            if (csndChannelMask & BIT(channel))
+                csndBufferChannels[count++] = channel;
+        }
+        if (count >= 2) {
+            activeAudioBufferCount = count;
             audioBackend = AUDIO_BACKEND_CSND;
+        }
         else {
-            printLog("3DS audio unavailable: NDSP=%08lX CSND=%08lX\n",
-                (unsigned long)ndspResult, (unsigned long)csndResult);
+            csndExit();
+            csndInitResult = 1;
+        }
+    }
+
+    if (audioBackend == AUDIO_BACKEND_NONE) {
+        // NDSP remains available for environments that expose dsp::DSP and
+        // have sdmc:/3ds/dspfirm.cdc (or an emulator HLE equivalent).
+        ndspInitResult = ndspInit();
+        if (R_SUCCEEDED(ndspInitResult)) {
+            activeAudioBufferCount = AUDIO_BUFFER_COUNT;
+            audioBackend = AUDIO_BACKEND_NDSP;
         }
     }
 
@@ -85,10 +108,12 @@ void audioInit() {
         mix[0] = 1.0f;
         mix[1] = 1.0f;
         ndspChnSetMix(AUDIO_CHANNEL, mix);
-        printLog("3DS audio: NDSP ready at %.0f Hz\n", AUDIO_FREQUENCY);
+        printLog("3DS audio: NDSP fallback ready at %.0f Hz\n",
+            AUDIO_FREQUENCY);
     }
     else {
-        printLog("3DS audio: CSND fallback at %.0f Hz\n", AUDIO_FREQUENCY);
+        printLog("3DS audio: CSND ready at %.0f Hz (%d buffers)\n",
+            AUDIO_FREQUENCY, activeAudioBufferCount);
     }
 }
 
@@ -121,6 +146,9 @@ void initSampler() {
     recordingPos = 0;
     framecnt = 0;
     firstAudioBufferLogged = false;
+    lastAudioQueueResult = 0;
+    queuedAudioBuffers = 0;
+    nonZeroAudioSamples = 0;
     printLog("3DS audio backend: %s at %.0f Hz\n",
         audioBackend == AUDIO_BACKEND_NDSP ? "NDSP" : "CSND",
         AUDIO_FREQUENCY);
@@ -131,6 +159,8 @@ void addSample(s16 sample) {
     if (!audioInitialized || recordingPos >= AUDIO_BUFFER_SIZE)
         return;
     buffers[recordingBuffer][recordingPos++] = sample;
+    if (sample != 0)
+        nonZeroAudioSamples++;
 }
 
 void swapBuffers() {
@@ -156,28 +186,52 @@ void swapBuffers() {
         DSP_FlushDataCache(wave->data_pcm16,
             sampleCount * sizeof(s16));
         ndspChnWaveBufAdd(AUDIO_CHANNEL, wave);
+        lastAudioQueueResult = 0;
     }
     else {
         const u32 byteCount = sampleCount * sizeof(s16);
         GSPGPU_FlushDataCache(buffers[recordingBuffer], byteCount);
-        const int channel = 8 + recordingBuffer;
-        const Result result = csndPlaySound(channel,
+        const int channel = csndBufferChannels[recordingBuffer];
+        lastAudioQueueResult = csndPlaySound(channel,
             SOUND_ONE_SHOT | SOUND_FORMAT_16BIT | SOUND_LINEAR_INTERP,
             (u32)AUDIO_FREQUENCY, 1.0f, 0.0f,
             buffers[recordingBuffer], NULL, byteCount);
-        if (R_FAILED(result))
+        if (lastAudioQueueResult != 0) {
             printLog("3DS audio: CSND queue failed (%08lX)\n",
-                (unsigned long)result);
+                (unsigned long)lastAudioQueueResult);
+            return;
+        }
     }
+    queuedAudioBuffers++;
     if (!firstAudioBufferLogged) {
         printLog("3DS audio: queued %u PCM16 samples\n",
             (unsigned)sampleCount);
         firstAudioBufferLogged = true;
     }
 
-    recordingBuffer = (recordingBuffer + 1) % AUDIO_BUFFER_COUNT;
+    recordingBuffer = (recordingBuffer + 1) % activeAudioBufferCount;
     recordingPos = 0;
     framecnt = 0;
+}
+
+void printAudioInfo() {
+    clearConsole();
+    printf("3DS Audio Status\n\n");
+    const char* backend = "Unavailable";
+    if (audioBackend == AUDIO_BACKEND_CSND)
+        backend = "CSND (hardware primary)";
+    else if (audioBackend == AUDIO_BACKEND_NDSP)
+        backend = "NDSP (fallback)";
+    printf("Backend: %s\n", backend);
+    printf("Initialized: %s\n", audioInitialized ? "yes" : "no");
+    printf("Rate: %.0f Hz\n", AUDIO_FREQUENCY);
+    printf("Buffers: %d\n", activeAudioBufferCount);
+    printf("Queued: %lu\n", (unsigned long)queuedAudioBuffers);
+    printf("Non-zero samples: %lu\n", (unsigned long)nonZeroAudioSamples);
+    printf("Last queue: %08lX\n", (unsigned long)lastAudioQueueResult);
+    printf("CSND init: %08lX\n", (unsigned long)csndInitResult);
+    printf("CSND channels: %08lX\n", (unsigned long)csndChannelMask);
+    printf("NDSP init: %08lX\n", (unsigned long)ndspInitResult);
 }
 
 

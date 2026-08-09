@@ -437,6 +437,12 @@ void localLinkFunc(int value) {
     mgr_setInternalClockGb(gameboy);
     printMenuMessage("Local link started.");
 }
+#ifdef _3DS
+void audioInfoFunc(int value) {
+    displaySubMenu(subMenuGenericUpdateFunc);
+    printAudioInfo();
+}
+#endif
 
 struct MenuOption {
     const char* name;
@@ -515,13 +521,18 @@ SubMenu menuList[] = {
     },
     {
         "Debug",
-        7,
+        8,
         {
             {"Wait for Vblank", vblankWaitFunc, 2, {"Off","On"}, 0, MENU_DS},
             {"Hblank", hblankEnableFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"Window", windowEnableFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"Sound", soundEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Sound Timing Fix", hyperSoundFunc, 2, {"Off","On"}, 1, MENU_DS},
+#ifdef _3DS
+            {"Audio Status", audioInfoFunc, 0, {}, 0, MENU_3DS},
+#else
+            {"Audio Status", NULL, 0, {}, 0, 0},
+#endif
             {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
             {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL}
         }

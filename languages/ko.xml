@@ -42,6 +42,7 @@
     <string key="Window">윈도우</string>
     <string key="Sound">사운드</string>
     <string key="Sound Timing Fix">사운드 동기화</string>
+    <string key="Audio Status">사운드 상태</string>
     <string key="ROM Info">ROM 정보</string>
     <string key="Version Info">버전 정보</string>
     <string key="Channel 1">채널 1</string>

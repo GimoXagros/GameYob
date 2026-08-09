@@ -76,8 +76,6 @@ void updateSprPalette(int paletteid);
 void updateSprPaletteDMG(int paletteid);
 void drawSgbBorder(u8* framebuffer, int screenWidth);
 void drawCustomBorder(u8* framebuffer, int screenWidth);
-void drawSgbForegroundPixel(u8* framebuffer, int screenWidth,
-                           int gameX, int gameY);
 void drawMaskedScanline(int scanline, u32 color);
 void clearGameArea(u32 color);
 
@@ -407,10 +405,6 @@ void drawScanline_P2(int scanline) {
             else
                 drawPixel(framebuffer, offsetX+i, y, spritePixelsTrueLow[i]);
         }
-        if (loadedBorderType == BORDER_SGB)
-            drawSgbForegroundPixel(framebuffer,
-                gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH,
-                i, scanline);
     }
 }
 
@@ -659,8 +653,9 @@ void drawSgbBorder(u8* framebuffer, int screenWidth) {
 
     for (int y=0; y<SGB_BORDER_HEIGHT; y++) {
         for (int x=0; x<SGB_BORDER_WIDTH; x++) {
-            // The Game Boy picture is drawn separately and always has priority
-            // over the SGB border on GameYob's renderer.
+            // Keep the complete 160x144 opening owned by the Game Boy
+            // renderer. Some cartridges leave non-zero transfer data in this
+            // area; compositing it again produces 8x8 black blocks on 3DS.
             if (x >= 48 && x < 48+160 && y >= 40 && y < 40+144)
                 continue;
 
@@ -701,22 +696,6 @@ void drawCustomBorder(u8* framebuffer, int screenWidth) {
     }
 }
 
-void drawSgbForegroundPixel(u8* framebuffer, int screenWidth,
-                            int gameX, int gameY) {
-    u8 palette;
-    const u8 color = sgbBorderGetPixel(&sgbBorderData,
-        gameX + 48, gameY + 40, &palette);
-    // Color zero is the transparent opening used for the Game Boy picture.
-    // Non-zero border pixels legitimately cover that picture on real SGB.
-    if (color != 0) {
-        const int borderX = (screenWidth - SGB_BORDER_WIDTH) / 2;
-        const int borderY = (TOP_SCREEN_HEIGHT - SGB_BORDER_HEIGHT) / 2;
-        drawPixel(framebuffer, borderX + gameX + 48,
-            borderY + gameY + 40,
-            sgbBorderColorToRgb24(sgbBorderData.palettes[palette][color]));
-    }
-}
-
 void drawMaskedScanline(int scanline, u32 color) {
     u8* framebuffer;
     int offsetX;
@@ -733,10 +712,6 @@ void drawMaskedScanline(int scanline, u32 color) {
     const int y = offsetY + scanline;
     for (int x=0; x<160; x++) {
         drawPixel(framebuffer, offsetX+x, y, color);
-        if (loadedBorderType == BORDER_SGB)
-            drawSgbForegroundPixel(framebuffer,
-                gameScreen == 0 ? TOP_SCREEN_WIDTH : BOTTOM_SCREEN_WIDTH,
-                x, scanline);
     }
 }
 

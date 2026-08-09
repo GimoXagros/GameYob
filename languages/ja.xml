@@ -42,6 +42,7 @@
     <string key="Window">ウィンドウ</string>
     <string key="Sound">サウンド</string>
     <string key="Sound Timing Fix">音声同期補正</string>
+    <string key="Audio Status">音声状態</string>
     <string key="ROM Info">ROM情報</string>
     <string key="Version Info">バージョン情報</string>
     <string key="Channel 1">チャンネル1</string>
