@@ -3,7 +3,10 @@
 #include <unistd.h>
 #include <string.h>
 
-#define MAX_FILENAME_LEN 256
+// Current libfat can return one UTF-8 long filename containing up to 256
+// UCS-2 characters (768 bytes).  The old 256-byte buffers were too small for
+// long Hangul and Japanese FAT names.
+#define MAX_FILENAME_LEN 768
 
 struct FileHandle;
 

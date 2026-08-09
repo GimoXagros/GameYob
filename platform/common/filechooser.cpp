@@ -46,6 +46,11 @@ bool fileChooserOn=false;
 string matchFile;
 
 void updateScrollDown() {
+    if (numFiles <= 0) {
+        fileSelection = 0;
+        scrollY = 0;
+        return;
+    }
     if (fileSelection >= numFiles)
         fileSelection = numFiles-1;
     if (numFiles > filesPerPage) {
@@ -256,16 +261,21 @@ char* startFileChooser(const char* extensions[], int numExtensions,
         std::vector<string> filenames;
         std::vector<int> flags;
         std::vector<string> unmatchedStates;
-#ifdef _3DS
-        if (strcmp(cwd, "/") != 0) {
+        // Synthesize the parent entry instead of depending on a particular
+        // libc/libfat readdir() implementation to return a safe ".." entry.
+        // At sd:/, fat:/, and / the path helper deliberately returns false.
+        if (fileChooserParentInfo(cwd, NULL, 0, NULL, 0)) {
             filenames.push_back(string(".."));
             flags.push_back(FLAG_DIRECTORY);
             numFiles++;
         }
-#endif
 
         // Read file list
         while ((entry = fs_readdir()) != NULL) {
+            if (strcmp(entry->d_name, ".") == 0 ||
+                    strcmp(entry->d_name, "..") == 0)
+                continue;
+
             char* extensionSeparator = strrchr(entry->d_name, '.');
             char* ext = extensionSeparator ? extensionSeparator + 1 : 0;
             bool isValidExtension = false;
@@ -287,41 +297,42 @@ char* startFileChooser(const char* extensions[], int numExtensions,
             }
 
             if (entry->d_type & DT_DIR || isValidExtension) {
-                if (!(strcmp(".", entry->d_name) == 0)) {
-                    int flag = 0;
-                    if (entry->d_type & DT_DIR)
-                        flag |= FLAG_DIRECTORY;
-                    if (isRomFile)
-                        flag |= FLAG_ROM;
+                int flag = 0;
+                if (entry->d_type & DT_DIR)
+                    flag |= FLAG_DIRECTORY;
+                if (isRomFile)
+                    flag |= FLAG_ROM;
 
-                    // Check for suspend state
-                    if (isRomFile) {
-                        if (!unmatchedStates.empty()) {
-                            strcpy(buffer, entry->d_name);
-                            *(strrchr(buffer, '.')) = '\0';
-                            for (uint i=0; i<unmatchedStates.size(); i++) {
-                                if (strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
-                                    flag |= FLAG_SUSPENDED;
-                                    unmatchedStates.erase(unmatchedStates.begin()+i);
-                                    break;
-                                }
+                // Check for suspend state
+                if (isRomFile) {
+                    if (!unmatchedStates.empty()) {
+                        strncpy(buffer, entry->d_name, sizeof(buffer) - 1);
+                        buffer[sizeof(buffer) - 1] = '\0';
+                        *(strrchr(buffer, '.')) = '\0';
+                        for (uint i=0; i<unmatchedStates.size(); i++) {
+                            if (strcmp(buffer, unmatchedStates[i].c_str()) == 0) {
+                                flag |= FLAG_SUSPENDED;
+                                unmatchedStates.erase(unmatchedStates.begin()+i);
+                                break;
                             }
                         }
                     }
-
-                    flags.push_back(flag);
-                    filenames.push_back(string(entry->d_name));
-                    numFiles++;
                 }
+
+                flags.push_back(flag);
+                filenames.push_back(string(entry->d_name));
+                numFiles++;
             }
             else if (ext && strcasecmp(ext, "yss") == 0 && !(entry->d_type & DT_DIR)) {
                 bool matched = false;
                 char buffer2[MAX_FILENAME_LEN];
-                strcpy(buffer2, entry->d_name);
+                strncpy(buffer2, entry->d_name, sizeof(buffer2) - 1);
+                buffer2[sizeof(buffer2) - 1] = '\0';
                 *(strrchr(buffer2, '.')) = '\0';
                 for (int i=0; i<numFiles; i++) {
                     if (flags[i] & FLAG_ROM) {
-                        strcpy(buffer, filenames[i].c_str());
+                        strncpy(buffer, filenames[i].c_str(), sizeof(buffer) - 1);
+                        buffer[sizeof(buffer) - 1] = '\0';
                         *(strrchr(buffer, '.')) = '\0';
                         if (strcmp(buffer, buffer2) == 0) {
                             flags[i] |= FLAG_SUSPENDED;
@@ -412,7 +423,8 @@ char* startFileChooser(const char* extensions[], int numExtensions,
                 inputUpdateVBlank();
 
                 if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
-                    if (numFiles == 0)
+                    if (numFiles == 0 || fileSelection < 0 ||
+                            fileSelection >= numFiles)
                         continue;
                     if (flags[fileSelection] & FLAG_DIRECTORY) {
                         if (strcmp(filenames[fileSelection].c_str(), "..") == 0)
