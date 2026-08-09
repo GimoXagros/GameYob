@@ -535,7 +535,7 @@ void releaseNetworkResources() {
         closesocket(udpSocket);
     udpSocket = -1;
     if (socInitialized) {
-        SOC_Shutdown();
+        socExit();
         socInitialized = false;
     }
     free(socBuffer);
@@ -548,7 +548,7 @@ void enableNifi() {
     if (nifiInitialized)
         return;
     socBuffer = static_cast<u32*>(memalign(0x1000, SOC_BUFFER_SIZE));
-    if (!socBuffer || SOC_Initialize(socBuffer, SOC_BUFFER_SIZE) != 0) {
+    if (!socBuffer || R_FAILED(socInit(socBuffer, SOC_BUFFER_SIZE))) {
         releaseNetworkResources();
         printLog("%s\n", tr("Network unavailable."));
         printMenuMessage("Network unavailable.");
