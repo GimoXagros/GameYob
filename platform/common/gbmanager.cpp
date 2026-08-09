@@ -457,16 +457,13 @@ void mgr_updateVBlank() {
             displayMenu();
         }
 
+        // Native 3DS scaling is intentionally deferred beyond v0.5.5-ko.
+        // Keep the shortcut on the DS/DSi renderer where it is validated.
+#ifdef DS
         if (keyJustPressed(mapFuncKey(FUNC_KEY_SCALE))) {
-#ifdef _3DS
-            // Native 3DS exposes all three output sizes. Keep the original
-            // DS/DSi two-state shortcut unchanged while cycling every 3DS
-            // mode from the mapped Scale key.
-            setMenuOption("Scaling", (getMenuOption("Scaling") + 1) % 3);
-#else
             setMenuOption("Scaling", !getMenuOption("Scaling"));
-#endif
         }
+#endif
 
 #ifdef DS
         if (fastForwardKey || fastForwardMode) {

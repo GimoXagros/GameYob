@@ -14,17 +14,5 @@ Copyright (c) 2017 Sean Barrett
 License used by this distribution: MIT alternative
 Full text: third_party/stb/LICENSE.txt
 
-Citro2D
-Source: https://github.com/devkitPro/citro2d
-Copyright (c) 2017-2018 fincs
-License: zlib License
-Full text: licenses/LICENSE-citro2d-zlib.txt
-
-Citro3D
-Source: https://github.com/devkitPro/citro3d
-Copyright (c) 2014-2018 fincs
-License: zlib License
-Full text: licenses/LICENSE-citro3d-zlib.txt
-
 No game ROM, cartridge dump, or BIOS is included in the source-generated
 assets or release archive.

@@ -55,10 +55,8 @@ existing licenses. No ROM image or BIOS is included.
   SRAM header table through 128 KiB, and an explicit 8 MiB hardware boundary
 - Native 3DS custom PNG/BMP borders, automatic SGB border probing, safer SGB
   attribute commands, and state handling for `JUMP`, `OBJ_TRN`, and `PAL_PRI`
-- Completed-frame native 3DS output with direct Off mode plus PICA200/Citro2D
-  accelerated Aspect/Full scaling and optional GPU filtering, preventing
-  partially updated scanout frames while avoiding per-output-pixel ARM11
-  interpolation
+- Completed-frame native 3DS output using the verified centered 160x144 direct
+  framebuffer path; unstable native 3DS scaling is excluded from this release
 - DS, DSi, and native 3DS GBC BIOS selection with exact 0x900-byte validation;
   **Save Settings** records the selected absolute path as `biosfile` in
   `gameyobds.ini`
@@ -105,8 +103,8 @@ See [language-file documentation](languages/README.md),
 - 네이티브 3DS 사용자 PNG/BMP 보더, 자동 SGB 보더 탐지, 안전한 SGB 속성
   명령과 `JUMP`·`OBJ_TRN`·`PAL_PRI` 상태 처리
 - 빠른 장면 전환 중 불완전한 화면이 표시되지 않는 네이티브 3DS 완성 프레임
-  출력, 직접 출력 방식의 끄기 모드, 출력 픽셀별 ARM11 보간을 피하는
-  PICA200/Citro2D 기반 비율/전체 화면 확대 및 GPU 필터
+  출력과 검증된 중앙 160x144 직접 프레임버퍼 경로; 불안정한 네이티브 3DS
+  확대 기능은 이번 릴리스에서 제외
 - DS·DSi·네이티브 3DS의 GBC BIOS 파일 선택과 정확한 0x900바이트 검사;
   **설정 저장** 시 선택한 절대 경로를 `gameyobds.ini`의 `biosfile`로 기록
 - DS NR50의 SO1/SO2 독립 음량·라우팅과 GameShark `0x8x` 외부 SRAM 뱅크 쓰기
@@ -244,37 +242,43 @@ MIT 및 OFL-1.1 라이선스 전문은 저장소와 `gameyob.zip`에 포함되�
 
 The following work is not completed by `v0.5.5-ko`.
 
-1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
+1. Reimplement native 3DS aspect/full-screen scaling for `v0.5.6-ko` with a
+   hardware-verified presentation path, stable output, and acceptable speed on
+   Old 3DS/2DS. The options are intentionally absent from `v0.5.5-ko`.
+2. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
-2. Validate native LAN link play on two physical Nintendo 3DS systems. A bridge
+3. Validate native LAN link play on two physical Nintendo 3DS systems. A bridge
    between native 3DS UDP and the `.nds` raw-802.11 transport remains a separate
    design and implementation task.
-3. Run the renderer, custom-border, sound-routing, cheat, and long-session
+4. Run the renderer, custom-border, sound-routing, cheat, and long-session
    performance matrix on physical DS/DSi/3DS hardware.
-4. Expand the game compatibility matrix, especially games that change WX during
+5. Expand the game compatibility matrix, especially games that change WX during
    a scanline, rare cartridge hardware, and more SGB command cases.
-5. SNES-side SGB machine code, objects, and audio cannot be fully executed or
+6. SNES-side SGB machine code, objects, and audio cannot be fully executed or
    mixed without adding a host-SNES CPU/PPU/APU implementation, which is outside
    GameYob's current Game Boy emulator architecture.
-6. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
+7. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
    hardware validation of MBC7/HuC behavior.
 
 ## 할 일
 
 다음 작업은 `v0.5.5-ko`에서 완료되지 않았습니다.
 
-1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
+1. `v0.5.6-ko` 목표로 네이티브 3DS의 비율/전체 화면 확대를 다시 구현하고
+   Old 3DS/2DS 실기에서 화면 안정성과 충분한 속도를 검증합니다. 해당 옵션은
+   `v0.5.5-ko`에서 의도적으로 제외했습니다.
+2. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
-2. 실제 Nintendo 3DS 두 대에서 네이티브 LAN 링크를 검증합니다. 네이티브
+3. 실제 Nintendo 3DS 두 대에서 네이티브 LAN 링크를 검증합니다. 네이티브
    3DS UDP와 `.nds` raw-802.11 사이의 브리지는 별도 설계·구현 작업입니다.
-3. 실제 DS/DSi/3DS에서 렌더러, 사용자 보더, 사운드 라우팅, 치트 및 장시간
+4. 실제 DS/DSi/3DS에서 렌더러, 사용자 보더, 사운드 라우팅, 치트 및 장시간
    성능 시험표를 수행합니다.
-4. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
+5. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
    명령을 포함하도록 게임별 호환성 목록을 확대합니다.
-5. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
+6. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
    CPU/PPU/APU가 필요하며, 이는 현재 Game Boy 에뮬레이터 구조의 범위를
    벗어납니다.
-6. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
+7. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
    불완전한 실기 검증이 남아 있습니다.
 
 ## More info

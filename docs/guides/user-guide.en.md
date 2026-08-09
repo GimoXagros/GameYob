@@ -10,7 +10,7 @@ No ROM or BIOS is included. Copy legally obtained `.gb`, `.gbc`, or `.gbs` files
 
 ## 2. Controls and menu
 
-The default DS-family mapping uses the D-pad, A/B, Start, and Select as expected. R opens the menu and L fast-forwards on the default DS mapping. Use **Settings → Button Mapping** to change any binding. Available actions include Menu, Menu/Pause, Save, autofire, fast-forward, scale, reset, and local-link focus swap.
+The default DS-family mapping uses the D-pad, A/B, Start, and Select as expected. R opens the menu and L fast-forwards on the default DS mapping. Use **Settings → Button Mapping** to change any binding. Available actions include Menu, Menu/Pause, Save, autofire, fast-forward, reset, and local-link focus swap. The scale action is currently effective only in the DS/DSi builds.
 
 ## 3. ROM menu, saves, and suspend
 
@@ -38,7 +38,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 ## 6. Display, borders, and Game Boy modes
 
 - **Game Screen** chooses the top or bottom screen; **Single Screen** hides the unused console screen.
-- DS, DSi, and native 3DS builds provide **Scaling** (Off/Aspect/Full) and **Scale Filter**. Native 3DS enlargement and filtering run on PICA200 through Citro2D instead of scaling every output pixel on the ARM11. It hides the border while enlarged and restores it when Scaling returns to Off.
+- DS and DSi builds provide **Scaling** and **Scale Filter**. Native 3DS uses a fixed, centered 160×144 direct display in `v0.5.5-ko`; its scaling options are intentionally absent after real-hardware output and performance failures. Hardware-verified native 3DS scaling is a `v0.5.6-ko` target.
 - **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP; native 3DS also accepts PNG.
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS, DSi, and native 3DS. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
 - **GBC Mode** chooses GB, automatic, or forced GBC behavior. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** exposes the GBA-detection flag used by a small number of games.
@@ -47,7 +47,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 
 **Sound Channels** independently enables pulse 1, pulse 2, wave, and noise. **Debug → Sound** is the master switch. DS-only timing switches (**Wait for Vblank**, **Hblank**, **Window**, and **Sound Timing Fix**) should normally remain at their defaults; they are compatibility diagnostics. **ROM Info** shows mapper/ROM/RAM data and **Version Info** shows the exact build revision.
 
-Native 3DS audio uses NDSP first. Homebrew NDSP needs your own `sdmc:/3ds/dspfirm.cdc` dump; this firmware is not distributed with GameYob. When it is absent GameYob falls back to CSND for real hardware, but Azahar 2125.x does not implement CSND sample playback, so Azahar requires the DSP file for sound. **Console Output → Debug** reports the selected backend and the first queued PCM buffer.
+Native 3DS audio uses the hardware CSND service first and falls back to NDSP when CSND is unavailable. Homebrew NDSP needs your own `sdmc:/3ds/dspfirm.cdc` dump; this firmware is not distributed with GameYob. Azahar 2125.x does not implement CSND sample playback, so Azahar requires the DSP file for sound. **Console Output → Debug** reports the selected backend and the first queued PCM buffer.
 
 ## 8. Local and wireless link
 

@@ -21,102 +21,21 @@ void drawPixel(u8* framebuffer, int x, int y, u32 color) {
 
 void drawRgb24Frame(u8* framebuffer, int destX, int destY,
         const u32* pixels, int width, int height) {
-    drawRgb24FrameScaled(framebuffer, destX, destY, width, height,
-        pixels, width, height, false);
-}
-
-static u32 blendRgb24(u32 topLeft, u32 topRight, u32 bottomLeft,
-        u32 bottomRight, int xWeight, int yWeight) {
-    u32 result = 0;
-    for (int shift=0; shift<=16; shift+=8) {
-        const int a = (topLeft >> shift) & 0xff;
-        const int b = (topRight >> shift) & 0xff;
-        const int c = (bottomLeft >> shift) & 0xff;
-        const int d = (bottomRight >> shift) & 0xff;
-        const int upper = a * (256-xWeight) + b * xWeight;
-        const int lower = c * (256-xWeight) + d * xWeight;
-        const int value = (upper * (256-yWeight) +
-            lower * yWeight + 32768) >> 16;
-        result |= (u32)value << shift;
-    }
-    return result;
-}
-
-void drawRgb24FrameScaled(u8* framebuffer, int destX, int destY,
-        int destWidth, int destHeight, const u32* pixels,
-        int sourceWidth, int sourceHeight, bool filter) {
-    if (!framebuffer || !pixels || destWidth <= 0 || destHeight <= 0 ||
-            sourceWidth <= 0 || sourceHeight <= 0 ||
-            destWidth > TOP_SCREEN_WIDTH || destHeight > TOP_SCREEN_HEIGHT)
+    if (!framebuffer || !pixels || width <= 0 || height <= 0 ||
+            destX < 0 || destY < 0 ||
+            destX + width > TOP_SCREEN_WIDTH ||
+            destY + height > TOP_SCREEN_HEIGHT)
         return;
 
-    static int sourceX0[TOP_SCREEN_WIDTH];
-    static int sourceX1[TOP_SCREEN_WIDTH];
-    static int sourceXWeight[TOP_SCREEN_WIDTH];
-    static int sourceY0[TOP_SCREEN_HEIGHT];
-    static int sourceY1[TOP_SCREEN_HEIGHT];
-    static int sourceYWeight[TOP_SCREEN_HEIGHT];
-
-    for (int x=0; x<destWidth; ++x) {
-        if (!filter) {
-            sourceX0[x] = x * sourceWidth / destWidth;
-            sourceX1[x] = sourceX0[x];
-            sourceXWeight[x] = 0;
-        }
-        else {
-            int sourceX = ((2*x+1) * sourceWidth * 256) /
-                (2*destWidth) - 128;
-            if (sourceX < 0)
-                sourceX = 0;
-            const int maxX = (sourceWidth-1) * 256;
-            if (sourceX > maxX)
-                sourceX = maxX;
-            sourceX0[x] = sourceX >> 8;
-            sourceX1[x] = sourceX0[x]+1 < sourceWidth ?
-                sourceX0[x]+1 : sourceX0[x];
-            sourceXWeight[x] = sourceX & 0xff;
-        }
-    }
-    for (int y=0; y<destHeight; ++y) {
-        if (!filter) {
-            sourceY0[y] = y * sourceHeight / destHeight;
-            sourceY1[y] = sourceY0[y];
-            sourceYWeight[y] = 0;
-        }
-        else {
-            int sourceY = ((2*y+1) * sourceHeight * 256) /
-                (2*destHeight) - 128;
-            if (sourceY < 0)
-                sourceY = 0;
-            const int maxY = (sourceHeight-1) * 256;
-            if (sourceY > maxY)
-                sourceY = maxY;
-            sourceY0[y] = sourceY >> 8;
-            sourceY1[y] = sourceY0[y]+1 < sourceHeight ?
-                sourceY0[y]+1 : sourceY0[y];
-            sourceYWeight[y] = sourceY & 0xff;
-        }
-    }
-
-    // Build the complete Game Boy picture away from the scanout buffers and
-    // submit it in one pass. The 3DS framebuffer is column-major BGR8.
-    for (int x=0; x<destWidth; ++x) {
+    // The native 3DS release uses a fixed 160x144 picture. Convert the
+    // completed frame directly into the column-major BGR8 framebuffer without
+    // building scale maps or touching pixels outside the Game Boy viewport.
+    for (int x=0; x<width; ++x) {
         u8* dest = framebuffer +
             ((destX + x) * TOP_SCREEN_HEIGHT +
-             (TOP_SCREEN_HEIGHT - destY - destHeight)) * 3;
-        for (int y=destHeight-1; y>=0; --y) {
-            u32 color;
-            if (!filter) {
-                color = pixels[sourceY0[y]*sourceWidth+sourceX0[x]];
-            }
-            else {
-                color = blendRgb24(
-                    pixels[sourceY0[y]*sourceWidth+sourceX0[x]],
-                    pixels[sourceY0[y]*sourceWidth+sourceX1[x]],
-                    pixels[sourceY1[y]*sourceWidth+sourceX0[x]],
-                    pixels[sourceY1[y]*sourceWidth+sourceX1[x]],
-                    sourceXWeight[x], sourceYWeight[y]);
-            }
+             (TOP_SCREEN_HEIGHT - destY - height)) * 3;
+        for (int y=height-1; y>=0; --y) {
+            const u32 color = pixels[y*width+x];
             dest[0] = color;
             dest[1] = color >> 8;
             dest[2] = color >> 16;

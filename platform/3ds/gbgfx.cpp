@@ -497,22 +497,12 @@ void drawScreen()
         screenWidth = BOTTOM_SCREEN_WIDTH;
     }
 
-    int drawWidth = 160;
-    int drawHeight = 144;
-    if (scaleMode == 1) {
-        drawHeight = TOP_SCREEN_HEIGHT;
-        drawWidth = (160 * drawHeight + 72) / 144;
-    }
-    else if (scaleMode == 2) {
-        drawWidth = screenWidth;
-        drawHeight = TOP_SCREEN_HEIGHT;
-    }
-
-    const int offsetX = (screenWidth-drawWidth)/2;
-    const int offsetY = (TOP_SCREEN_HEIGHT-drawHeight)/2;
-    drawRgb24FrameScaled(framebuffer, offsetX, offsetY,
-        drawWidth, drawHeight, gameFrame, 160, 144,
-        scaleMode != 0 && scaleFilter != 0);
+    // Scaling is intentionally unavailable in the v0.5.5-ko native 3DS
+    // build. Real-hardware testing found both the CPU and PICA200 prototypes
+    // unsuitable for release, so keep the verified centered direct path.
+    const int offsetX = (screenWidth-160)/2;
+    const int offsetY = (TOP_SCREEN_HEIGHT-144)/2;
+    drawRgb24Frame(framebuffer, offsetX, offsetY, gameFrame, 160, 144);
 
     if (!(fastForwardMode || fastForwardKey))
         system_waitForVBlank();

@@ -5,9 +5,6 @@ u32 getPixel(u8* framebuffer, int x, int y);
 void drawPixel(u8* framebuffer, int x, int y, u32 color);
 void drawRgb24Frame(u8* framebuffer, int destX, int destY,
         const u32* pixels, int width, int height);
-void drawRgb24FrameScaled(u8* framebuffer, int destX, int destY,
-        int destWidth, int destHeight, const u32* pixels,
-        int sourceWidth, int sourceHeight, bool filter);
 
 u8* gfxGetActiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
 u8* gfxGetInactiveFramebuffer(gfxScreen_t screen, gfx3dSide_t side);
