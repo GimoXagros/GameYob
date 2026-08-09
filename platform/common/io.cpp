@@ -36,13 +36,14 @@ static bool cachedFatAlias(const char* filename, char* openedPath,
 
         const size_t prefixLength = slash ?
             static_cast<size_t>(slash - filename) + 1 : 0;
-        const size_t shortLength = fatAliases[i].shortName.size();
-        if (prefixLength + shortLength >= openedPathCapacity)
+        const std::string& openName = fatAliases[i].shortName.empty() ?
+            fatAliases[i].longName : fatAliases[i].shortName;
+        const size_t openLength = openName.size();
+        if (prefixLength + openLength >= openedPathCapacity)
             return false;
         if (prefixLength)
             memcpy(openedPath, filename, prefixLength);
-        memcpy(openedPath + prefixLength, fatAliases[i].shortName.c_str(),
-               shortLength + 1);
+        memcpy(openedPath + prefixLength, openName.c_str(), openLength + 1);
         return true;
     }
     return false;
@@ -231,13 +232,12 @@ void fs_cacheDirectoryAliases() {
         if (strcmp(entry->d_name, ".") == 0 ||
                 strcmp(entry->d_name, "..") == 0)
             continue;
+        FatAlias alias;
+        alias.longName = entry->d_name;
         char shortName[FAT_SHORT_FILE_NAME_MAX + 1] = "";
-        if (FAT_getShortNameFor(entry->d_name, shortName) && shortName[0]) {
-            FatAlias alias;
-            alias.longName = entry->d_name;
+        if (FAT_getShortNameFor(entry->d_name, shortName) && shortName[0])
             alias.shortName = shortName;
-            fatAliases.push_back(alias);
-        }
+        fatAliases.push_back(alias);
     }
     rewinddir(directory);
 #endif
