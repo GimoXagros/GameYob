@@ -27,20 +27,11 @@ jobs:
           docker run --rm \
           --volume "$GITHUB_WORKSPACE:/workspace" \
           --workdir /workspace/platform/3ds \
-          devkitpro/devkitarm@sha256:5da80640a991ddafb7d8eb2f0b2df18cf4365f0f466f5a8b73760e971bde714a \
+          devkitpro/devkitarm@sha256:15b79ce75822c289538d8153da5fa7aafe5e6adc32ad8a575a197beca0f0761b \
           bash -euo pipefail -c '
-            git clone --quiet https://github.com/devkitPro/libctru.git /tmp/libctru &&
-            git -C /tmp/libctru checkout --quiet 36fe1ada5b7ebe53ba4decda36d764a55f8fefb6 &&
-            git clone --quiet https://github.com/devkitPro/devkitarm-crtls.git /tmp/devkitarm-crtls &&
-            git -C /tmp/devkitarm-crtls checkout --quiet 8ff298208d2c8bf30cdffb6d3f8cbe3ede8c3c2a &&
-            mkdir -p /tmp/devkitarm-crtls/armv6k/fpu &&
-            make -C /tmp/devkitarm-crtls 3dsx_crt0 &&
-            rm -f /tmp/libctru/libctru/source/console.c &&
-            rm -f /tmp/libctru/libctru/include/sys/select.h &&
-            sed -i "\|#include <3ds/console.h>|d" /tmp/libctru/libctru/include/3ds.h &&
-            make -C /tmp/libctru/libctru &&
-            make CTRULIB=/tmp/libctru/libctru \
-              CRT0DIR=/tmp/devkitarm-crtls/armv6k/fpu 3dsx
+            sed -i "\|#include <3ds/console.h>|d" \
+              "$DEVKITPRO/libctru/include/3ds.h" &&
+            make 3dsx
           '
 
       - name: Record artifact checksum
