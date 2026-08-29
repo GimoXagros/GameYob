@@ -1,4 +1,4 @@
-# GameYob v0.5.7-ko
+# GameYob-ko
 
 <p align="center">
   <img src="logo.png" alt="GameYob logo" width="480">
