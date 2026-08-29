@@ -1,3 +1,18 @@
+Version 0.5.7-ko:
+
+- Added the new GameYob project logo and derived a 16-color DS/DSi banner icon
+  from the same artwork.
+- Refocused the default release on `gameyob.nds` and `gameyob_dsi.nds`, both of
+  which can be used on supported DS-family launchers and Nintendo 3DS DS mode.
+- Preserved the exact published `v0.5.5-ko` native 3DSX executable under
+  `backup/3dsx`, moved its detailed follow-up work into a dedicated TODO, and
+  changed native 3DS CI to an explicit manual workflow.
+- Made native 3DSX inclusion optional in the deterministic packager. The
+  `v0.5.7-ko` archive contains DS/DSi binaries, multilingual guides, language
+  examples, checksums, and license notices, but no ROM, BIOS, or 3DSX file.
+- Updated the English, Japanese, and Korean user guides and reorganized the
+  main TODO around the remaining DS/DSi validation and compatibility work.
+
 Version 0.5.5-ko:
 
 - Migrated the Nintendo DS and DSi builds to the pinned BlocksDS 1.22.2 SDK

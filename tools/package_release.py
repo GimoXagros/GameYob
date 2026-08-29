@@ -20,7 +20,12 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nds", type=Path, required=True)
     parser.add_argument("--dsi", type=Path, required=True)
-    parser.add_argument("--3dsx", dest="three_dsx", type=Path, required=True)
+    parser.add_argument(
+        "--3dsx",
+        dest="three_dsx",
+        type=Path,
+        help="optional archived native 3DS build",
+    )
     parser.add_argument("--output", type=Path, default=Path("gameyob.zip"))
     args = parser.parse_args()
 
@@ -28,17 +33,18 @@ def main() -> None:
     files: dict[str, bytes] = {
         "gameyob.nds": args.nds.read_bytes(),
         "gameyob_dsi.nds": args.dsi.read_bytes(),
-        "gameyob.3dsx": args.three_dsx.read_bytes(),
         "LICENSE": (root / "LICENSE").read_bytes(),
         "OFL.txt": (root / "assets/fonts/OFL.txt").read_bytes(),
         "STB_LICENSE.txt": (root / "third_party/stb/LICENSE.txt").read_bytes(),
         "THIRD_PARTY_NOTICES.txt": (root / "THIRD_PARTY_NOTICES.txt").read_bytes(),
-        "RELEASE_NOTES.md": (root / "docs/releases/v0.5.5-ko.md").read_bytes(),
+        "RELEASE_NOTES.md": (root / "docs/releases/v0.5.7-ko.md").read_bytes(),
         "gameyob/docs/user-guide.en.md": (root / "docs/guides/user-guide.en.md").read_bytes(),
         "gameyob/docs/user-guide.ja.md": (root / "docs/guides/user-guide.ja.md").read_bytes(),
         "gameyob/docs/user-guide.ko.md": (root / "docs/guides/user-guide.ko.md").read_bytes(),
         "gameyob/languages/README.md": (root / "languages/README.md").read_bytes(),
     }
+    if args.three_dsx is not None:
+        files["gameyob.3dsx"] = args.three_dsx.read_bytes()
     for language in sorted((root / "languages").iterdir()):
         if language.suffix.lower() in {".ini", ".json", ".xml", ".yaml", ".yml"}:
             files[f"gameyob/languages/{language.name}"] = language.read_bytes()

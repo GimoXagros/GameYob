@@ -6,13 +6,17 @@
 #define GIT_REVISION "unknown"
 #endif
 
+#ifndef GAMEYOB_VERSION
+#define GAMEYOB_VERSION "v0.5.7-ko"
+#endif
+
 #ifdef DS
 extern bool __dsimode;
 #endif
 
 void printVersionInfo() {
     clearConsole();
-    printf("GameYob v0.5.5-ko\n");
+    printf("GameYob %s\n", GAMEYOB_VERSION);
     printf("Revision: %s\n", GIT_REVISION);
 #ifdef DS
     printf("Target: %s\n", __dsimode ? "Nintendo DSi mode" :

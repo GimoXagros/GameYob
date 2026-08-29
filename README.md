@@ -1,8 +1,22 @@
-# GameYob v0.5.5-ko
+# GameYob v0.5.7-ko
+
+<p align="center">
+  <img src="logo.png" alt="GameYob logo" width="480">
+</p>
 
 This unofficial homebrew release completes the next repository milestone and
 keeps the emulator core and its redistributable homebrew binaries under their
 existing licenses. No ROM image or BIOS is included.
+
+Active development now targets `gameyob.nds` and `gameyob_dsi.nds`. Nintendo
+3DS users can run the NDS build in DS mode. Native 3DSX development is paused;
+its executable and detailed follow-up list are preserved in
+[`backup/3dsx`](backup/3dsx).
+
+현재 개발은 `gameyob.nds`와 `gameyob_dsi.nds`를 대상으로 진행합니다.
+Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이티브 3DSX
+개발은 잠시 보류하며 실행 파일과 상세 후속 작업은
+[`backup/3dsx`](backup/3dsx)에 보존합니다.
 
 ## Completed work
 
@@ -83,7 +97,7 @@ existing licenses. No ROM image or BIOS is included.
 
 See [language-file documentation](languages/README.md),
 [wireless-link design](docs/features/wireless-link.md), and the
-[v0.5.5-ko release record](docs/releases/v0.5.5-ko.md).
+[v0.5.7-ko release record](docs/releases/v0.5.7-ko.md).
 
 ## User guides / ユーザーガイド / 사용자 가이드
 
@@ -93,75 +107,76 @@ See [language-file documentation](languages/README.md),
 
 ## Release / 릴리스
 
-- [Version 0.5.5-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.5-ko)
-- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.5-ko/gameyob.zip)
-- [Detailed release record](docs/releases/v0.5.5-ko.md)
-- SHA-256: `fc89a50290bfd9c5ee6cb7137db2c30402edbd1fcd9afbe15afde85fcd6f8365`
+- [Version 0.5.7-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.7-ko)
+- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.7-ko/gameyob.zip)
+- [Detailed release record](docs/releases/v0.5.7-ko.md)
 
-The archive contains `gameyob.nds`, `gameyob_dsi.nds`, `gameyob.3dsx`, the
-English/Japanese/Korean guides, editable language examples, checksums, and
-required license notices. It does not contain a game ROM or BIOS.
+The archive contains `gameyob.nds`, `gameyob_dsi.nds`, the English/Japanese/
+Korean guides, editable language examples, checksums, and required license
+notices. It does not contain a game ROM, BIOS, or native 3DSX executable.
 
-압축 파일에는 `gameyob.nds`, `gameyob_dsi.nds`, `gameyob.3dsx`, 영어·일본어·
-한국어 가이드, 편집 가능한 언어 예제, 체크섬 및 필수 라이선스 고지가 들어
-있습니다. 게임 ROM과 BIOS는 포함하지 않습니다.
+The published `v0.5.5-ko` archive remains unchanged in
+[`old_releases`](old_releases). Its native 3DSX binary is preserved separately
+in [`backup/3dsx`](backup/3dsx). `v0.5.7-ko` is a DS/DSi-focused release, and
+its NDS build can also run on Nintendo 3DS in DS mode.
+
+압축 파일에는 `gameyob.nds`, `gameyob_dsi.nds`, 영어·일본어·한국어 가이드,
+편집 가능한 언어 예제, 체크섬 및 필수 라이선스 고지가 들어 있습니다. 게임
+ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
+
+이미 배포한 `v0.5.5-ko` 압축 파일은 [`old_releases`](old_releases)에 그대로
+보존하고, 해당 네이티브 3DSX 실행 파일은 [`backup/3dsx`](backup/3dsx)에
+별도로 보존합니다. `v0.5.7-ko`는 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
+3DS의 DS 모드에서도 실행할 수 있습니다.
 
 ## Known limitations
 
-- The native `gameyob.3dsx` build has been confirmed to run ROMs correctly on
-  real hardware with the fixed centered 160x144 display, but occasional frame
-  drops can still occur during gameplay.
-- Native 3DS aspect/full-screen scaling is intentionally unavailable in this
-  release. A stable, hardware-verified implementation is planned for
-  `v0.5.6-ko`. DS/DSi scaling remains available.
+- Native 3DSX development, performance work, scaling, and LAN validation are
+  deferred together. See [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 알려진 제한 사항
 
-- 네이티브 `gameyob.3dsx`는 실기에서 중앙 160x144 고정 화면으로 ROM이
-  정상 구동되는 것을 확인했지만, 게임 중 간헐적인 프레임 드롭이 남아 있습니다.
-- 네이티브 3DS의 비율/전체 화면 확대는 이번 릴리스에서 의도적으로 제공하지
-  않습니다. 실기에서 안정적으로 검증된 구현을 `v0.5.6-ko` 목표로 진행하며
-  DS/DSi판의 확대 기능은 계속 사용할 수 있습니다.
+- 네이티브 3DSX 개발, 성능 개선, 화면 확대 및 LAN 검증은 하나의 후속 작업으로
+  보류했습니다. 상세 목록은
+  [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md)를 참고하십시오.
 
 ## TODO
 
-The following work is not completed by `v0.5.5-ko`.
+The following DS/DSi-focused work remains after `v0.5.7-ko`.
 
-1. Reimplement native 3DS aspect/full-screen scaling for `v0.5.6-ko` with a
-   hardware-verified presentation path, stable output, and acceptable speed on
-   Old 3DS/2DS. The options are intentionally absent from `v0.5.5-ko`.
-2. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
+1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
-3. Validate native LAN link play on two physical Nintendo 3DS systems. A bridge
-   between native 3DS UDP and the `.nds` raw-802.11 transport remains a separate
-   design and implementation task.
-4. Run the renderer, custom-border, sound-routing, cheat, and long-session
-   performance matrix on physical DS/DSi/3DS hardware.
-5. Expand the game compatibility matrix, especially games that change WX during
+2. Run the renderer, custom-border, sound-routing, cheat, repeated-ROM-load,
+   RTC, and long-session performance matrix on physical DS/DSi hardware and
+   Nintendo 3DS in DS mode.
+3. Compare DS-mode and DSi-mode performance on supported launchers and document
+   when `gameyob_dsi.nds` provides a measurable benefit.
+4. Expand the game compatibility matrix, especially games that change WX during
    a scanline, rare cartridge hardware, and more SGB command cases.
-6. SNES-side SGB machine code, objects, and audio cannot be fully executed or
+5. SNES-side SGB machine code, objects, and audio cannot be fully executed or
    mixed without adding a host-SNES CPU/PPU/APU implementation, which is outside
    GameYob's current Game Boy emulator architecture.
-7. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
+6. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
    hardware validation of MBC7/HuC behavior.
+7. Native 3DSX work is deferred as one grouped task; see
+   [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 할 일
 
-다음 작업은 `v0.5.5-ko`에서 완료되지 않았습니다.
+`v0.5.7-ko` 이후 남은 DS/DSi 중심 작업입니다.
 
-1. `v0.5.6-ko` 목표로 네이티브 3DS의 비율/전체 화면 확대를 다시 구현하고
-   Old 3DS/2DS 실기에서 화면 안정성과 충분한 속도를 검증합니다. 해당 옵션은
-   `v0.5.5-ko`에서 의도적으로 제외했습니다.
-2. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
+1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
-3. 실제 Nintendo 3DS 두 대에서 네이티브 LAN 링크를 검증합니다. 네이티브
-   3DS UDP와 `.nds` raw-802.11 사이의 브리지는 별도 설계·구현 작업입니다.
-4. 실제 DS/DSi/3DS에서 렌더러, 사용자 보더, 사운드 라우팅, 치트 및 장시간
-   성능 시험표를 수행합니다.
-5. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
+2. 실제 DS/DSi 및 Nintendo 3DS의 DS 모드에서 렌더러, 사용자 보더, 사운드
+   라우팅, 치트, ROM 반복 실행, RTC와 장시간 성능 시험표를 수행합니다.
+3. 지원 런처에서 DS 모드와 DSi 모드 성능을 비교하고 `gameyob_dsi.nds`가
+   실제 이점을 제공하는 조건을 문서화합니다.
+4. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
    명령을 포함하도록 게임별 호환성 목록을 확대합니다.
-6. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
+5. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
    CPU/PPU/APU가 필요하며, 이는 현재 Game Boy 에뮬레이터 구조의 범위를
    벗어납니다.
-7. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
+6. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
    불완전한 실기 검증이 남아 있습니다.
+7. 네이티브 3DSX 관련 작업은 하나의 보류 항목으로 묶었습니다. 상세 목록은
+   [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md)를 참고하십시오.

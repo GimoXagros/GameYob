@@ -17,3 +17,6 @@ LOG
 .codex-tmp/
 release/
 __pycache__/
+!backup/
+!backup/3dsx/
+!backup/3dsx/*.3dsx

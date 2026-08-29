@@ -7,16 +7,6 @@ on:
         description: Commit or branch to build (defaults to the triggering ref)
         required: false
         type: string
-  push:
-    paths:
-      - "platform/3ds/**"
-      - "platform/common/**"
-      - ".github/workflows/build-3ds.yml"
-  pull_request:
-    paths:
-      - "platform/3ds/**"
-      - "platform/common/**"
-      - ".github/workflows/build-3ds.yml"
 
 permissions:
   contents: read

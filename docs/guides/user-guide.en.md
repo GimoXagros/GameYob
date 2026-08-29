@@ -1,10 +1,10 @@
-# GameYob v0.5.5-ko user guide (English)
+# GameYob v0.5.7-ko user guide (English)
 
 ## 1. Choose a build
 
 - `gameyob.nds`: recommended for DS, DS Lite, flashcards, and Nintendo 3DS DS mode.
 - `gameyob_dsi.nds`: use only with a launcher that explicitly starts DSi mode. It uses the same portable emulator payload and does not guarantee higher emulation speed.
-- `gameyob.3dsx`: native Nintendo 3DS homebrew. It supports native 3DS display, PNG/BMP borders, and LAN link play.
+- Nintendo 3DS users can run `gameyob.nds` in DS mode. The experimental native 3DSX build is not included in this release and is preserved only in [`backup/3dsx`](../../backup/3dsx).
 
 No ROM or BIOS is included. Copy legally obtained `.gb`, `.gbc`, or `.gbs` files to the SD card and select one in GameYob. Keep `gameyobds.ini` writable; it is created at the SD root by the console builds.
 
@@ -38,16 +38,16 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 ## 6. Display, borders, and Game Boy modes
 
 - **Game Screen** chooses the top or bottom screen; **Single Screen** hides the unused console screen.
-- DS and DSi builds provide **Scaling** and **Scale Filter**. Native 3DS uses a fixed, centered 160×144 direct display in `v0.5.5-ko`; its scaling options are intentionally absent after real-hardware output and performance failures. Hardware-verified native 3DS scaling is a `v0.5.6-ko` target.
-- **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP; native 3DS also accepts PNG.
-- **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS, DSi, and native 3DS. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
+- DS and DSi builds provide **Scaling** and **Scale Filter**.
+- **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP.
+- **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS and DSi. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
 - **GBC Mode** chooses GB, automatic, or forced GBC behavior. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** exposes the GBA-detection flag used by a small number of games.
 
 ## 7. Sound and debug options
 
 **Sound Channels** independently enables pulse 1, pulse 2, wave, and noise. **Debug → Sound** is the master switch. DS-only timing switches (**Wait for Vblank**, **Hblank**, **Window**, and **Sound Timing Fix**) should normally remain at their defaults; they are compatibility diagnostics. **ROM Info** shows mapper/ROM/RAM data and **Version Info** shows the exact build revision.
 
-Native 3DS audio uses the hardware CSND service first and falls back to NDSP when CSND is unavailable. Homebrew NDSP needs your own `sdmc:/3ds/dspfirm.cdc` dump; this firmware is not distributed with GameYob. Azahar 2125.x does not implement CSND sample playback, so Azahar requires the DSP file for sound. **Console Output → Debug** reports the selected backend and the first queued PCM buffer.
+Native 3DS-specific audio diagnostics are documented with the archived build and are outside the active DS/DSi release.
 
 ## 8. Local and wireless link
 
@@ -59,11 +59,7 @@ Native 3DS audio uses the hardware CSND service first and falls back to NDSP whe
 
 **Wireless Link** uses raw local NiFi and does not require Internet access. Choose Host or Client and the same link type on both systems. Keep both devices nearby. DS, DSi, and 3DS DS-mode builds use this backend.
 
-### Native 3DS LAN
-
-The `.3dsx` build uses UDP broadcast on port 35553. Both 3DS systems must be on the same IPv4 LAN and the access point must allow client-to-client traffic and broadcast. No Internet route is required. Setup returns to the menu when networking is unavailable or no peer answers.
-
-Native 3DS LAN cannot directly join an `.nds` raw-NiFi room. For cross-version link games, each SD card must contain the other cartridge file at the path advertised by that peer. Full-ROM fingerprints prevent two different hacks with the same title from being mistaken for one file.
+Native 3DS LAN work is deferred with the archived 3DSX build. It cannot join an `.nds` raw-NiFi room directly; see [`backup/3dsx/TODO.md`](../../backup/3dsx/TODO.md).
 
 ## 9. RTC and patched ROMs
 
@@ -75,8 +71,7 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 
 - If a language does not change, select English once, reselect the target language, and save settings. For Custom, verify UTF-8 encoding and unchanged English keys.
 - If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
-- If native 3DS audio is silent in Azahar, confirm that your own DSP dump exists at Azahar's virtual SD path `sdmc:/3ds/dspfirm.cdc`. Do not download or redistribute another console's firmware.
-- Occasional frame drops can occur in the native 3DS build. `v0.5.5-ko` intentionally provides only the fixed centered 160×144 display; scaling is deferred to `v0.5.6-ko` rather than shipping the unstable prototypes.
-- If networking is unavailable, confirm Wi-Fi/LAN state, AP isolation, and UDP port 35553 for native 3DS. DS raw NiFi does not use the Internet connection.
+- `gameyob_dsi.nds` requests DSi mode, but the launcher decides whether that mode is actually granted. If it starts in DS mode, performance can be the same as `gameyob.nds`.
+- DS raw NiFi does not use the Internet connection. Keep devices nearby and use matching Host/Client and link-type settings.
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01/MBC4 and parts of MBC7/HuC hardware remain compatibility limits.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.
