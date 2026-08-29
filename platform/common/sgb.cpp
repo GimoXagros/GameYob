@@ -290,13 +290,19 @@ void Gameboy::sgbPalTrn(int block) {
 }
 
 void Gameboy::sgbSound(int block) {
-    if (block == 0)
+    if (block == 0) {
         memcpy(sgbSoundState, sgbPacket + 1, sizeof(sgbSoundState));
+        if (sgbHost)
+            sgbHost->apu.applySoundCommand(sgbSoundState, sizeof(sgbSoundState));
+    }
 }
 
 void Gameboy::sgbSoundTrn(int block) {
-    if (block == 0)
+    if (block == 0) {
         sgbDoVramTransfer(sgbData);
+        if (sgbHost)
+            sgbHost->apu.transferProgram(sgbData, sizeof(sgbData));
+    }
 }
 
 void Gameboy::sgbAttraction(int block) {
@@ -323,6 +329,8 @@ void Gameboy::sgbDataSnd(int block) {
     if (sgbDataLength > 11)
         sgbDataLength = 11;
     memcpy(sgbData, sgbPacket + 5, sgbDataLength);
+    if (sgbHost)
+        sgbHost->writeMemory(sgbDataAddress, sgbData, sgbDataLength);
 }
 
 void Gameboy::sgbDataTrn(int block) {
@@ -332,6 +340,8 @@ void Gameboy::sgbDataTrn(int block) {
         (sgbPacket[3] << 16);
     sgbDataLength = 0;
     sgbDoVramTransfer(sgbData);
+    if (sgbHost)
+        sgbHost->writeMemory(sgbDataAddress, sgbData, sizeof(sgbData));
 }
 
 void Gameboy::sgbMltReq(int block) {
@@ -345,17 +355,19 @@ void Gameboy::sgbMltReq(int block) {
 void Gameboy::sgbJump(int block) {
     if (block != 0)
         return;
-    // GameYob does not emulate the host SNES CPU, but retaining both vectors
-    // accurately consumes the command and makes the state observable to tests.
     sgbHostProgramCounter = sgbPacket[1] | (sgbPacket[2] << 8) |
         (sgbPacket[3] << 16);
     sgbHostNmiHandler = sgbPacket[4] | (sgbPacket[5] << 8) |
         (sgbPacket[6] << 16);
+    if (sgbHost)
+        sgbHost->jump(sgbHostProgramCounter, sgbHostNmiHandler);
 }
 
 void Gameboy::sgbChrTrn(int blonk) {
     sgbDoVramTransfer(sgbData);
     setSgbTiles(sgbData, sgbPacket[1]);
+    if (sgbHost)
+        sgbHost->ppu.loadCharacterData(sgbData, sgbPacket[1]);
 }
 
 void Gameboy::sgbPctTrn(int block) {
@@ -380,13 +392,18 @@ void Gameboy::sgbMask(int block) {
 void Gameboy::sgbObjTrn(int block) {
     if (block != 0)
         return;
-    // OBJ_TRN is stubbed by retail SGB firmware revisions. Preserve the
-    // prototype control/palette fields without inventing host-SNES sprites.
+    // Retail SGB revisions ignore OBJ_TRN. Decode its prototype data in the
+    // isolated host PPU without disturbing the established border renderer.
     sgbObjMode = sgbPacket[1] & 3;
     if (sgbObjMode & 2) {
         for (int i=0; i<4; ++i)
             sgbObjPalettes[i] =
                 (sgbPacket[2+i*2] | (sgbPacket[3+i*2] << 8)) & 0x1ff;
+    }
+    if (sgbHost) {
+        sgbDoVramTransfer(sgbData);
+        sgbHost->ppu.loadPrototypeObjects(sgbData + 0xf90, 0x70,
+                sgbPalettes, sgbObjPalettes);
     }
 }
 

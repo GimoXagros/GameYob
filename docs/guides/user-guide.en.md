@@ -1,4 +1,4 @@
-# GameYob v0.5.7-ko user guide (English)
+# GameYob v0.5.8-ko user guide (English)
 
 ## 1. Choose a build
 
@@ -73,5 +73,5 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
 - `gameyob_dsi.nds` requests DSi mode, but the launcher decides whether that mode is actually granted. If it starts in DS mode, performance can be the same as `gameyob.nds`.
 - DS raw NiFi does not use the Internet connection. Keep devices nearby and use matching Host/Client and link-type settings.
-- If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01/MBC4 and parts of MBC7/HuC hardware remain compatibility limits.
+- If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown, and parts of MBC7/HuC still require hardware validation.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.

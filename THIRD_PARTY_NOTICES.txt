@@ -1,4 +1,4 @@
-GameYob v0.5.7-ko third-party notices
+GameYob v0.5.8-ko third-party notices
 
 Galmuri
 Source: https://github.com/quiple/galmuri

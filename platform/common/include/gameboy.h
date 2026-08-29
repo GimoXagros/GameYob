@@ -10,6 +10,7 @@
 #include "gbgfx.h"
 #include "romfile.h"
 #include "io.h"
+#include "sgb_host.h"
 
 #ifdef CPU_DEBUG
 #include "debugger.h"
@@ -165,6 +166,7 @@ class Gameboy {
         inline CheatEngine* getCheatEngine() { return cheatEngine; }
         inline SoundEngine* getSoundEngine() { return soundEngine; }
         inline RomFile* getRomFile() { return romFile; }
+        inline SgbHost* getSgbHost() { return sgbHost; }
 
         inline int getBank(int address) {
             if (address < 0x4000)
@@ -323,6 +325,7 @@ class Gameboy {
 
         void refreshRomBank(int bank);
         void refreshRamBank(int bank);
+        void refreshMmm01Banks();
         void writeSram(u16 addr, u8 val);
 
         // mmu variables
@@ -377,6 +380,7 @@ class Gameboy {
         // mbc.cpp
 
         u8 m3r(u16 addr);
+        u8 mmm01r(u16 addr);
         u8 m7r(u16 addr);
         u8 h3r(u16 addr);
         u8 camr(u16 addr);
@@ -385,6 +389,7 @@ class Gameboy {
         void m1w(u16 addr, u8 val);
         void m2w(u16 addr, u8 val);
         void m3w(u16 addr, u8 val);
+        void mmm01w(u16 addr, u8 val);
         void m5w(u16 addr, u8 val);
         void m7w(u16 addr, u8 val);
         void h1w(u16 addr, u8 val);
@@ -402,6 +407,7 @@ class Gameboy {
         int memoryModel;
         int romBank;
         int currentRamBank;
+        Mmm01State mmm01;
 
         void (Gameboy::*writeFunc)(u16, u8);
         u8 (Gameboy::*readFunc)(u16);
@@ -488,6 +494,7 @@ class Gameboy {
         u8 sgbObjMode;
         u16 sgbObjPalettes[4];
         u8 sgbPalettePriority;
+        SgbHost* sgbHost;
 
         // Data for various different sgb commands
         struct SgbCmdData {
@@ -511,10 +518,13 @@ typedef void (Gameboy::*mbcWrite)(u16,u8);
 typedef u8   (Gameboy::*mbcRead )(u16);
 
 const mbcRead mbcReads[] = {
-    NULL, NULL, NULL, &Gameboy::m3r, NULL, NULL, &Gameboy::m7r, NULL, &Gameboy::h3r, &Gameboy::camr
+    NULL, NULL, NULL, &Gameboy::m3r, &Gameboy::mmm01r, NULL,
+    &Gameboy::m7r, NULL, &Gameboy::h3r, &Gameboy::camr, NULL
 };
 const mbcWrite mbcWrites[] = {
-    &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w, NULL, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w, &Gameboy::h3w, &Gameboy::camw
+    &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w,
+    &Gameboy::mmm01w, &Gameboy::m5w, &Gameboy::m7w, &Gameboy::h1w,
+    &Gameboy::h3w, &Gameboy::camw, NULL
 };
 
 extern Gameboy* gameboy;

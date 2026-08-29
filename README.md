@@ -1,4 +1,4 @@
-# GameYob v0.5.7-ko
+# GameYob v0.5.8-ko
 
 <p align="center">
   <img src="logo.png" alt="GameYob logo" width="480">
@@ -58,6 +58,15 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
 - 2026 maintenance pass: table-driven CRC32, allocation-free DS packet sends,
   hashed DS glyph caching, bounded formatting/path handling, strict cheat-code
   validation, and removal of unnecessary 3DS compiler temporary output
+- Independent MMM01 mapper support for cartridge types `0x0B`, `0x0C`, and
+  `0x0D`, including the power-on menu mapping, mapping lock, ROM/RAM masks,
+  multiplex mode, SRAM/autosave, safe physical-bank normalization, and
+  backward-compatible versioned save states
+- A separate, SGB-only host runtime foundation for bounded SNES WRAM/PPU/APU
+  transfers: `DATA_SND`, `DATA_TRN`, `JUMP`, `SOU_TRN`, `SOUND`, `CHR_TRN`, and
+  prototype `OBJ_TRN` now feed host state; unsupported 65C816/SPC700 opcodes
+  fault explicitly, and generated host PCM is kept separate from the four GB
+  channels and mixed by the DS audio hardware
 
 ## 완료된 작업
 
@@ -94,10 +103,17 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
 - 2026년 유지보수 최적화: 테이블 CRC32, DS 패킷 송신 힙 할당 제거,
   DS 글리프 해시 캐시, 경계가 있는 문자열·경로 처리, 엄격한 치트 코드 검사,
   불필요한 3DS 컴파일 임시 파일 제거
+- 카트리지 형식 `0x0B`·`0x0C`·`0x0D`의 독립 MMM01 지원: 전원 투입 시
+  메뉴 매핑, 매핑 잠금, ROM/RAM 마스크, 멀티플렉스 모드, SRAM·자동 저장,
+  실제 ROM 뱅크 경계 처리 및 이전 상태 파일과 호환되는 버전별 상태 저장
+- SGB에서만 생성되는 독립 호스트 실행 기반: `DATA_SND`·`DATA_TRN`·`JUMP`·
+  `SOU_TRN`·`SOUND`·`CHR_TRN` 및 프로토타입 `OBJ_TRN`을 SNES WRAM·PPU·
+  APU 상태에 연결하고, 미지원 65C816/SPC700 명령은 명시적으로 중단하며,
+  호스트 PCM은 GB 4채널과 분리해 DS 사운드 하드웨어에서 함께 출력
 
 See [language-file documentation](languages/README.md),
 [wireless-link design](docs/features/wireless-link.md), and the
-[v0.5.7-ko release record](docs/releases/v0.5.7-ko.md).
+[v0.5.8-ko release record](docs/releases/v0.5.8-ko.md).
 
 ## User guides / ユーザーガイド / 사용자 가이드
 
@@ -107,9 +123,9 @@ See [language-file documentation](languages/README.md),
 
 ## Release / 릴리스
 
-- [Version 0.5.7-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.7-ko)
-- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.7-ko/gameyob.zip)
-- [Detailed release record](docs/releases/v0.5.7-ko.md)
+- [Version 0.5.8-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.8-ko)
+- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.8-ko/gameyob.zip)
+- [Detailed release record](docs/releases/v0.5.8-ko.md)
 
 The archive contains `gameyob.nds`, `gameyob_dsi.nds`, the English/Japanese/
 Korean guides, editable language examples, checksums, and required license
@@ -117,7 +133,7 @@ notices. It does not contain a game ROM, BIOS, or native 3DSX executable.
 
 The published `v0.5.5-ko` archive remains unchanged in
 [`old_releases`](old_releases). Its native 3DSX binary is preserved separately
-in [`backup/3dsx`](backup/3dsx). `v0.5.7-ko` is a DS/DSi-focused release, and
+in [`backup/3dsx`](backup/3dsx). `v0.5.8-ko` is a DS/DSi-focused release, and
 its NDS build can also run on Nintendo 3DS in DS mode.
 
 압축 파일에는 `gameyob.nds`, `gameyob_dsi.nds`, 영어·일본어·한국어 가이드,
@@ -126,7 +142,7 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
 이미 배포한 `v0.5.5-ko` 압축 파일은 [`old_releases`](old_releases)에 그대로
 보존하고, 해당 네이티브 3DSX 실행 파일은 [`backup/3dsx`](backup/3dsx)에
-별도로 보존합니다. `v0.5.7-ko`는 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
+별도로 보존합니다. `v0.5.8-ko`는 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
 3DS의 DS 모드에서도 실행할 수 있습니다.
 
 ## Known limitations
@@ -142,7 +158,7 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
 ## TODO
 
-The following DS/DSi-focused work remains after `v0.5.7-ko`.
+The following DS/DSi-focused work remains after `v0.5.8-ko`.
 
 1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
@@ -153,17 +169,21 @@ The following DS/DSi-focused work remains after `v0.5.7-ko`.
    when `gameyob_dsi.nds` provides a measurable benefit.
 4. Expand the game compatibility matrix, especially games that change WX during
    a scanline, rare cartridge hardware, and more SGB command cases.
-5. SNES-side SGB machine code, objects, and audio cannot be fully executed or
-   mixed without adding a host-SNES CPU/PPU/APU implementation, which is outside
-   GameYob's current Game Boy emulator architecture.
-6. Upstream rare-cartridge gaps remain, notably MMM01/MBC4 and incomplete
-   hardware validation of MBC7/HuC behavior.
+5. Complete the SGB host runtime introduced in `v0.5.8-ko`: implement the
+   remaining 65C816/SPC700 instruction and timing coverage, complete DSP
+   envelopes/echo, and composite prototype host OBJ pixels into the final DS
+   output. The current bounded execution and separate PCM path are functional
+   foundations, but they are not a complete host-SNES implementation. Retail
+   SGB revisions intentionally treat `OBJ_TRN` as a no-op.
+6. Legacy cartridge type values `0x15`-`0x17` remain undocumented/unknown and
+   are deliberately not guessed or aliased to another mapper. Physical-hardware
+   validation of MBC7 and HuC behavior also remains pending.
 7. Native 3DSX work is deferred as one grouped task; see
    [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 할 일
 
-`v0.5.7-ko` 이후 남은 DS/DSi 중심 작업입니다.
+`v0.5.8-ko` 이후 남은 DS/DSi 중심 작업입니다.
 
 1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
@@ -173,10 +193,12 @@ The following DS/DSi-focused work remains after `v0.5.7-ko`.
    실제 이점을 제공하는 조건을 문서화합니다.
 4. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
    명령을 포함하도록 게임별 호환성 목록을 확대합니다.
-5. SNES 측 SGB 머신 코드·오브젝트·사운드를 완전히 실행하려면 호스트 SNES
-   CPU/PPU/APU가 필요하며, 이는 현재 Game Boy 에뮬레이터 구조의 범위를
-   벗어납니다.
-6. 원본부터 남아 있는 희귀 카트리지의 공백, 특히 MMM01/MBC4와 MBC7/HuC의
-   불완전한 실기 검증이 남아 있습니다.
+5. `v0.5.8-ko`에서 추가한 SGB 호스트 실행 계층을 완성합니다. 남은
+   65C816/SPC700 명령과 타이밍, DSP 엔벌로프·에코 및 프로토타입 호스트 OBJ의
+   최종 DS 화면 합성이 필요합니다. 현재 경계가 있는 실행과 독립 PCM 경로는
+   실제 기반이지만 완전한 호스트 SNES 구현은 아닙니다. 일반 판매 SGB의
+   `OBJ_TRN` 무동작은 하드웨어 사양대로 유지합니다.
+6. 기존 카트리지 형식 `0x15`-`0x17`은 동작 사양이 알려지지 않아 다른 매퍼로
+   추측하거나 대체하지 않습니다. MBC7과 HuC 동작의 실기 검증도 남아 있습니다.
 7. 네이티브 3DSX 관련 작업은 하나의 보류 항목으로 묶었습니다. 상세 목록은
    [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md)를 참고하십시오.

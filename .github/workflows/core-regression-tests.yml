@@ -61,6 +61,20 @@ jobs:
             tests/rom_layout_test.cpp platform/common/rom_layout.cpp \
             -o /tmp/rom_layout_test
           /tmp/rom_layout_test
+      - name: Build and run MMM01 mapper tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/mmm01_test.cpp platform/common/mmm01.cpp \
+            platform/common/rom_layout.cpp -o /tmp/mmm01_test
+          /tmp/mmm01_test
+      - name: Build and run SGB host tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/sgb_host_test.cpp platform/common/sgb_host.cpp \
+            -o /tmp/sgb_host_test
+          /tmp/sgb_host_test
       - name: Build and run SGB border tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

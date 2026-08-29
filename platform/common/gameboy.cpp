@@ -33,6 +33,7 @@ Gameboy::Gameboy() : hram(highram+0xe00), ioRam(highram+0xf00) {
     saveFile=NULL;
 
     romFile = NULL;
+    sgbHost = NULL;
 
     biosOn = false;
 
@@ -74,20 +75,20 @@ void Gameboy::init()
                 initGBMode();
                 break;
             case 1: // GBC if needed
-                if (romFile->romSlot0[0x143] == 0xC0)
+                if (romFile->getCgbFlag() == 0xC0)
                     initGBCMode();
                 else
                     initGBMode();
                 break;
             case 2: // GBC
-                if (romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0)
+                if (romFile->getCgbFlag() == 0x80 || romFile->getCgbFlag() == 0xC0)
                     initGBCMode();
                 else
                     initGBMode();
                 break;
         }
 
-        bool sgbEnhanced = romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03;
+        bool sgbEnhanced = romFile->getOldLicensee() == 0x33 && romFile->getSgbFlag() == 0x03;
         if (sgbEnhanced && resultantGBMode != 2 && probingForBorder) {
             resultantGBMode = 2;
         }
@@ -167,6 +168,17 @@ void Gameboy::init()
     memset(sgbObjPalettes, 0, sizeof(sgbObjPalettes));
     memset(&sgbCmdData, 0, sizeof(sgbCmdData));
 
+    if (sgbMode) {
+        if (!sgbHost)
+            sgbHost = new SgbHost();
+        else
+            sgbHost->reset();
+    }
+    else if (sgbHost) {
+        delete sgbHost;
+        sgbHost = NULL;
+    }
+
     initGFXPalette();
 
     initGbPrinter();
@@ -183,14 +195,14 @@ void Gameboy::init()
 }
 
 void Gameboy::initGBMode() {
-    if (sgbModeOption != 0 && romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03)
+    if (sgbModeOption != 0 && romFile->getOldLicensee() == 0x33 && romFile->getSgbFlag() == 0x03)
         resultantGBMode = 2;
     else {
         resultantGBMode = 0;
     }
 }
 void Gameboy::initGBCMode() {
-    if (sgbModeOption == 2 && romFile->romSlot0[0x14b] == 0x33 && romFile->romSlot0[0x146] == 0x03)
+    if (sgbModeOption == 2 && romFile->getOldLicensee() == 0x33 && romFile->getSgbFlag() == 0x03)
         resultantGBMode = 2;
     else {
         resultantGBMode = 1;
@@ -245,7 +257,7 @@ void Gameboy::initGameboyMode() {
         case 0: // GB
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
-            if (romFile->romSlot0[0x143] == 0x80 || romFile->romSlot0[0x143] == 0xC0)
+            if (romFile->getCgbFlag() == 0x80 || romFile->getCgbFlag() == 0xC0)
                 // Init the palette in case the bios overwrote it, since it 
                 // assumed it was starting in GBC mode.
                 initGFXPalette();
@@ -261,6 +273,13 @@ void Gameboy::initGameboyMode() {
             gbRegs.af.b.h = 0x01;
             gbMode = GB;
             break;
+    }
+
+    if (sgbMode && !sgbHost)
+        sgbHost = new SgbHost();
+    else if (!sgbMode && sgbHost) {
+        delete sgbHost;
+        sgbHost = NULL;
     }
 
     memcpy(&g_gbRegs, &gbRegs, sizeof(Registers));
@@ -283,6 +302,8 @@ void Gameboy::updateVBlank() {
     cyclesSinceVBlank = 0;
 
     gameboy->getSoundEngine()->soundUpdateVBlank();
+    if (sgbMode && sgbHost)
+        sgbHost->runFrame();
 
     if (!gbsMode) {
         if (resettingGameboy) {
@@ -706,16 +727,18 @@ void Gameboy::unloadRom() {
     framesSinceAutosaveStarted = 0;
     memset(dirtySectors, 0, sizeof(dirtySectors));
     romFile = NULL;
+    delete sgbHost;
+    sgbHost = NULL;
     cheatEngine->setRomFile(NULL);
 }
 
-const char *mbcNames[] = {"ROM","MBC1","MBC2","MBC3","MBC4","MBC5","MBC7","HUC1","HUC3","POCKET_CAM"};
+const char *mbcNames[] = {"ROM","MBC1","MBC2","MBC3","MMM01","MBC5","MBC7","HUC1","HUC3","POCKET_CAM","UNKNOWN"};
 
 void Gameboy::printRomInfo() {
     clearConsole();
     printf("ROM Title: \"%s\"\n", romFile->getRomTitle());
     printf("Cartridge type: %.2x (%s)\n", romFile->getMapper(), mbcNames[romFile->getMBC()]);
-    printf("ROM Size: %.2x (%d banks)\n", romFile->romSlot0[0x148], romFile->getNumRomBanks());
+    printf("ROM Size: %.2x (%d banks)\n", romFile->getRomSizeCode(), romFile->getNumRomBanks());
     printf("RAM Size: %.2x (%d banks)\n", romFile->getRamSize(), getNumSramBanks());
 }
 
@@ -955,7 +978,7 @@ void Gameboy::updateAutosave() {
 
 
 
-const int STATE_VERSION = 5;
+const int STATE_VERSION = 7;
 
 struct StateStruct {
     // version
@@ -1041,6 +1064,17 @@ void Gameboy::saveState(int stateNum) {
     file_write((char*)&state, 1, sizeof(StateStruct), outFile);
 
     switch (romFile->getMBC()) {
+        case MMM01:
+            file_write(&mmm01.mapped, 1, sizeof(bool), outFile);
+            file_write(&mmm01.ramEnabled, 1, sizeof(bool), outFile);
+            file_write(&mmm01.multiplex, 1, sizeof(bool), outFile);
+            file_write(&mmm01.modeLocked, 1, sizeof(bool), outFile);
+            file_write(&mmm01.romBank, 1, sizeof(u8), outFile);
+            file_write(&mmm01.ramBank, 1, sizeof(u8), outFile);
+            file_write(&mmm01.romMask, 1, sizeof(u8), outFile);
+            file_write(&mmm01.ramMask, 1, sizeof(u8), outFile);
+            file_write(&mmm01.mode, 1, sizeof(u8), outFile);
+            break;
         case HUC3:
             file_write(&HuC3Mode,  1, sizeof(u8), outFile);
             file_write(&HuC3Value, 1, sizeof(u8), outFile);
@@ -1056,6 +1090,22 @@ void Gameboy::saveState(int stateNum) {
         file_write(&sgbCommand, 1, sizeof(u8), outFile);
         file_write(&gfxMask, 1, sizeof(u8), outFile);
         file_write(sgbMap, 1, sizeof(sgbMap), outFile);
+        file_write(sgbSoundState, 1, sizeof(sgbSoundState), outFile);
+        file_write(&sgbAttractionDisabled, 1, sizeof(sgbAttractionDisabled), outFile);
+        file_write(&sgbTestSpeed, 1, sizeof(sgbTestSpeed), outFile);
+        file_write(&sgbIconDisable, 1, sizeof(sgbIconDisable), outFile);
+        file_write(&sgbDataAddress, 1, sizeof(sgbDataAddress), outFile);
+        file_write(&sgbDataLength, 1, sizeof(sgbDataLength), outFile);
+        file_write(sgbData, 1, sizeof(sgbData), outFile);
+        file_write(&sgbHostProgramCounter, 1, sizeof(sgbHostProgramCounter), outFile);
+        file_write(&sgbHostNmiHandler, 1, sizeof(sgbHostNmiHandler), outFile);
+        file_write(&sgbObjMode, 1, sizeof(sgbObjMode), outFile);
+        file_write(sgbObjPalettes, 1, sizeof(sgbObjPalettes), outFile);
+        file_write(&sgbPalettePriority, 1, sizeof(sgbPalettePriority), outFile);
+        bool hostPresent = sgbHost != NULL;
+        file_write(&hostPresent, 1, sizeof(hostPresent), outFile);
+        if (hostPresent)
+            sgbHost->saveState(outFile);
     }
 
     file_close(outFile);
@@ -1122,6 +1172,22 @@ int Gameboy::loadState(int stateNum) {
     /* MBC-specific values have been introduced in v3 */
     if (version >= 3) {
         switch (romFile->getMBC()) {
+            case MMM01:
+                if (version >= 6) {
+                    file_read(&mmm01.mapped, 1, sizeof(bool), inFile);
+                    file_read(&mmm01.ramEnabled, 1, sizeof(bool), inFile);
+                    file_read(&mmm01.multiplex, 1, sizeof(bool), inFile);
+                    file_read(&mmm01.modeLocked, 1, sizeof(bool), inFile);
+                    file_read(&mmm01.romBank, 1, sizeof(u8), inFile);
+                    file_read(&mmm01.ramBank, 1, sizeof(u8), inFile);
+                    file_read(&mmm01.romMask, 1, sizeof(u8), inFile);
+                    file_read(&mmm01.ramMask, 1, sizeof(u8), inFile);
+                    file_read(&mmm01.mode, 1, sizeof(u8), inFile);
+                }
+                else {
+                    mmm01.reset();
+                }
+                break;
             case MBC3:
                 if (version == 3) {
                     u8 rtcReg;
@@ -1145,10 +1211,42 @@ int Gameboy::loadState(int stateNum) {
             file_read(&sgbCommand, 1, sizeof(u8), inFile);
             file_read(&gfxMask, 1, sizeof(u8), inFile);
             file_read(sgbMap, 1, sizeof(sgbMap), inFile);
+            if (version >= 7) {
+                file_read(sgbSoundState, 1, sizeof(sgbSoundState), inFile);
+                file_read(&sgbAttractionDisabled, 1, sizeof(sgbAttractionDisabled), inFile);
+                file_read(&sgbTestSpeed, 1, sizeof(sgbTestSpeed), inFile);
+                file_read(&sgbIconDisable, 1, sizeof(sgbIconDisable), inFile);
+                file_read(&sgbDataAddress, 1, sizeof(sgbDataAddress), inFile);
+                file_read(&sgbDataLength, 1, sizeof(sgbDataLength), inFile);
+                file_read(sgbData, 1, sizeof(sgbData), inFile);
+                file_read(&sgbHostProgramCounter, 1, sizeof(sgbHostProgramCounter), inFile);
+                file_read(&sgbHostNmiHandler, 1, sizeof(sgbHostNmiHandler), inFile);
+                file_read(&sgbObjMode, 1, sizeof(sgbObjMode), inFile);
+                file_read(sgbObjPalettes, 1, sizeof(sgbObjPalettes), inFile);
+                file_read(&sgbPalettePriority, 1, sizeof(sgbPalettePriority), inFile);
+                bool hostPresent = false;
+                file_read(&hostPresent, 1, sizeof(hostPresent), inFile);
+                delete sgbHost;
+                sgbHost = hostPresent ? new SgbHost() : NULL;
+                if (sgbHost && !sgbHost->loadState(inFile)) {
+                    delete sgbHost;
+                    sgbHost = NULL;
+                    sgbMode = false;
+                }
+            }
+            else {
+                delete sgbHost;
+                sgbHost = new SgbHost();
+            }
         }
     }
     else
         sgbMode = false;
+
+    if (!sgbMode) {
+        delete sgbHost;
+        sgbHost = NULL;
+    }
 
 
     file_close(inFile);
@@ -1180,6 +1278,8 @@ int Gameboy::loadState(int stateNum) {
     dividerCounter = state.dividerCounter;
     serialCounter = state.serialCounter;
     ramEnabled = state.ramEnabled;
+    if (romFile->getMBC() == MMM01 && version >= 6)
+        ramEnabled = mmm01.ramEnabled;
     if (version < 3)
         ramEnabled = true;
 

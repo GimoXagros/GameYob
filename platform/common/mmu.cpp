@@ -53,6 +53,26 @@ void Gameboy::refreshRamBank (int bank)
     }
 }
 
+void Gameboy::refreshMmm01Banks() {
+    const Mmm01Mapping mapping = mmm01.mapping(romFile->getNumRomBanks());
+    u8* lower = romFile->getOrLoadRomBank(mapping.lowerRomBank);
+    u8* upper = romFile->getOrLoadRomBank(mapping.upperRomBank);
+    if (!lower || !upper)
+        return;
+
+    memory[0x0] = biosOn ? romFile->bios : lower;
+    memory[0x1] = lower + 0x1000;
+    memory[0x2] = lower + 0x2000;
+    memory[0x3] = lower + 0x3000;
+    memory[0x4] = upper;
+    memory[0x5] = upper + 0x1000;
+    memory[0x6] = upper + 0x2000;
+    memory[0x7] = upper + 0x3000;
+    romBank = mapping.upperRomBank;
+    ramEnabled = mapping.ramEnabled;
+    refreshRamBank(mapping.ramBank);
+}
+
 void Gameboy::writeSram(u16 addr, u8 val) {
     // MBC registers can select banks that are not physically present. Reads
     // are mapped to unavailableRam above and writes must be ignored; indexing
@@ -94,6 +114,7 @@ void Gameboy::initMMU()
     memoryModel = 0;
     romBank = 1;
     currentRamBank = 0;
+    mmm01.reset();
     rtcLatchState = 0;
     rtcLatched = false;
     memset(unavailableRam, 0xff, sizeof(unavailableRam));
@@ -155,6 +176,10 @@ void Gameboy::initMMU()
 }
 
 void Gameboy::mapMemory() {
+    if (romFile->getMBC() == MMM01) {
+        refreshMmm01Banks();
+    }
+    else {
     if (biosOn)
         memory[0x0] = romFile->bios;
     else
@@ -164,6 +189,7 @@ void Gameboy::mapMemory() {
     memory[0x3] = romFile->romSlot0+0x3000;
     refreshRomBank(romBank);
     refreshRamBank(currentRamBank);
+    }
     refreshVramBank();
     memory[0xc] = wram[0];
     refreshWramBank();
@@ -555,7 +581,10 @@ handleSoundReg:
             // Special register, used by the gameboy bios
         case 0x50:
             biosOn = 0;
-            memory[0x0] = romFile->romSlot0;
+            if (romFile->getMBC() == MMM01)
+                refreshMmm01Banks();
+            else
+                memory[0x0] = romFile->romSlot0;
             initGameboyMode();
             return;
         case 0x55: // CGB DMA

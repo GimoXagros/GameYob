@@ -4,7 +4,7 @@ BLOCKSDS	?= /opt/blocksds/core
 WONDERFUL_TOOLCHAIN	?= /opt/wonderful
 
 NAME		:= gameyob
-VERSION		:= v0.5.7-ko
+VERSION		:= v0.5.8-ko
 GAME_TITLE	:= GameYob $(VERSION)
 GAME_SUBTITLE	:= A Gameboy emulator for DS
 GAME_AUTHOR	:= Author: Drenn

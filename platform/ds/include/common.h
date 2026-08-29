@@ -26,6 +26,12 @@ typedef struct SharedData {
     bool lfsr7Bit;
     u8* sampleData;
 
+    // Double-buffered, independent host-SNES PCM source. ARM7 mixes channel
+    // 15 with the four existing Game Boy channels in hardware.
+    bool sgbHostAudio;
+    u8 sgbHostPcmIndex;
+    s16 sgbHostPcm[2][548];
+
     bool enableSleepMode;
 
     u32 message;
@@ -40,6 +46,7 @@ enum {
     GBSND_MUTE_COMMAND,
     GBSND_UNMUTE_COMMAND,
     GBSND_HYPERSOUND_ENABLE_COMMAND,
+    GBSND_SGB_BUFFER_COMMAND,
     GBSND_DUMMY_COMMAND
 };
 

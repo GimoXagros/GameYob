@@ -13,6 +13,8 @@
 | DS NiFi | packet length, CRC, identity bounds and corruption rejection | `nifi_protocol_test.cpp` |
 | RTC | MBC3 rollover/carry/halt and HuC3 minute/day/year rollover | `rtc_test.cpp` |
 | Patched ROM layout | physical/non-power-of-two banks, 8 MiB boundary, RAM headers through 128 KiB | `rom_layout_test.cpp` |
+| MMM01 | power-on menu mapping, ROM/RAM masks, banking, multiplex and locks | `mmm01_test.cpp` |
+| SGB host foundation | bounded WRAM access, CPU faults, APU program transfer and prototype OBJ decode | `sgb_host_test.cpp` |
 | Localization | INI/JSON/XML/YAML, UTF-8 Korean/Japanese and English fallback | `localization_test.cpp` |
 | Unicode UI | UTF-8 column count and boundary-safe clipping | `text_test.cpp` |
 | DS audio | independent NR50 SO1/SO2 volume/routing model | build plus hardware test required |
@@ -35,4 +37,6 @@ recorded so a lawful local copy can be matched to the test result.
 - native 3DS-to-3DS LAN link testing and a native-3DS/`.nds` bridge;
 - a larger per-game compatibility matrix, especially games that change WX
   during a scanline or depend on SNES-side SGB audio.
-- mapper-specific support for MMM01/MBC4 and complete MBC7/HuC hardware behavior.
+- complete SGB host 65C816/SPC700/DSP timing and final prototype OBJ composition;
+- legacy cartridge types 0x15-0x17, whose hardware behavior remains undocumented/unknown;
+- complete physical-hardware validation of MBC7/HuC behavior.

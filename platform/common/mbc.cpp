@@ -34,6 +34,13 @@ u8 Gameboy::m3r (u16 addr) {
     }
 }
 
+/* MMM01 */
+u8 Gameboy::mmm01r(u16 addr) {
+    if (!ramEnabled || !getNumSramBanks())
+        return 0xff;
+    return memory[addr >> 12][addr & 0xfff];
+}
+
 /* MBC7 */
 u8 Gameboy::m7r (u16 addr) {
     switch (addr & 0xa0f0) {
@@ -554,6 +561,20 @@ void Gameboy::updateClockFromHost()
             break;
     }
     gbClock.last = now;
+}
+
+/* MMM01 */
+void Gameboy::mmm01w(u16 addr, u8 val) {
+    if (addr >= 0xa000) {
+        if (ramEnabled && getNumSramBanks())
+            writeSram(addr & 0x1fff, val);
+        return;
+    }
+
+    if (addr < 0x8000) {
+        mmm01.write(addr, val);
+        refreshMmm01Banks();
+    }
 }
 
 void Gameboy::latchClock()

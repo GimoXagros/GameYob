@@ -65,13 +65,35 @@ RomFile::RomFile(const char* f, bool halfMemory) {
     else
         fullMemoryMode();
 
+    // MMM01 powers up with the last 32 KiB mapped at 0000-7FFF, so its
+    // cartridge header is normally in the penultimate physical ROM bank.
+    // Accept a conventional bank-zero header as well for development ROMs.
+    const u8* effectiveHeader = romSlot0;
+    u8 menuHeader[0x150];
+    if (!gbsMode && numRomBanks >= 2) {
+        u8* menuBank = getRomBank(numRomBanks - 2);
+        if (menuBank) {
+            if (isMmm01CartridgeType(menuBank[0x147]))
+                effectiveHeader = menuBank;
+        }
+        else if (romFile) {
+            const int oldPosition = file_tell(romFile);
+            file_seek(romFile, (numRomBanks - 2) * 0x4000, SEEK_SET);
+            file_read(menuHeader, 1, sizeof(menuHeader), romFile);
+            file_seek(romFile, oldPosition, SEEK_SET);
+            if (isMmm01CartridgeType(menuHeader[0x147]))
+                effectiveHeader = menuHeader;
+        }
+    }
+    memcpy(cartridgeHeader, effectiveHeader, sizeof(cartridgeHeader));
+
     u8 cgbFlag = getCgbFlag();
 
     int nameLength = 16;
     if (cgbFlag == 0x80 || cgbFlag == 0xc0)
         nameLength = 15;
     for (int i=0; i<nameLength; i++) 
-        romTitle[i] = (char)romSlot0[i+0x134];
+        romTitle[i] = (char)cartridgeHeader[i+0x134];
     romTitle[nameLength] = '\0';
 
     if (gbsMode) {
@@ -88,15 +110,18 @@ RomFile::RomFile(const char* f, bool halfMemory) {
             case 5: case 6:
                 MBC = MBC2;
                 break;
-                //case 0xb: case 0xc: case 0xd:
-                //MBC = MMM01;
-                //break;
+            case 0xb: case 0xc: case 0xd:
+                MBC = MMM01;
+                break;
             case 0xf: case 0x10: case 0x11: case 0x12: case 0x13:
                 MBC = MBC3;
                 break;
-                //case 0x15: case 0x16: case 0x17:
-                //MBC = MBC4;
-                //break;
+            case 0x15: case 0x16: case 0x17:
+                // These legacy values have no reproducible public hardware
+                // specification. Do not silently emulate them as MBC5.
+                printLog("Undocumented legacy mapper %02x\n", getMapper());
+                MBC = MBC_UNKNOWN;
+                break;
             case 0x19: case 0x1a: case 0x1b: 
                 MBC = MBC5;
                 break;
@@ -195,6 +220,14 @@ const char* RomFile::getBasename() {
     return basename;
 }
 
+u8* RomFile::getOrLoadRomBank(int bank) {
+    bank = normalizeRomBank(bank);
+    if (bank < 0)
+        return NULL;
+    loadRomBank(bank);
+    return romSlot1;
+}
+
 const char* RomFile::getStorageBasename() {
     return storageBasename[0] ? storageBasename : basename;
 }
@@ -279,7 +312,7 @@ bool RomFile::loadBios(const char* filename) {
 
     // Little hack to preserve "quickread" from gbcpu.cpp.
     for (int i=0x100; i<0x150; i++)
-        bios[i] = romSlot0[i];
+        bios[i] = cartridgeHeader[i];
 
     return true;
 }

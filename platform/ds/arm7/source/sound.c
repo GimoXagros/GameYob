@@ -258,6 +258,18 @@ void doCommand(u32 command) {
             setHyperSound(data);
             break;
 
+        case GBSND_SGB_BUFFER_COMMAND:
+            SCHANNEL_CR(15) = 0;
+            if (sharedData->sgbHostAudio) {
+                SCHANNEL_SOURCE(15) = (u32)sharedData->sgbHostPcm[data & 1];
+                SCHANNEL_REPEAT_POINT(15) = 0;
+                SCHANNEL_LENGTH(15) = (548 * sizeof(s16)) >> 2;
+                SCHANNEL_TIMER(15) = SOUND_FREQ(32768);
+                SCHANNEL_CR(15) = SCHANNEL_ENABLE | SOUND_ONE_SHOT |
+                    SOUND_FORMAT_16BIT | SOUND_VOL(64) | SOUND_PAN(64);
+            }
+            break;
+
         default:
             return;
     }

@@ -1,3 +1,24 @@
+Version 0.5.8-ko:
+
+- Added independent MMM01 support for cartridge types 0x0B, 0x0C, and 0x0D,
+  including the unmapped menu banks, mapping enable, ROM/RAM masks, mode lock,
+  multiplex banking, SRAM/autosave, and versioned save-state restoration.
+- Reclassified legacy cartridge types 0x15-0x17 as undocumented/unknown and
+  stopped silently falling back to MBC5. MBC7/HuC hardware behavior was not
+  changed or claimed as validated.
+- Added an isolated SGB host runtime foundation with bounded SNES WRAM and PPU
+  registers, a deliberately faulting 65C816 subset, an SPC700/APU transfer and
+  execution subset, BRR voice decoding, prototype OBJ decoding, and separate
+  DS host-audio PCM output.
+- Connected DATA_SND, DATA_TRN, JUMP, SOUND, SOU_TRN, CHR_TRN, and prototype
+  OBJ_TRN to the host runtime while preserving the existing SGB palette,
+  attribute, border, mask, multiplayer, and PAL priority paths.
+- Raised save-state version to 7 and explicitly serialized MMM01 and SGB host
+  state while retaining loading support for earlier state versions.
+- Added portable MMM01 and SGB host regression tests. Full host-SNES CPU/APU
+  coverage and final prototype OBJ composition remain tracked work and are not
+  represented as complete.
+
 Version 0.5.7-ko:
 
 - Added the new GameYob project logo and derived a 16-color DS/DSi banner icon

@@ -7,6 +7,7 @@
 #include <vector>
 #include "io.h"
 #include "rom_layout.h"
+#include "mmm01.h"
 
 /* All the possible MBC */
 enum {
@@ -14,12 +15,13 @@ enum {
     MBC1,
     MBC2,
     MBC3,
-    MBC4, // Unsupported
+    MMM01,
     MBC5,
     MBC7, // Unsupported
     HUC1,
     HUC3,
     MBC_POCKET_CAM, // Game Boy Camera
+    MBC_UNKNOWN,
     MBC_MAX,
 };
 
@@ -31,6 +33,7 @@ class RomFile {
         void loadRomBank(int romBank);
         bool isRomBankLoaded(int bank);
         u8* getRomBank(int bank);
+        u8* getOrLoadRomBank(int bank);
         const char* getBasename();
         const char* getStorageBasename();
         const char* getFilename();
@@ -46,9 +49,12 @@ class RomFile {
         inline int getRomSizeBytes() { return romSizeBytes; }
         uint32_t getContentId();
         inline int getNumSramBanks() { return numRamBanks; }
-        inline int getCgbFlag() { return romSlot0[0x143]; }
-        inline int getRamSize() { return romSlot0[0x149]; }
-        inline int getMapper() { return romSlot0[0x147]; }
+        inline int getCgbFlag() { return cartridgeHeader[0x143]; }
+        inline int getSgbFlag() { return cartridgeHeader[0x146]; }
+        inline int getMapper() { return cartridgeHeader[0x147]; }
+        inline int getRomSizeCode() { return cartridgeHeader[0x148]; }
+        inline int getRamSize() { return cartridgeHeader[0x149]; }
+        inline int getOldLicensee() { return cartridgeHeader[0x14b]; }
         inline int getMBC() { return MBC; }
         inline bool hasRumble() { return getMapper() == 0x1c ||
             getMapper() == 0x1d || getMapper() == 0x1e; }
@@ -79,6 +85,7 @@ class RomFile {
         char basename[MAX_FILENAME_LEN];
         char storageBasename[MAX_FILENAME_LEN];
         char romTitle[20];
+        u8 cartridgeHeader[0x150];
 
         void loadBanks();
         void setStorageBasename(const char* openedPath);

@@ -217,6 +217,21 @@ void SoundEngine::updateSound(int cycles)
 void SoundEngine::soundUpdateVBlank() {
     // This debug stuff helps when debugging Pokemon Diamond
     //printLog("%d\n", sharedPtr->fifosSent-sharedPtr->fifosReceived);
+    if (!gameboy->isMainGameboy() || muted || soundDisabled)
+        return;
+    SgbHost* host = gameboy->getSgbHost();
+    if (!host || !host->apu.hasActiveAudio()) {
+        if (sharedPtr->sgbHostAudio) {
+            sharedPtr->sgbHostAudio = false;
+            FIFO_SEND(GBSND_SGB_BUFFER_COMMAND << 28);
+        }
+        return;
+    }
+    const int next = sharedPtr->sgbHostPcmIndex ^ 1;
+    host->renderAudio((s16*)sharedPtr->sgbHostPcm[next], 548);
+    sharedPtr->sgbHostPcmIndex = next;
+    sharedPtr->sgbHostAudio = true;
+    FIFO_SEND((GBSND_SGB_BUFFER_COMMAND << 28) | next);
 }
 
 void SoundEngine::handleSoundRegister(u8 ioReg, u8 val)
