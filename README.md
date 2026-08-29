@@ -1,4 +1,4 @@
-# GameYob-ko
+# GameYob
 
 <p align="center">
   <img src="logo.png" alt="GameYob logo" width="480">
