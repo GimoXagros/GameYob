@@ -188,20 +188,20 @@ bool createCustomLanguageTemplate() {
 const char* gbKeyNames[] = {"-","A","B","Left","Right","Up","Down","Start","Select",
     "Menu","Menu/Pause","Save","Autofire A","Autofire B", "Fast Forward", "FF Toggle", "Scale","Reset","Swap Focus"};
 const char* dsKeyNames[] = {"A","B","Select","Start","Right","Left","Up","Down",
-    "R","L","X","Y","","","ZL","ZR","","","","","","","","","C-Right","C-Left","C-Up","C-Down","Pad-Right","Pad-Left","Pad-Up","Pad-Down"};
+    "R","L","X","Y","Touch","","ZL","ZR","","","","","","","","","C-Right","C-Left","C-Up","C-Down","Pad-Right","Pad-Left","Pad-Up","Pad-Down"};
 
 int keyMapping[NUM_FUNC_KEYS];
 #if defined(DS)
-#define NUM_BINDABLE_BUTTONS 12
+#define NUM_BINDABLE_BUTTONS 13
 struct KeyConfig {
     char name[32];
-    int funcKeys[12];
+    int funcKeys[NUM_BINDABLE_BUTTONS];
 };
 #elif defined(_3DS)
 #define NUM_BINDABLE_BUTTONS 32
 struct KeyConfig {
     char name[32];
-    int funcKeys[32];
+    int funcKeys[NUM_BINDABLE_BUTTONS];
 };
 #endif
 
@@ -209,7 +209,7 @@ struct KeyConfig {
 KeyConfig defaultKeyConfig = {
     "Main",
     {FUNC_KEY_A,FUNC_KEY_B,FUNC_KEY_SELECT,FUNC_KEY_START,FUNC_KEY_RIGHT,FUNC_KEY_LEFT,FUNC_KEY_UP,FUNC_KEY_DOWN,
-        FUNC_KEY_MENU,FUNC_KEY_FAST_FORWARD,FUNC_KEY_START,FUNC_KEY_SELECT}
+        FUNC_KEY_MENU,FUNC_KEY_FAST_FORWARD,FUNC_KEY_START,FUNC_KEY_SELECT,FUNC_KEY_MENU}
 };
 #elif defined(_3DS)
 KeyConfig defaultKeyConfig = {
@@ -226,8 +226,25 @@ KeyConfig defaultKeyConfig = {
 std::vector<KeyConfig> keyConfigs;
 unsigned int selectedKeyConfig=0;
 
+#if defined(DS)
+static bool hasMenuBinding(const KeyConfig& config) {
+    for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {
+        if (config.funcKeys[i] == FUNC_KEY_MENU ||
+                config.funcKeys[i] == FUNC_KEY_MENU_PAUSE)
+            return true;
+    }
+    return false;
+}
+#endif
+
 void loadKeyConfig() {
     KeyConfig* keyConfig = &keyConfigs[selectedKeyConfig];
+#if defined(DS)
+    // Keep a recovery path for old or hand-edited configurations while still
+    // allowing Touch to be assigned like every other DS input.
+    if (!hasMenuBinding(*keyConfig))
+        keyConfig->funcKeys[12] = FUNC_KEY_MENU;
+#endif
     for (int i=0; i<NUM_FUNC_KEYS; i++)
         keyMapping[i] = 0;
     for (int i=0; i<NUM_BINDABLE_BUTTONS; i++) {

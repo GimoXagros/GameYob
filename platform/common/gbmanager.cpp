@@ -444,7 +444,7 @@ void mgr_updateVBlank() {
             fastForwardMode = !fastForwardMode;
 
         if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE)
-#if defined(DS) || defined(_3DS)
+#if defined(_3DS)
                     | KEY_TOUCH
 #endif
                     )) {
