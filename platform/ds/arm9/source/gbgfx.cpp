@@ -9,6 +9,7 @@
 #include <math.h>
 #include "gbs.h"
 #include "gbgfx.h"
+#include "gb_render_rules.h"
 #include "mmu.h"
 #include "gameboy.h"
 #include "console.h"
