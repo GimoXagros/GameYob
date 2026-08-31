@@ -36,6 +36,13 @@ static unsigned specialCommand(unsigned subcommand) {
 }
 
 int main() {
+    assert(Mbc7Eeprom::sensorValue(0, 128, false) == 0x81d0);
+    assert(Mbc7Eeprom::sensorValue(128, 128, true) == 0x81d0);
+    assert(Mbc7Eeprom::sensorValue(0, 128, true) == 0x8240);
+    assert(Mbc7Eeprom::sensorValue(255, 128, true) == 0x8161);
+    assert(Mbc7Eeprom::sensorValue(0, 96, true) == 0x8240);
+    assert(Mbc7Eeprom::sensorValue(191, 96, true) == 0x8162);
+
     uint8_t data[256];
     memset(data, 0xff, sizeof(data));
     Mbc7Eeprom e;

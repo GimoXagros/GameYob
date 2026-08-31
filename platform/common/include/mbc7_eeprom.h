@@ -19,6 +19,8 @@ public:
     void save(uint8_t* data, size_t size) const;
     bool load(const uint8_t* data, size_t size);
     static size_t stateSize();
+    static uint16_t sensorValue(int position, int neutralPosition,
+            bool touching);
 
 private:
     void beginCommand();

@@ -140,30 +140,14 @@ void system_doRumble(bool rumbleVal)
     }
 }
 
-#define DS_MOTION_SENSOR_RANGE 128
-
 int system_getMotionSensorX() {
-    int px = touchData.px;
-    if (!keyPressed(KEY_TOUCH))
-        px = 128;
-
-    double val = (128 - px) * ((double)DS_MOTION_SENSOR_RANGE / 256)
-        + MOTION_SENSOR_MID;
-    /*
-    if (val < 0)
-        return (-(int)val) | 0x8000;
-        */
-    return (int)val + 0x8000;
+    return Mbc7Eeprom::sensorValue(touchData.px, 128,
+            keyPressed(KEY_TOUCH));
 }
 
 int system_getMotionSensorY() {
-    int py = touchData.py;
-    if (!keyPressed(KEY_TOUCH))
-        py = 96;
-
-    double val = (96 - py) * ((double)DS_MOTION_SENSOR_RANGE / 192)
-        + MOTION_SENSOR_MID - 80;
-    return (int)val;
+    return Mbc7Eeprom::sensorValue(touchData.py, 96,
+            keyPressed(KEY_TOUCH));
 }
 
 void system_enableCamera(int index) {

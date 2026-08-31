@@ -137,6 +137,17 @@ bool Mbc7Eeprom::consumeModified() {
 
 size_t Mbc7Eeprom::stateSize() { return kStateSize; }
 
+uint16_t Mbc7Eeprom::sensorValue(int position, int neutralPosition,
+        bool touching) {
+    const int center = 0x81d0;
+    if (!touching || neutralPosition <= 0)
+        return (uint16_t)center;
+    int delta = ((neutralPosition - position) * 0x70) / neutralPosition;
+    if (delta > 0x70) delta = 0x70;
+    if (delta < -0x70) delta = -0x70;
+    return (uint16_t)(center + delta);
+}
+
 void Mbc7Eeprom::save(uint8_t* data, size_t size) const {
     if (!data || size < kStateSize) return;
     data[0] = (uint8_t)phase;

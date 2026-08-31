@@ -24,8 +24,6 @@
 #define MOTION_SENSOR_MIN 1897
 */
 #define MOTION_SENSOR_RANGE 256
-#define MOTION_SENSOR_MID 0
-
 
 extern bool fastForwardMode; // controlled by the toggle hotkey
 extern bool fastForwardKey;  // only while its hotkey is pressed
