@@ -14,6 +14,19 @@ static void testWindowClipping() {
 
     assert(!gb_render::windowSpan(167, 20, 20, true).visible);
     assert(!gb_render::windowSpan(7, 144, 144, true).visible);
+
+    // WX changes are evaluated per scanline. Hidden lines do not consume the
+    // window's internal Y counter; making WX visible resumes from that line.
+    int line = -1;
+    line = gb_render::nextWindowLine(line, false, 20, 20, 167, true);
+    assert(line == -1);
+    line = gb_render::nextWindowLine(line, false, 21, 20, 166, true);
+    assert(line == 0);
+    line = gb_render::nextWindowLine(line, false, 22, 20, 0, true);
+    assert(line == 1);
+    assert(gb_render::nextWindowLine(line, false, 23, 20, 7, false) == 1);
+    assert(gb_render::nextWindowLine(-2, true, 40, 35, 7, true) == 5);
+    assert(gb_render::nextWindowLine(-1, false, 19, 20, 7, true) == -1);
 }
 
 static void testSpriteOrder() {

@@ -1,4 +1,4 @@
-# GameYob v0.5.8-ko user guide (English)
+# GameYob v0.5.9-ko user guide (English)
 
 ## 1. Choose a build
 
@@ -11,6 +11,8 @@ No ROM or BIOS is included. Copy legally obtained `.gb`, `.gbc`, or `.gbs` files
 ## 2. Controls and menu
 
 The default DS-family mapping uses the D-pad, A/B, Start, and Select as expected. R opens the menu and L fast-forwards on the default DS mapping. Use **Settings → Button Mapping** to change any binding. Available actions include Menu, Menu/Pause, Save, autofire, fast-forward, reset, and local-link focus swap. The scale action is currently effective only in the DS/DSi builds.
+
+**Display → Touch Menu** is On by default. While it is enabled, menus and the ROM/File Chooser are temporarily routed to the physical Bottom Screen without changing the saved **Game Screen** setting. Tap a different row once to select it; tap the selected action row again to execute it. On a selected value row, tap its left or right half for the previous or next value. In the title row, left/right changes category and the center closes the menu. The chooser uses the same select-then-open rule; its arrow areas scroll and its bottom exit row performs Y. Physical buttons remain available. The configurable gameplay **Touch** binding is independent and resumes outside these UI screens. The same behavior is available when `gameyob.nds` runs on Nintendo 3DS in DS mode.
 
 ## 3. ROM menu, saves, and suspend
 
@@ -39,6 +41,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 
 - **Game Screen** chooses the top or bottom screen; **Single Screen** hides the unused console screen.
 - DS and DSi builds provide **Scaling** and **Scale Filter**.
+- **Touch Menu** enables or disables touch-driven menu and file selection. It is On by default.
 - **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP.
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS and DSi. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
 - **GBC Mode** chooses GB, automatic, or forced GBC behavior. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** exposes the GBA-detection flag used by a small number of games.
@@ -73,5 +76,5 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
 - `gameyob_dsi.nds` requests DSi mode, but the launcher decides whether that mode is actually granted. If it starts in DS mode, performance can be the same as `gameyob.nds`.
 - DS raw NiFi does not use the Internet connection. Keep devices nearby and use matching Host/Client and link-type settings.
-- If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown, and parts of MBC7/HuC still require hardware validation.
+- If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown. MBC7 EEPROM/tilt and HuC1 banking/IR selection have automated coverage, but physical MBC7/HuC cartridge validation remains pending.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.

@@ -18,6 +18,9 @@ struct SpriteRef {
 
 WindowSpan windowSpan(uint8_t wx, uint8_t wy, int scanline,
         bool windowEnabled);
+
+int nextWindowLine(int currentLine, bool resetPending, uint8_t ly,
+        uint8_t wy, uint8_t wx, bool windowEnabled);
 void sortSpritesForDrawing(SpriteRef* sprites, int count, bool dmgMode);
 bool cgbSpriteWins(bool bgPriorityEnabled, bool bgTilePriority,
         uint8_t bgColor, bool spriteBehindBg);

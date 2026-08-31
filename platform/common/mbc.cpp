@@ -5,6 +5,7 @@
 #include "romfile.h"
 #include "rtc.h"
 #include "timer.h"
+#include "huc1_rules.h"
 #include <stdlib.h>
 
 
@@ -43,27 +44,36 @@ u8 Gameboy::mmm01r(u16 addr) {
 
 /* MBC7 */
 u8 Gameboy::m7r (u16 addr) {
+    if (!ramEnabled || !mbc7RamEnabled2)
+        return 0xff;
     switch (addr & 0xa0f0) {
         case 0xa000:
         case 0xa010:
-        case 0xa060:
-        case 0xa070:
-            return 0;
+            return 0xff;
         case 0xa020:
-            return system_getMotionSensorX() & 0xff;
+            return mbc7LatchedX & 0xff;
         case 0xa030:
-            return system_getMotionSensorX() >> 8;
+            return mbc7LatchedX >> 8;
         case 0xa040:
-            return system_getMotionSensorY() & 0xff;
+            return mbc7LatchedY & 0xff;
         case 0xa050:
-            return system_getMotionSensorY() >> 8;
-            /*
+            return mbc7LatchedY >> 8;
+        case 0xa060:
+            return 0;
+        case 0xa070:
+            return 0xff;
         case 0xa080:
-            return mbc7RA | 0x7e;
-            */
+            return mbc7Eeprom.readPins();
         default:
             return 0xff;
     }
+}
+
+/* HUC1 */
+u8 Gameboy::h1r(u16 addr) {
+    if (huc1IrMode)
+        return huc1::irRead(false); // No external IR receiver is connected.
+    return getNumSramBanks() ? memory[addr >> 12][addr & 0xfff] : 0xff;
 }
 
 /* HUC3 */
@@ -324,11 +334,6 @@ void Gameboy::m5w (u16 addr, u8 val) {
     }
 }
 
-enum {
-    MBC7_RA_IDLE,
-    MBC7_RA_READY,
-};
-
 /* MBC7 */
 void Gameboy::m7w (u16 addr, u8 val) {
     switch (addr >> 12) {
@@ -337,39 +342,43 @@ void Gameboy::m7w (u16 addr, u8 val) {
             ramEnabled = ((val & 0xf) == 0xa);
             break;
         case 0x2: /* 2000 - 3fff */
-            refreshRomBank((romBank & 0x100) |  val);
-            break;
         case 0x3:
-            refreshRomBank((romBank & 0xff ) | (val&1) << 8);
+            refreshRomBank(val & 0x7f);
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
-            val &= 0xf;
-
-            refreshRamBank(val);
+            mbc7RamEnabled2 = (val == 0x40);
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if (addr == 0xa080) {
-                bool finalize = val & 0x80;
-                bool oldFinalize = mbc7RA & 0x80;
-                bool sendBit = val & 0x40;
-                bool oldSendBit = mbc7RA & 0x40;
-
-                if (!oldFinalize && finalize) {
-                    if (mbc7State == MBC7_RA_READY) {
-
-                    }
+            if (!ramEnabled || !mbc7RamEnabled2)
+                break;
+            switch (addr & 0xa0f0) {
+            case 0xa000:
+                if (val == 0x55) {
+                    mbc7LatchedX = mbc7LatchedY = 0x8000;
+                    mbc7LatchReady = true;
                 }
-
-                if (!oldSendBit && sendBit) {
-
+                break;
+            case 0xa010:
+                if (val == 0xaa && mbc7LatchReady) {
+                    mbc7LatchedX = system_getMotionSensorX();
+                    mbc7LatchedY = system_getMotionSensorY();
+                    mbc7LatchReady = false;
                 }
-
-                mbc7RA = val;
+                break;
+            case 0xa080:
+                mbc7Eeprom.writePins(val, externRam, 256);
+                if (mbc7Eeprom.consumeModified() && autoSavingEnabled) {
+                    saveModified = true;
+                    if (fatBytesPerSector > 0)
+                        dirtySectors[0] = true;
+                    ++numSaveWrites;
+                }
+                break;
             }
             break;
     }
@@ -380,29 +389,25 @@ void Gameboy::h1w(u16 addr, u8 val) {
     switch (addr >> 12) {
         case 0x0: /* 0000 - 1fff */
         case 0x1:
-            ramEnabled = ((val & 0xf) == 0xa);
+            huc1IrMode = huc1::irMode(val);
+            ramEnabled = !huc1IrMode;
             break;
         case 0x2: /* 2000 - 3fff */
         case 0x3:
-            refreshRomBank(val & 0x3f);
+            refreshRomBank(huc1::romBank(val));
             break;
         case 0x4: /* 4000 - 5fff */
         case 0x5:
-            val &= 3;
-            /* ROM mode */
-            if (memoryModel == 0) 
-                refreshRomBank(val);
-            /* RAM mode */
-            else
-                refreshRamBank(val);
+            refreshRamBank(huc1::ramBank(val));
             break;
         case 0x6: /* 6000 - 7fff */
         case 0x7:
-            memoryModel = val & 1;
             break;
         case 0xa: /* a000 - bfff */
         case 0xb:
-            if (ramEnabled && getNumSramBanks())
+            if (huc1IrMode)
+                huc1IrOutput = val & 1;
+            else if (getNumSramBanks())
                 writeSram(addr&0x1fff, val);
             break;
     }

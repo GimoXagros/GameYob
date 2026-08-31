@@ -808,6 +808,7 @@ int Gameboy::loadSave(int saveId)
         fileSize = file_getSize(saveFile);
     }
 
+    bool createdNewSave = false;
     if (!saveFile || fileSize < neededFileSize) {
         // Extend the size of the file, or create it
         if (!saveFile) {
@@ -822,6 +823,7 @@ int Gameboy::loadSave(int saveId)
             saveFile = file_open(savename, "r+b");
             if (!saveFile)
                 return 1;
+            createdNewSave = true;
         }
         else {
             file_setSize(saveFile, neededFileSize);
@@ -836,6 +838,13 @@ int Gameboy::loadSave(int saveId)
     const bool storedClockAvailable = hasClock &&
         fileSize >= ramSize + (int)sizeof(ClockStruct);
 
+    if (createdNewSave && romFile->getMBC() == MBC7) {
+        // An erased 93LC56 EEPROM reads as all ones, not zero-filled SRAM.
+        memset(externRam, 0xff, 256);
+        file_seek(saveFile, 0, SEEK_SET);
+        file_write(externRam, 1, 256, saveFile);
+    }
+    file_seek(saveFile, 0, SEEK_SET);
     if (ramSize > 0)
         file_read(externRam, 1, ramSize, saveFile);
 
@@ -978,7 +987,7 @@ void Gameboy::updateAutosave() {
 
 
 
-const int STATE_VERSION = 7;
+const int STATE_VERSION = 8;
 
 struct StateStruct {
     // version
@@ -1080,6 +1089,20 @@ void Gameboy::saveState(int stateNum) {
             file_write(&HuC3Value, 1, sizeof(u8), outFile);
             file_write(&HuC3Shift, 1, sizeof(u8), outFile);
             break;
+        case HUC1:
+            file_write(&huc1IrMode, 1, sizeof(bool), outFile);
+            file_write(&huc1IrOutput, 1, sizeof(u8), outFile);
+            break;
+        case MBC7: {
+            u8 eepromState[10];
+            mbc7Eeprom.save(eepromState, sizeof(eepromState));
+            file_write(&mbc7RamEnabled2, 1, sizeof(bool), outFile);
+            file_write(&mbc7LatchReady, 1, sizeof(bool), outFile);
+            file_write(&mbc7LatchedX, 1, sizeof(u16), outFile);
+            file_write(&mbc7LatchedY, 1, sizeof(u16), outFile);
+            file_write(eepromState, 1, sizeof(eepromState), outFile);
+            break;
+        }
     }
 
     file_write(&sgbMode, 1, sizeof(bool), outFile);
@@ -1200,6 +1223,24 @@ int Gameboy::loadState(int stateNum) {
                 file_read(&HuC3Mode,  1, sizeof(u8), inFile);
                 file_read(&HuC3Value, 1, sizeof(u8), inFile);
                 file_read(&HuC3Shift, 1, sizeof(u8), inFile);
+                break;
+            case HUC1:
+                if (version >= 8) {
+                    file_read(&huc1IrMode, 1, sizeof(bool), inFile);
+                    file_read(&huc1IrOutput, 1, sizeof(u8), inFile);
+                }
+                break;
+            case MBC7:
+                if (version >= 8) {
+                    u8 eepromState[10];
+                    file_read(&mbc7RamEnabled2, 1, sizeof(bool), inFile);
+                    file_read(&mbc7LatchReady, 1, sizeof(bool), inFile);
+                    file_read(&mbc7LatchedX, 1, sizeof(u16), inFile);
+                    file_read(&mbc7LatchedY, 1, sizeof(u16), inFile);
+                    file_read(eepromState, 1, sizeof(eepromState), inFile);
+                    if (!mbc7Eeprom.load(eepromState, sizeof(eepromState)))
+                        mbc7Eeprom.reset();
+                }
                 break;
         }
 

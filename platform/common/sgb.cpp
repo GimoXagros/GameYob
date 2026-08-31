@@ -4,6 +4,7 @@
 #include "console.h"
 #include "mmu.h"
 #include "gbgfx.h"
+#include "sgb_protocol.h"
 
 #define sgbPalettes (vram[1])
 #define sgbAttrFiles (vram[1]+0x1000)
@@ -325,9 +326,7 @@ void Gameboy::sgbDataSnd(int block) {
         return;
     sgbDataAddress = sgbPacket[1] | (sgbPacket[2] << 8) |
         (sgbPacket[3] << 16);
-    sgbDataLength = sgbPacket[4];
-    if (sgbDataLength > 11)
-        sgbDataLength = 11;
+    sgbDataLength = sgb_protocol::boundedDataSndLength(sgbPacket[4]);
     memcpy(sgbData, sgbPacket + 5, sgbDataLength);
     if (sgbHost)
         sgbHost->writeMemory(sgbDataAddress, sgbData, sgbDataLength);
@@ -451,16 +450,19 @@ void Gameboy::sgbHandleP1(u8 val) {
         sgbPacketBit++;
         if (sgbPacketBit == 128) {
             if (sgbPacketsTransferred == 0) {
-                sgbCommand = sgbPacket[0]/8;
-                sgbPacketLength = sgbPacket[0]&7;
-                if (sgbPacketLength == 0) {
+                const sgb_protocol::PacketHeader header =
+                    sgb_protocol::decodeHeader(sgbPacket[0]);
+                sgbCommand = header.command;
+                sgbPacketLength = header.packetCount;
+                if (!header.valid) {
                     sgbPacketBit = -1;
                     sgbPacketsTransferred = 0;
                     return;
                 }
                 //printLog("CMD %x\n", sgbCommand);
             }
-            if (sgbCommand < sizeof(sgbCommands)/sizeof(sgbCommands[0]) &&
+            if (sgb_protocol::isImplementedCommand(sgbCommand) &&
+                    sgbCommand < sizeof(sgbCommands)/sizeof(sgbCommands[0]) &&
                     sgbCommands[sgbCommand] != 0)
                 (this->*sgbCommands[sgbCommand])(sgbPacketsTransferred);
 

@@ -11,6 +11,7 @@
 #include "romfile.h"
 #include "io.h"
 #include "sgb_host.h"
+#include "mbc7_eeprom.h"
 
 #ifdef CPU_DEBUG
 #include "debugger.h"
@@ -382,6 +383,7 @@ class Gameboy {
         u8 m3r(u16 addr);
         u8 mmm01r(u16 addr);
         u8 m7r(u16 addr);
+        u8 h1r(u16 addr);
         u8 h3r(u16 addr);
         u8 camr(u16 addr);
 
@@ -423,9 +425,15 @@ class Gameboy {
         u8   HuC3Shift;
 
         // MBC7
-        u8 mbc7State;
-        u16 mbc7Buffer;
-        u8 mbc7RA; // Ram Access register 0xa080
+        bool mbc7RamEnabled2;
+        bool mbc7LatchReady;
+        u16 mbc7LatchedX;
+        u16 mbc7LatchedY;
+        Mbc7Eeprom mbc7Eeprom;
+
+        // HuC1
+        bool huc1IrMode;
+        u8 huc1IrOutput;
 
         // Persistent (not overwritten in init())
         ClockStruct gbClock;
@@ -519,7 +527,7 @@ typedef u8   (Gameboy::*mbcRead )(u16);
 
 const mbcRead mbcReads[] = {
     NULL, NULL, NULL, &Gameboy::m3r, &Gameboy::mmm01r, NULL,
-    &Gameboy::m7r, NULL, &Gameboy::h3r, &Gameboy::camr, NULL
+    &Gameboy::m7r, &Gameboy::h1r, &Gameboy::h3r, &Gameboy::camr, NULL
 };
 const mbcWrite mbcWrites[] = {
     &Gameboy::m0w, &Gameboy::m1w, &Gameboy::m2w, &Gameboy::m3w,

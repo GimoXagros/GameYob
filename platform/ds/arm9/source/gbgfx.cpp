@@ -1291,10 +1291,9 @@ void drawScanline_P2(int scanline);
 void drawScanline_P2(int scanline) {
     if (hblankDisabled)
         return;
-    if (winPosY == -2)
-        winPosY = gameboy->ioRam[0x44]-gameboy->ioRam[0x4a];
-    else if (gameboy->ioRam[0x40] & 0x20 && winX < 167 && gameboy->ioRam[0x4a] <= scanline)
-        winPosY++;
+    winPosY = gb_render::nextWindowLine(winPosY, winPosY == -2,
+            gameboy->ioRam[0x44], gameboy->ioRam[0x4a], winX,
+            (gameboy->ioRam[0x40] & 0x20) != 0);
 
     ScanlineStruct* state = &renderingState[scanline];
 

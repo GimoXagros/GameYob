@@ -13,7 +13,7 @@ BINDIRS		:= assets/fonts
 
 REVISION	:= $(shell git rev-parse --short=12 HEAD)
 DEFINES		:= -DNO_VIZ -DGIT_REVISION=\"$(REVISION)\" \
-		   -DGAMEYOB_VERSION=\"v0.5.8-ko\" \
+		   -DGAMEYOB_VERSION=\"v0.5.9-ko\" \
 		   -DC_IO_FUNCTIONS -DNIFI -DDS
 
 LIBS		:= -ldswifi9_noip -lnds9

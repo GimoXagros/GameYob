@@ -21,6 +21,15 @@ WindowSpan windowSpan(uint8_t wx, uint8_t wy, int scanline,
     return span;
 }
 
+int nextWindowLine(int currentLine, bool resetPending, uint8_t ly,
+        uint8_t wy, uint8_t wx, bool windowEnabled) {
+    if (resetPending)
+        return (int)ly - (int)wy;
+    if (windowEnabled && wx < 167 && wy <= ly)
+        return currentLine + 1;
+    return currentLine;
+}
+
 void sortSpritesForDrawing(SpriteRef* sprites, int count, bool dmgMode) {
     if (!sprites || count < 2)
         return;

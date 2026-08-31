@@ -82,6 +82,13 @@ jobs:
             tests/sgbborder_test.cpp platform/common/sgbborder.cpp \
             -o /tmp/sgbborder_test
           /tmp/sgbborder_test
+      - name: Build and run SGB protocol tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/sgb_protocol_test.cpp platform/common/sgb_protocol.cpp \
+            -o /tmp/sgb_protocol_test
+          /tmp/sgb_protocol_test
       - name: Build and run localization tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror -DC_IO_FUNCTIONS \
@@ -117,3 +124,17 @@ jobs:
             tests/touch_ui_test.cpp platform/common/touch_ui.cpp \
             -o /tmp/touch_ui_test
           /tmp/touch_ui_test
+      - name: Build and run MBC7 EEPROM tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/mbc7_eeprom_test.cpp platform/common/mbc7_eeprom.cpp \
+            -o /tmp/mbc7_eeprom_test
+          /tmp/mbc7_eeprom_test
+      - name: Build and run HuC1 mapper-rule tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/huc1_rules_test.cpp platform/common/huc1_rules.cpp \
+            -o /tmp/huc1_rules_test
+          /tmp/huc1_rules_test

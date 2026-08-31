@@ -1,3 +1,18 @@
+Version 0.5.9-ko:
+
+- Added default-on DS/DSi Touch Menu controls for menus and the ROM/File
+  Chooser with Bottom Screen routing, edge/release debounce, visible-row hit
+  testing, select-before-activate safety, scrolling, and full physical-control
+  compatibility.
+- Implemented MBC7 dual access enables, sensor latching, serial EEPROM
+  read/write/erase/all commands, persistence, and versioned transaction state.
+- Corrected HuC1 RAM/IR selection and independent ROM/RAM banking. Added
+  portable MBC7 and HuC1 tests while leaving physical validation explicit.
+- Expanded WX per-line hide/resume and SGB packet boundary tests and documented
+  exact incomplete SGB host CPU/APU/DSP coverage.
+- Raised save-state version to 8, made release-note selection explicit in the
+  deterministic packager, and retained loading of older states.
+
 Version 0.5.8-ko:
 
 - Added independent MMM01 support for cartridge types 0x0B, 0x0C, and 0x0D,

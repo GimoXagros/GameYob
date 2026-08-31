@@ -20,6 +20,18 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
 
 ## Completed work
 
+- DS/DSi touch-driven menu and ROM/File Chooser navigation, including
+  select-before-activate safety, value adjustment, category navigation,
+  scrolling, exit, and temporary Bottom Screen UI routing. The saved Game
+  Screen setting, existing configurable Touch binding, and all physical-button
+  controls are preserved.
+- MBC7 dual-enable register access, accelerometer latching, battery-backed
+  serial EEPROM commands and transaction save state; corrected HuC1 RAM/IR and
+  independent ROM/RAM bank selection. These paths have portable software
+  tests, while physical rare-cartridge validation remains pending.
+- Expanded per-line WX hide/resume and SGB packet-header/payload boundary
+  regression coverage. The incomplete SGB host CPU/APU/DSP scope is now
+  quantified rather than presented as complete.
 - DS/DSi development migrated from legacy devkitARM makefiles to the pinned
   BlocksDS 1.22.2 SDK and Wonderful toolchain, with reproducible container CI.
   The native 3DS target remains on libctru/devkitARM because BlocksDS targets
@@ -70,6 +82,15 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
 
 ## 완료된 작업
 
+- DS/DSi 메뉴와 ROM/파일 선택기의 터치 조작: 오작동을 막는 선택 후 실행,
+  값 변경, 분류 이동, 스크롤, 종료 및 실제 아래 화면으로의 임시 UI 배치를
+  구현했습니다. 저장된 게임 화면 값, 기존 설정 가능한 Touch 매핑 및 모든
+  물리 버튼 조작은 그대로 유지합니다.
+- MBC7 이중 활성화, 가속도 래치, 배터리 저장형 직렬 EEPROM 명령과 거래 상태
+  저장 및 HuC1 RAM/IR·독립 ROM/RAM 뱅킹을 보강했습니다. 소프트웨어 자동
+  시험은 추가했지만 희귀 실물 카트리지 검증은 아직 남아 있습니다.
+- 주사선별 WX 숨김/재개와 SGB 패킷 헤더·페이로드 경계 회귀시험을 확대하고,
+  미완성 SGB 호스트 CPU/APU/DSP 범위를 수치로 문서화했습니다.
 - 기존 devkitARM Makefile에서 고정된 BlocksDS 1.22.2 SDK와 Wonderful
   툴체인으로 DS/DSi 개발 환경을 전환하고 컨테이너 CI를 재현 가능하게 구성.
   BlocksDS는 DS 계열용이므로 네이티브 3DS 대상은 libctru/devkitARM 유지
@@ -112,8 +133,10 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   호스트 PCM은 GB 4채널과 분리해 DS 사운드 하드웨어에서 함께 출력
 
 See [language-file documentation](languages/README.md),
-[wireless-link design](docs/features/wireless-link.md), and the
-[v0.5.8-ko release record](docs/releases/v0.5.8-ko.md).
+[wireless-link design](docs/features/wireless-link.md),
+[SGB host coverage](docs/features/sgb-host-coverage.md),
+[rare-cartridge validation](docs/features/rare-cartridge-validation.md), and
+the [v0.5.9-ko release record](docs/releases/v0.5.9-ko.md).
 
 ## User guides / ユーザーガイド / 사용자 가이드
 
@@ -123,26 +146,26 @@ See [language-file documentation](languages/README.md),
 
 ## Release / 릴리스
 
-- [Version 0.5.8-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.8-ko)
-- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.8-ko/gameyob.zip)
-- [Detailed release record](docs/releases/v0.5.8-ko.md)
+- [Version 0.5.9-ko release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.9-ko)
+- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.9-ko/gameyob.zip)
+- [Detailed release record](docs/releases/v0.5.9-ko.md)
 
 The archive contains `gameyob.nds`, `gameyob_dsi.nds`, the English/Japanese/
 Korean guides, editable language examples, checksums, and required license
 notices. It does not contain a game ROM, BIOS, or native 3DSX executable.
 
-Published release archives through `v0.5.8-ko` are preserved in
+Published release archives through `v0.5.9-ko` are preserved in
 [`old_releases`](old_releases). The earlier native 3DSX binary is preserved
-separately in [`backup/3dsx`](backup/3dsx). `v0.5.8-ko` is a DS/DSi-focused
+separately in [`backup/3dsx`](backup/3dsx). `v0.5.9-ko` is a DS/DSi-focused
 release, and its NDS build can also run on Nintendo 3DS in DS mode.
 
 압축 파일에는 `gameyob.nds`, `gameyob_dsi.nds`, 영어·일본어·한국어 가이드,
 편집 가능한 언어 예제, 체크섬 및 필수 라이선스 고지가 들어 있습니다. 게임
 ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
-`v0.5.8-ko`까지 배포한 압축 파일은 [`old_releases`](old_releases)에
+`v0.5.9-ko`까지 배포한 압축 파일은 [`old_releases`](old_releases)에
 보존하고, 이전 네이티브 3DSX 실행 파일은 [`backup/3dsx`](backup/3dsx)에
-별도로 보존합니다. `v0.5.8-ko`는 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
+별도로 보존합니다. `v0.5.9-ko`는 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
 3DS의 DS 모드에서도 실행할 수 있습니다.
 
 ## Known limitations
@@ -158,17 +181,17 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
 ## TODO
 
-The following DS/DSi-focused work remains after `v0.5.8-ko`.
+The following DS/DSi-focused work remains after `v0.5.9-ko`.
 
 1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
-2. Run the renderer, custom-border, sound-routing, cheat, repeated-ROM-load,
-   RTC, and long-session performance matrix on physical DS/DSi hardware and
-   Nintendo 3DS in DS mode.
+2. Run the touch-menu/chooser, renderer, custom-border, sound-routing, cheat,
+   repeated-ROM-load, RTC, MBC7/HuC, and long-session performance matrix on
+   physical DS/DSi hardware and Nintendo 3DS in DS mode.
 3. Compare DS-mode and DSi-mode performance on supported launchers and document
    when `gameyob_dsi.nds` provides a measurable benefit.
-4. Expand the game compatibility matrix, especially games that change WX during
-   a scanline, rare cartridge hardware, and more SGB command cases.
+4. Expand the physically observed game compatibility matrix, especially games
+   that change WX during a scanline and depend on more SGB command cases.
 5. Complete the SGB host runtime introduced in `v0.5.8-ko`: implement the
    remaining 65C816/SPC700 instruction and timing coverage, complete DSP
    envelopes/echo, and composite prototype host OBJ pixels into the final DS
@@ -176,29 +199,33 @@ The following DS/DSi-focused work remains after `v0.5.8-ko`.
    foundations, but they are not a complete host-SNES implementation. Retail
    SGB revisions intentionally treat `OBJ_TRN` as a no-op.
 6. Legacy cartridge type values `0x15`-`0x17` remain undocumented/unknown and
-   are deliberately not guessed or aliased to another mapper. Physical-hardware
-   validation of MBC7 and HuC behavior also remains pending.
+   are deliberately not guessed or aliased. Validate the new MBC7 EEPROM/tilt
+   and HuC1 paths plus existing HuC3 behavior on physical cartridges; MBC7 busy
+   timing and the detailed HuC3 MCU/IR/tone model remain incomplete.
 7. Native 3DSX work is deferred as one grouped task; see
    [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 할 일
 
-`v0.5.8-ko` 이후 남은 DS/DSi 중심 작업입니다.
+`v0.5.9-ko` 이후 남은 DS/DSi 중심 작업입니다.
 
 1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
-2. 실제 DS/DSi 및 Nintendo 3DS의 DS 모드에서 렌더러, 사용자 보더, 사운드
-   라우팅, 치트, ROM 반복 실행, RTC와 장시간 성능 시험표를 수행합니다.
+2. 실제 DS/DSi 및 Nintendo 3DS의 DS 모드에서 터치 메뉴·파일 선택기, 렌더러,
+   사용자 보더, 사운드 라우팅, 치트, ROM 반복 실행, RTC, MBC7/HuC 및 장시간
+   성능 시험표를 수행합니다.
 3. 지원 런처에서 DS 모드와 DSi 모드 성능을 비교하고 `gameyob_dsi.nds`가
    실제 이점을 제공하는 조건을 문서화합니다.
-4. 주사선 도중 WX를 바꾸는 게임, 희귀 카트리지 하드웨어 및 더 많은 SGB
-   명령을 포함하도록 게임별 호환성 목록을 확대합니다.
+4. 주사선 도중 WX를 바꾸거나 더 많은 SGB 명령에 의존하는 게임을 실제
+   기기에서 확인하여 게임별 호환성 목록을 확대합니다.
 5. `v0.5.8-ko`에서 추가한 SGB 호스트 실행 계층을 완성합니다. 남은
    65C816/SPC700 명령과 타이밍, DSP 엔벌로프·에코 및 프로토타입 호스트 OBJ의
    최종 DS 화면 합성이 필요합니다. 현재 경계가 있는 실행과 독립 PCM 경로는
    실제 기반이지만 완전한 호스트 SNES 구현은 아닙니다. 일반 판매 SGB의
    `OBJ_TRN` 무동작은 하드웨어 사양대로 유지합니다.
 6. 기존 카트리지 형식 `0x15`-`0x17`은 동작 사양이 알려지지 않아 다른 매퍼로
-   추측하거나 대체하지 않습니다. MBC7과 HuC 동작의 실기 검증도 남아 있습니다.
+   추측하거나 대체하지 않습니다. 새 MBC7 EEPROM·기울기 및 HuC1 경로와 기존
+   HuC3를 실물 카트리지로 검증해야 하며, MBC7 busy 시간과 상세 HuC3
+   MCU·IR·톤 모델도 남아 있습니다.
 7. 네이티브 3DSX 관련 작업은 하나의 보류 항목으로 묶었습니다. 상세 목록은
    [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md)를 참고하십시오.

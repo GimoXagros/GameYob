@@ -132,9 +132,14 @@ void Gameboy::initMMU()
     HuC3Value = 0;
     HuC3Shift = 0;
 
-    mbc7State = 0;
-    mbc7Buffer = 0;
-    mbc7RA = 0;
+    mbc7RamEnabled2 = false;
+    mbc7LatchReady = true;
+    mbc7LatchedX = 0x8000;
+    mbc7LatchedY = 0x8000;
+    mbc7Eeprom.reset();
+
+    huc1IrMode = false;
+    huc1IrOutput = 0;
 
     memset(camRegisters, 0, sizeof(camRegisters));
     camRegistersEnabled = false;

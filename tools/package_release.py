@@ -27,6 +27,12 @@ def main() -> None:
         help="optional archived native 3DS build",
     )
     parser.add_argument("--output", type=Path, default=Path("gameyob.zip"))
+    parser.add_argument(
+        "--release-notes",
+        type=Path,
+        required=True,
+        help="release record to store as RELEASE_NOTES.md",
+    )
     args = parser.parse_args()
 
     root = Path(__file__).resolve().parents[1]
@@ -37,7 +43,7 @@ def main() -> None:
         "OFL.txt": (root / "assets/fonts/OFL.txt").read_bytes(),
         "STB_LICENSE.txt": (root / "third_party/stb/LICENSE.txt").read_bytes(),
         "THIRD_PARTY_NOTICES.txt": (root / "THIRD_PARTY_NOTICES.txt").read_bytes(),
-        "RELEASE_NOTES.md": (root / "docs/releases/v0.5.8-ko.md").read_bytes(),
+        "RELEASE_NOTES.md": args.release_notes.read_bytes(),
         "gameyob/docs/user-guide.en.md": (root / "docs/guides/user-guide.en.md").read_bytes(),
         "gameyob/docs/user-guide.ja.md": (root / "docs/guides/user-guide.ja.md").read_bytes(),
         "gameyob/docs/user-guide.ko.md": (root / "docs/guides/user-guide.ko.md").read_bytes(),
