@@ -11,6 +11,7 @@
 #include "localization.h"
 #include "text.h"
 #include "filechooser_path.h"
+#include "touch_ui.h"
 #ifdef _3DS
 #include <3ds.h>
 #include "3dsgfx.h"
@@ -241,6 +242,10 @@ char* startFileChooser(const char* extensions[], int numExtensions,
 
     setPrintConsole(menuConsole);
     fileChooserOn = true;
+#ifdef DS
+    TouchUiDebounce chooserTouchDebounce;
+    touchUiBegin(&chooserTouchDebounce);
+#endif
     updateScreens(true); // Screen may need to be enabled
 
     /*
@@ -425,13 +430,75 @@ char* startFileChooser(const char* extensions[], int numExtensions,
                 iprintfColored(CONSOLE_COLOR_WHITE, "%s", tr("Press Y to exit"));
             }
 
+            int visibleRows = numFiles - scrollY;
+            if (visibleRows < 0)
+                visibleRows = 0;
+            if (visibleRows > filesPerPage)
+                visibleRows = filesPerPage;
+
             // Wait for input
             while (true) {
                 system_checkPolls();
                 system_waitForVBlank();
                 inputUpdateVBlank();
 
-                if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
+                bool activateFromTouch = false;
+                bool redrawFromTouch = false;
+                bool exitFromTouch = false;
+#ifdef DS
+                if (touchMenuEnabled) {
+                    int touchX = 0;
+                    int touchY = 0;
+                    const bool touchDown =
+                        system_getTouchPosition(&touchX, &touchY);
+                    if (touchUiPressEdge(&chooserTouchDebounce, touchDown)) {
+                        const TouchUiDecision hit = touchFileChooserHitTest(
+                            touchX, touchY, visibleRows, filesPerPage,
+                            fileSelection - scrollY, canQuit,
+                            scrollY > 0,
+                            scrollY + visibleRows < numFiles);
+                        switch (hit.action) {
+                            case TOUCH_UI_SELECT_ROW:
+                                fileSelection = scrollY + hit.visibleRow;
+                                redrawFromTouch = true;
+                                break;
+                            case TOUCH_UI_ACTIVATE_ROW:
+                                activateFromTouch = true;
+                                break;
+                            case TOUCH_UI_SCROLL_UP: {
+                                const int step = filesPerPage > 1 ?
+                                    filesPerPage - 1 : 1;
+                                fileSelection -= step;
+                                updateScrollUp();
+                                redrawFromTouch = true;
+                                break;
+                            }
+                            case TOUCH_UI_SCROLL_DOWN: {
+                                const int step = filesPerPage > 1 ?
+                                    filesPerPage - 1 : 1;
+                                fileSelection += step;
+                                updateScrollDown();
+                                redrawFromTouch = true;
+                                break;
+                            }
+                            case TOUCH_UI_EXIT:
+                                exitFromTouch = true;
+                                break;
+                            default:
+                                break;
+                        }
+                    }
+                }
+#endif
+                if (redrawFromTouch)
+                    break;
+                if (exitFromTouch) {
+                    retval = NULL;
+                    goto end;
+                }
+
+                if (activateFromTouch ||
+                        keyJustPressed(mapMenuKey(MENU_KEY_A))) {
                     if (numFiles == 0 || fileSelection < 0 ||
                             fileSelection >= numFiles)
                         continue;
@@ -516,6 +583,9 @@ end:
 #endif
     */
     fileChooserOn = false;
+#ifdef DS
+    updateScreens(true);
+#endif
 
     return retval;
 }

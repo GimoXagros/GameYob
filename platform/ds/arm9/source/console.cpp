@@ -107,6 +107,26 @@ void setupUnscaledScreens() {
         consoleInitialized = true;
     }
 
+    // The game uses the main engine and the text UI uses the sub engine.
+    // Temporarily place main on top so the sub engine is always on the physical
+    // touch screen. The persisted Game Screen option is never modified.
+    if (isTouchUiScreenRoutingEnabled()) {
+        lcdMainOnTop();
+        REG_DISPCNT &= ~(3<<16);
+        REG_DISPCNT |= 1<<16;
+        REG_DISPCNT_SUB &= ~(3<<16);
+        REG_DISPCNT_SUB |= 1<<16;
+        if (singleScreenMode) {
+            powerOff(PM_BACKLIGHT_TOP);
+            powerOn(PM_BACKLIGHT_BOTTOM);
+        }
+        else {
+            powerOn(PM_BACKLIGHT_TOP);
+            powerOn(PM_BACKLIGHT_BOTTOM);
+        }
+        return;
+    }
+
     if (gameScreen == 0) {
         if (singleScreenMode && (isMenuOn() || isFileChooserOn()))
             lcdMainOnBottom();

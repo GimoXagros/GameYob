@@ -48,6 +48,12 @@ void forceReleaseKey(int key);
 
 void inputUpdateVBlank();
 
+#ifdef DS
+// Returns raw touch-panel state even when the same physical contact is masked
+// from configurable button mappings until release.
+bool system_getTouchPosition(int* x, int* y);
+#endif
+
 void system_doRumble(bool rumbleVal);
 int system_getMotionSensorX();
 int system_getMotionSensorY();

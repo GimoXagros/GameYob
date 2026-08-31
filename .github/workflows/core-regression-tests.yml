@@ -110,3 +110,10 @@ jobs:
             platform/common/filechooser_path.cpp \
             -o /tmp/filechooser_path_test
           /tmp/filechooser_path_test
+      - name: Build and run touch UI tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/touch_ui_test.cpp platform/common/touch_ui.cpp \
+            -o /tmp/touch_ui_test
+          /tmp/touch_ui_test

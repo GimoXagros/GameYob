@@ -32,6 +32,7 @@
 int keysPressed=0;
 int lastKeysPressed=0;
 int keysForceReleased=0;
+int rawKeysPressed=0;
 int repeatStartTimer=0;
 int repeatTimer=0;
 
@@ -93,7 +94,8 @@ void inputUpdateVBlank() {
     touchRead(&touchData);
 
     lastKeysPressed = keysPressed;
-    keysPressed = keysHeld();
+    rawKeysPressed = keysHeld();
+    keysPressed = rawKeysPressed;
     for (int i=0; i<16; i++) {
         if (keysForceReleased & (1<<i)) {
             if (!(keysPressed & (1<<i)))
@@ -109,6 +111,16 @@ void inputUpdateVBlank() {
             repeatTimer--;
         readKeysLastFrameCounter = dsFrameCounter;
     }
+}
+
+bool system_getTouchPosition(int* x, int* y) {
+    if (!(rawKeysPressed & KEY_TOUCH))
+        return false;
+    if (x)
+        *x = touchData.px;
+    if (y)
+        *y = touchData.py;
+    return true;
 }
 
 void system_doRumble(bool rumbleVal)

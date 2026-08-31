@@ -21,6 +21,7 @@
 #include "config.h"
 #include "localization.h"
 #include "text.h"
+#include "touch_ui.h"
 
 const int MENU_DS   = 1;
 const int MENU_3DS  = 2;
@@ -55,6 +56,11 @@ char printMessage[256];
 int gameScreen=0;
 int singleScreenMode=0;
 int stateNum=0;
+bool touchMenuEnabled = true;
+
+#ifdef DS
+TouchUiDebounce menuTouchDebounce;
+#endif
 
 bool windowDisabled = false;
 bool hblankDisabled = false;
@@ -354,6 +360,16 @@ void setSingleScreenFunc(int value) {
     }
 }
 
+void setTouchMenuFunc(int value) {
+    touchMenuEnabled = value != 0;
+#ifdef DS
+    if (touchMenuEnabled)
+        touchUiBegin(&menuTouchDebounce);
+    if (isMenuOn() || isFileChooserOn())
+        updateScreens();
+#endif
+}
+
 void setScaleModeFunc(int value) {
     scaleMode = value;
     if (!isMenuOn()) {
@@ -552,10 +568,11 @@ SubMenu menuList[] = {
     },
     {
         "Display",
-        7,
+        8,
         {
             {"Game Screen", setScreenFunc, 2, {"Top","Bottom"}, 0, MENU_ALL},
             {"Single Screen", setSingleScreenFunc, 2, {"Off","On"}, 0, MENU_ALL},
+            {"Touch Menu", setTouchMenuFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_DS},
             {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"SGB Borders", sgbBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
@@ -640,6 +657,9 @@ void setMenuDefaults() {
 
 void displayMenu() {
     menuOn = true;
+#ifdef DS
+    touchUiBegin(&menuTouchDebounce);
+#endif
     if (checkRumble())
         enableMenuOption("Rumble Pak");
     else
@@ -662,6 +682,14 @@ void closeMenu() {
 
 bool isMenuOn() {
     return menuOn;
+}
+
+bool isTouchUiScreenRoutingEnabled() {
+#ifdef DS
+    return touchMenuEnabled && (isMenuOn() || isFileChooserOn());
+#else
+    return false;
+#endif
 }
 
 // Some helper functions
@@ -726,6 +754,95 @@ int menuGetNumRows() {
     }
     return count;
 }
+
+void menuChangeCategory(int direction) {
+    const int row = menuGetOptionRow();
+    menu += direction;
+    if (menu < 0)
+        menu = numMenus - 1;
+    else if (menu >= numMenus)
+        menu = 0;
+    menuSetOptionRow(row);
+}
+
+void menuChangeValue(int direction) {
+    if (option < 0)
+        menuChangeCategory(direction);
+    else if (menuList[menu].options[option].numValues != 0 &&
+            menuList[menu].options[option].enabled) {
+        MenuOption& selected = menuList[menu].options[option];
+        const int selection = touchWrappedValue(
+            selected.selection, selected.numValues, direction);
+        selected.selection = selection;
+        selected.function(selection);
+    }
+}
+
+void menuActivateOption() {
+    if (option >= 0 && menuList[menu].options[option].numValues == 0 &&
+            menuList[menu].options[option].enabled)
+        menuList[menu].options[option].function(
+            menuList[menu].options[option].selection);
+}
+
+void closeMenuAndUpdateScreens() {
+    closeMenu();
+    updateScreens();
+}
+
+#ifdef DS
+bool handleMenuTouch() {
+    if (!touchMenuEnabled)
+        return false;
+
+    int x = 0;
+    int y = 0;
+    const bool down = system_getTouchPosition(&x, &y);
+    if (!touchUiPressEdge(&menuTouchDebounce, down))
+        return false;
+
+    const bool selectedHasValues = option >= 0 &&
+        menuList[menu].options[option].numValues != 0;
+    const TouchUiDecision hit = touchMenuHitTest(
+        x, y, menuGetNumRows(), menuGetOptionRow(), selectedHasValues);
+
+    switch (hit.action) {
+        case TOUCH_UI_HEADER_PREVIOUS:
+            menuChangeCategory(-1);
+            break;
+        case TOUCH_UI_HEADER_CLOSE:
+            closeMenuAndUpdateScreens();
+            break;
+        case TOUCH_UI_HEADER_NEXT:
+            menuChangeCategory(1);
+            break;
+        case TOUCH_UI_SELECT_ROW: {
+            bool visible[10] = {};
+            for (int i = 0; i < menuList[menu].numOptions; i++)
+                visible[i] = menuList[menu].options[i].platforms & MENU_BITMASK;
+            const int source = touchVisibleRowToSource(
+                visible, menuList[menu].numOptions, hit.visibleRow);
+            if (source >= 0)
+                option = source;
+            break;
+        }
+        case TOUCH_UI_ACTIVATE_ROW:
+            menuActivateOption();
+            break;
+        case TOUCH_UI_VALUE_LEFT:
+            menuChangeValue(-1);
+            break;
+        case TOUCH_UI_VALUE_RIGHT:
+            menuChangeValue(1);
+            break;
+        case TOUCH_UI_NONE:
+            return false;
+        default:
+            return false;
+    }
+    return true;
+}
+#endif
 
 void redrawMenu() {
     PrintConsole* oldConsole = getPrintConsole();
@@ -840,6 +957,12 @@ void updateMenu() {
     }
 
     bool redraw = false;
+#ifdef DS
+    if (handleMenuTouch()) {
+        redraw = true;
+    }
+    else
+#endif
     // Get input
     if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_UP))) {
         menuCursorUp();
@@ -850,61 +973,28 @@ void updateMenu() {
         redraw = true;
     }
     else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_LEFT))) {
-        if (option == -1) {
-            menu--;
-            if (menu < 0)
-                menu = numMenus-1;
-        }
-        else if (menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
-            int selection = menuList[menu].options[option].selection-1;
-            if (selection < 0)
-                selection = menuList[menu].options[option].numValues-1;
-            menuList[menu].options[option].selection = selection;
-            menuList[menu].options[option].function(selection);
-        }
+        menuChangeValue(-1);
         redraw = true;
     }
     else if (keyPressedAutoRepeat(mapMenuKey(MENU_KEY_RIGHT))) {
-        if (option == -1) {
-            menu++;
-            if (menu >= numMenus)
-                menu = 0;
-        }
-        else if (menuList[menu].options[option].numValues != 0 && menuList[menu].options[option].enabled) {
-            int selection = menuList[menu].options[option].selection+1;
-            if (selection >= menuList[menu].options[option].numValues)
-                selection = 0;
-            menuList[menu].options[option].selection = selection;
-            menuList[menu].options[option].function(selection);
-        }
+        menuChangeValue(1);
         redraw = true;
     }
     else if (keyJustPressed(mapMenuKey(MENU_KEY_A))) {
         forceReleaseKey(mapMenuKey(MENU_KEY_A));
-        if (option >= 0 && menuList[menu].options[option].numValues == 0 && menuList[menu].options[option].enabled) {
-            menuList[menu].options[option].function(menuList[menu].options[option].selection);
-        }
+        menuActivateOption();
         redraw = true;
     }
     else if (keyJustPressed(mapMenuKey(MENU_KEY_B))) {
         forceReleaseKey(mapMenuKey(MENU_KEY_B));
-        closeMenu();
-        updateScreens();
+        closeMenuAndUpdateScreens();
     }
     else if (keyJustPressed(mapMenuKey(MENU_KEY_L))) {
-        int row = menuGetOptionRow();
-        menu--;
-        if (menu < 0)
-            menu = numMenus-1;
-        menuSetOptionRow(row);
+        menuChangeCategory(-1);
         redraw = true;
     }
     else if (keyJustPressed(mapMenuKey(MENU_KEY_R))) {
-        int row = menuGetOptionRow();
-        menu++;
-        if (menu >= numMenus)
-            menu = 0;
-        menuSetOptionRow(row);
+        menuChangeCategory(1);
         redraw = true;
     }
     if (redraw && subMenuUpdateFunc == 0 &&

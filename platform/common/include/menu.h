@@ -17,6 +17,7 @@ extern bool printerEnabled;
 extern int singleScreenMode;
 extern int stateNum;
 extern int gameScreen;
+extern bool touchMenuEnabled;
 
 extern bool hblankDisabled;
 extern bool windowDisabled;
@@ -35,6 +36,7 @@ void setMenuDefaults();
 void displayMenu();
 void closeMenu(); // updateScreens may need to be called after this
 bool isMenuOn();
+bool isTouchUiScreenRoutingEnabled();
 
 void redrawMenu();
 void updateMenu();
