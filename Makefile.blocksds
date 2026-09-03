@@ -44,9 +44,9 @@ $(DS_ROM): arm9 arm7
 		-7 $(ARM7_ELF) -9 $(ARM9_ELF) \
 		-b $(GAME_ICON) "$(GAME_TITLE);$(GAME_SUBTITLE);$(GAME_AUTHOR)"
 
-# Keep the established DSi-only title header while using the same portable
-# ARM7/ARM9 payload. This makes the regular build usable on DS-family systems
-# and keeps an explicit DSi launcher target for existing users.
+# Both outputs are DS+DSi enhanced (unit code 0x02), with the same ARM7/ARM9
+# and TWL payload. Keep the established GYOB title ID for DSi launchers;
+# the filename/title ID does not itself force DSi execution mode.
 $(DSI_ROM): arm9 arm7
 	@echo "  NDSTOOL $@"
 	$(V)$(BLOCKSDS)/tools/ndstool/ndstool -c $@ \

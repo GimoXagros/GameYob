@@ -33,6 +33,17 @@ jobs:
             /tmp/sgb-baseline "$probe" || failed=1
           done
           exit "$failed"
+      - name: Regenerate and verify resources and document links
+        run: |
+          mkdir -p "$RUNNER_TEMP/galmuri"
+          for font in Galmuri7 Galmuri9; do
+            curl --fail --location --retry 3 \
+              "https://raw.githubusercontent.com/quiple/galmuri/71e1cacf1437a11220307120e63e30bc275312d4/dist/$font.bdf" \
+              -o "$RUNNER_TEMP/galmuri/$font.bdf"
+          done
+          python3 tools/check_repository.py --galmuri-dir "$RUNNER_TEMP/galmuri"
+          python3 tests/package_release_test.py
+          python3 -m py_compile tools/*.py tests/package_release_test.py
   ds:
     runs-on: ubuntu-latest
     steps:
@@ -64,6 +75,8 @@ jobs:
               cmp preflight-artifacts/first/gameyob_dsi.nds preflight-artifacts/second/gameyob_dsi.nds
               sha256sum preflight-artifacts/first/*.nds
             '
+      - name: Inspect final binaries and embedded assets
+        run: python3 tools/check_repository.py --build-dir preflight-artifacts/first
       - uses: actions/upload-artifact@v4
         if: always()
         with:
