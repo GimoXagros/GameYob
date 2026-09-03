@@ -79,6 +79,13 @@ jobs:
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
             -Iplatform/common/include \
+            tests/sgb_host_baseline_test.cpp platform/common/sgb_host.cpp \
+            -o /tmp/sgb_host_baseline_test
+          /tmp/sgb_host_baseline_test
+      - name: Build and run SGB border decoder tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
             tests/sgbborder_test.cpp platform/common/sgbborder.cpp \
             -o /tmp/sgbborder_test
           /tmp/sgbborder_test
