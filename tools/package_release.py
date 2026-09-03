@@ -16,6 +16,14 @@ def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 
 
+def packaged_guide(path: Path) -> bytes:
+    """Resolve repository-relative links for gameyob/docs in the ZIP."""
+    text = path.read_text(encoding="utf-8")
+    text = text.replace("(../../languages/README.md)", "(../languages/README.md)")
+    text = text.replace("(../../backup/3dsx", "(https://github.com/GimoXagros/GameYob/tree/master/backup/3dsx")
+    return text.encode("utf-8")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--nds", type=Path, required=True)
@@ -44,9 +52,9 @@ def main() -> None:
         "STB_LICENSE.txt": (root / "third_party/stb/LICENSE.txt").read_bytes(),
         "THIRD_PARTY_NOTICES.txt": (root / "THIRD_PARTY_NOTICES.txt").read_bytes(),
         "RELEASE_NOTES.md": args.release_notes.read_bytes(),
-        "gameyob/docs/user-guide.en.md": (root / "docs/guides/user-guide.en.md").read_bytes(),
-        "gameyob/docs/user-guide.ja.md": (root / "docs/guides/user-guide.ja.md").read_bytes(),
-        "gameyob/docs/user-guide.ko.md": (root / "docs/guides/user-guide.ko.md").read_bytes(),
+        "gameyob/docs/user-guide.en.md": packaged_guide(root / "docs/guides/user-guide.en.md"),
+        "gameyob/docs/user-guide.ja.md": packaged_guide(root / "docs/guides/user-guide.ja.md"),
+        "gameyob/docs/user-guide.ko.md": packaged_guide(root / "docs/guides/user-guide.ko.md"),
         "gameyob/languages/README.md": (root / "languages/README.md").read_bytes(),
     }
     if args.three_dsx is not None:

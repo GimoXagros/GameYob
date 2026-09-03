@@ -248,10 +248,13 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         setNz16(cpu.a);
       break;
     }
-    case 0x4c:
-      cpu.pc = fetch();
-      cpu.pc |= fetch() << 8;
+    case 0x4c: {
+      // Fetch both operand bytes before replacing the instruction pointer.
+      uint16_t target = fetch();
+      target |= uint16_t(fetch()) << 8;
+      cpu.pc = target;
       break;
+    }
     case 0x5c: {
       uint32_t a = fetch();
       a |= uint32_t(fetch()) << 8;
@@ -642,9 +645,11 @@ int SgbHostApu::run(int budget) {
       cpu.a--;
       nz(cpu.a);
       break;
-    case 0x2f:
-      cpu.pc = uint16_t(cpu.pc + (int8_t)fetch());
+    case 0x2f: {
+      const int8_t offset = (int8_t)fetch();
+      cpu.pc = uint16_t(cpu.pc + offset);
       break;
+    }
     case 0xd0: {
       int8_t o = (int8_t)fetch();
       if (!(cpu.psw & 2))
@@ -719,7 +724,14 @@ int16_t SgbHostApu::decodeBrrSample(int v) {
   if (sample & 8)
     sample -= 16;
   int shift = header >> 4;
-  sample = shift <= 12 ? (sample << shift) >> 1 : (sample < 0 ? -2048 : 0);
+  if (shift <= 12) {
+    // Multiplication is defined for negative nibbles; division explicitly
+    // preserves arithmetic-shift rounding for negative odd values.
+    const int scaled = sample * (1 << shift);
+    sample = scaled / 2 - (scaled < 0 && scaled % 2 != 0 ? 1 : 0);
+  } else {
+    sample = sample < 0 ? -2048 : 0;
+  }
   switch ((header >> 2) & 3) {
   case 1:
     sample += s.previous1 * 15 / 16;
