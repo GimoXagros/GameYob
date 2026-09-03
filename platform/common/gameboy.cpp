@@ -13,6 +13,7 @@
 #include "error.h"
 #include "gbprinter.h"
 #include "gameboy.h"
+#include "state_validation.h"
 #include "gbgfx.h"
 #include "soundengine.h"
 #include "timer.h"
@@ -1142,7 +1143,7 @@ int Gameboy::loadState(int stateNum) {
     StateStruct state;
     char statename[MAX_FILENAME_LEN];
     char legacyStatename[MAX_FILENAME_LEN];
-    int version;
+    int version = 0;
 
     memset(&state, 0, sizeof(StateStruct));
 
@@ -1170,13 +1171,40 @@ int Gameboy::loadState(int stateNum) {
         return 1;
     }
 
-    file_read(&version, sizeof(int), 1, inFile);
-
-    if (version == 0 || version > STATE_VERSION) {
+    const int stateFileSize = file_getSize(inFile);
+    if (!statePayloadFits(stateFileSize, 0, sizeof(version))) {
         printMenuMessage("State is incompatible.");
         file_close(inFile);
         return 1;
     }
+    file_read(&version, sizeof(int), 1, inFile);
+
+    if (!stateVersionSupported(version, STATE_VERSION)) {
+        printMenuMessage("State is incompatible.");
+        file_close(inFile);
+        return 1;
+    }
+
+    // Inspect the fixed payload before changing the running game's RAM.
+    // Old states with RAM header 0x04 used four banks; retain that layout.
+    const size_t stateRamBytes = 0x2000u *
+        (version <= 4 && romFile->getRamSize() == 0x04 ? 4 : getNumSramBanks());
+    const size_t stateOffset = sizeof(version) + sizeof(bgPaletteData) +
+        sizeof(sprPaletteData) + sizeof(vram) + sizeof(wram) + 0x200 + stateRamBytes;
+    if (!statePayloadFits(stateFileSize, stateOffset, sizeof(state))) {
+        printMenuMessage("State is incompatible.");
+        file_close(inFile);
+        return 1;
+    }
+    file_seek(inFile, (int)stateOffset, SEEK_SET);
+    file_read(&state, 1, sizeof(state), inFile);
+    if (file_tell(inFile) != (int)(stateOffset + sizeof(state)) ||
+            !stateMemoryBanksValid(state.wramBank, state.vramBank)) {
+        printMenuMessage("State is incompatible.");
+        file_close(inFile);
+        return 1;
+    }
+    file_seek(inFile, sizeof(version), SEEK_SET);
 
     file_read((char*)bgPaletteData, 1, sizeof(bgPaletteData), inFile);
     file_read((char*)sprPaletteData, 1, sizeof(sprPaletteData), inFile);

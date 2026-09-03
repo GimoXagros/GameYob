@@ -47,7 +47,13 @@ jobs:
             tests/gb_noise_test.cpp platform/common/gb_noise.cpp \
             -o /tmp/gb_noise_test
           /tmp/gb_noise_test
-      - name: Build and run RTC tests
+      - name: Build and run save-state validation tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include tests/state_validation_test.cpp \
+            -o /tmp/state_validation_test
+          /tmp/state_validation_test
+      - name: Build and run RTC clock tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
             -Iplatform/common/include \
