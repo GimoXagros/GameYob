@@ -75,7 +75,7 @@ jobs:
             tests/sgb_host_test.cpp platform/common/sgb_host.cpp \
             -o /tmp/sgb_host_test
           /tmp/sgb_host_test
-      - name: Build and run SGB border tests
+      - name: Build and run SGB baseline regression tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
             -Iplatform/common/include \

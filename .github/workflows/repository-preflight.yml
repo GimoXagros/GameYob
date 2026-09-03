@@ -21,6 +21,18 @@ jobs:
       - name: Undefined behavior checks
         if: always()
         run: python3 tools/run_host_tests.py --sanitize
+      - name: Isolated SGB regression cases
+        if: always()
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -fsanitize=undefined -fno-sanitize-recover=all \
+            -Iplatform/common/include tests/sgb_host_baseline_test.cpp \
+            platform/common/sgb_host.cpp -o /tmp/sgb-baseline
+          failed=0
+          for probe in jmp bra brr; do
+            echo "SGB probe: $probe"
+            /tmp/sgb-baseline "$probe" || failed=1
+          done
+          exit "$failed"
   ds:
     runs-on: ubuntu-latest
     steps:
@@ -45,8 +57,8 @@ jobs:
                 arm-none-eabi-size -A build/arm7.elf build/arm9.elf | tee preflight-artifacts/$pass/sections.txt
                 arm-none-eabi-readelf -l build/arm7.elf build/arm9.elf | tee preflight-artifacts/$pass/segments.txt
                 arm-none-eabi-nm -n build/arm9.elf > preflight-artifacts/$pass/arm9-symbols.txt
-                /opt/blocksds/core/tools/ndstool/ndstool -i platform/ds/gameyob.nds > preflight-artifacts/$pass/nds-header.txt
-                /opt/blocksds/core/tools/ndstool/ndstool -i platform/ds/gameyob_dsi.nds > preflight-artifacts/$pass/dsi-header.txt
+                "$BLOCKSDS/tools/ndstool/ndstool" -i platform/ds/gameyob.nds > preflight-artifacts/$pass/nds-header.txt
+                "$BLOCKSDS/tools/ndstool/ndstool" -i platform/ds/gameyob_dsi.nds > preflight-artifacts/$pass/dsi-header.txt
               done
               cmp preflight-artifacts/first/gameyob.nds preflight-artifacts/second/gameyob.nds
               cmp preflight-artifacts/first/gameyob_dsi.nds preflight-artifacts/second/gameyob_dsi.nds
