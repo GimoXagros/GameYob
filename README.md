@@ -170,16 +170,33 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
 ## Known limitations
 
+- Korean Pokemon Silver: a user reports a model-warning screen with **Detect
+  GBA On**, and normal startup with it Off. Exact ROM/build/BIOS/state matching
+  and root cause are unverified; do not describe this as fixed or a hardware
+  restriction. Detect GBA is an identification flag, not a performance mode.
+
 - Native 3DSX development, performance work, scaling, and LAN validation are
   deferred together. See [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 알려진 제한 사항
+
+- 한국어판 포켓몬 은: **GBA 감지 On**에서 기종 경고가 나오고 Off에서는 정상
+  실행된다는 사용자 보고가 있습니다. 정확한 ROM·빌드·BIOS·상태 파일 대조와
+  원인 확인은 아직 없으며 수정 완료나 실제 하드웨어 제한으로 단정하지 않습니다.
+  GBA 감지는 성능 향상 모드가 아니라 기종 식별 플래그입니다.
 
 - 네이티브 3DSX 개발, 성능 개선, 화면 확대 및 LAN 검증은 하나의 후속 작업으로
   보류했습니다. 상세 목록은
   [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md)를 참고하십시오.
 
 ## TODO
+
+Build/test commands and maintenance boundaries: [BUILDING.md](BUILDING.md).
+Items 1-4 are validation/measurement work (failures can require fixes); item 5
+is partial implementation, item 6 mixes implementation/physical validation and
+unknown specifications, and item 7 is deferred. Existing user-approved RTC,
+ROM reload and border behavior is retained as evidence, not revoked by a new
+regression checklist. The Detect GBA report above remains an investigation.
 
 The following DS/DSi-focused work remains after `v0.5.9-ko`.
 
@@ -206,6 +223,12 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
    [`backup/3dsx/TODO.md`](backup/3dsx/TODO.md).
 
 ## 할 일
+
+빌드·검사 명령과 정비 범위는 [BUILDING.md](BUILDING.md)를 참고하십시오.
+1~4번은 검증·측정(실패 시 수정), 5번은 부분 구현, 6번은 구현·실물 검증·사양 불명,
+7번은 보류 항목입니다. 기존 사용자 승인 RTC·ROM 재실행·보더 결과를 취소하는
+것이 아니라 최신 변경 이후 회귀검증이 필요하다는 뜻입니다. 위 GBA 감지 보고는
+원인 조사 단계입니다.
 
 `v0.5.9-ko` 이후 남은 DS/DSi 중심 작업입니다.
 

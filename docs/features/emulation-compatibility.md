@@ -36,9 +36,16 @@ recorded so a lawful local copy can be matched to the test result.
 
 ## Still pending
 
+- User-reported Korean Pokemon Silver model-warning screen with Detect GBA On;
+  Off boots normally. Exact ROM/build/BIOS/suspend-state combination and root
+  cause are not established. This is not attributed to DSpico or GBARunner3.
+- Real legacy `.ys*` fixture validation and malformed variable-tail/state
+  fuzzing: the maintenance guard covers version/common-prefix bounds and
+  WRAM/VRAM bank indexes, not full transactional validation of every state field.
+
 - real DS/DSi/3DS-in-DS-mode wireless-link tests;
-- real Nintendo 3DS regression pass for the renderer and sound changes;
-- native 3DS-to-3DS LAN link testing and a native-3DS/`.nds` bridge;
+- deferred native Nintendo 3DS regression pass for renderer/sound changes;
+- deferred native 3DS-to-3DS LAN link testing and a native-3DS/`.nds` bridge;
 - a larger per-game compatibility matrix, especially commercial games that change WX
   during a scanline or depend on SNES-side SGB audio.
 - complete SGB host 65C816/SPC700/DSP timing and final prototype OBJ composition;

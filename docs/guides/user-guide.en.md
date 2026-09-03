@@ -44,7 +44,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 - **Touch Menu** enables or disables touch-driven menu and file selection. It is On by default.
 - **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP.
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS and DSi. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
-- **GBC Mode** chooses GB, automatic, or forced GBC behavior. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** exposes the GBA-detection flag used by a small number of games.
+- **GBC Mode** offers Off, If Needed (CGB-only header `0xC0`), or On (CGB-compatible headers `0x80`/`0xC0`); On does not force monochrome-only headers into CGB mode. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** is a boot identification flag, not a speed option. Reset/reload after changing these modes.
 
 ## 7. Sound and debug options
 
@@ -78,3 +78,17 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - DS raw NiFi does not use the Internet connection. Keep devices nearby and use matching Host/Client and link-type settings.
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown. MBC7 EEPROM/tilt and HuC1 banking/IR selection have automated coverage, but physical MBC7/HuC cartridge validation remains pending.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.
+
+## 11. Unreleased maintenance notes
+
+Both NDS files have DS+DSi unit code `0x02` and identical program payloads;
+`gameyob_dsi.nds` has the `GYOB` title ID. The launcher chooses the actual mode.
+Post-v0.5.9 maintenance retains state version 8 and adds common-prefix length
+and WRAM/VRAM bank checks. It is not full validation of arbitrary corrupt state
+tails; keep backups, and report rejected legacy states without deleting them.
+The published v0.5.9 ZIP has not been replaced by this maintenance source.
+
+Korean Pokemon Silver has a user-reported model-warning screen with Detect
+GBA On and normal startup with it Off. Use Off as a workaround; exact ROM,
+BIOS and suspend-state reproduction is pending. No ROM patch is recommended
+and no fix or actual GBA hardware incompatibility is claimed.

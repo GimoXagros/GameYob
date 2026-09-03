@@ -16,3 +16,57 @@ Full text: third_party/stb/LICENSE.txt
 
 No game ROM, cartridge dump, or BIOS is included in the source-generated
 assets or release archive.
+
+Inherited source notices (repository preflight, 2026-09-03)
+These are file-specific notices, not a relicensing of all files under MIT.
+
+Legacy libfat headers: platform/ds/include/libfat/
+Copyright (c) 2006 Michael "Chishm" Chisholm
+Copyright (c) 2008 Sven Peter <svpe@gmx.net> (lock.h)
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation and/or
+   other materials provided with the distribution.
+3. The name of the author may not be used to endorse or promote products derived
+   from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
+WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE AUTHOR BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+ARM7 startup: platform/ds/arm7/source/main.c (modified default ARM7 core)
+Copyright (C) 2005-2010 Michael Noland, Jason Rogers, Dave Murphy
+Camera I2C: platform/ds/arm7/source/aptina_i2c.c
+Copyright (C) 2011 Dave Murphy; modified by Pk11, 2020
+Both retain their full zlib-style notices in source, including the requirement
+to identify modified sources and not remove the original notice.
+
+Camera/fifo code: platform/ds/arm9/source/camera.c,
+platform/ds/arm9/include/camera.h, platform/ds/include/fifo_vars.h
+The existing headers identify original code as public domain (Unlicense).
+
+Build recipes: Makefile.blocksds, Makefile.blocksds.arm7, Makefile.blocksds.arm9
+Retain their existing SPDX-License-Identifier: GPL-3.0-or-later notices.
+License text: https://www.gnu.org/licenses/gpl-3.0.txt
+These recipes are source files, not part of the binary release ZIP.
+
+Legacy SDL-only Blip_Buffer 0.4.0: platform/sdl/Blip_Buffer-0.4.0/
+Author: Shay Green. The original source identifies LGPL licensing.
+Not linked into the active BlocksDS DS/DSi targets; retain its bundled notices.
+
+Outstanding provenance review, not a new license grant:
+platform/ds/arm9/source/3in1.cpp and platform/ds/arm9/include/3in1.h retain
+the original aladdin / EZFlash Group copyright attribution. No separate
+license grant for that inherited fragment was identified in this audit.
+Resolve its provenance before claiming a complete redistribution-license audit.
+Existing public releases and original source notices were not rewritten.

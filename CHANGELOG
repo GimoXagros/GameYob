@@ -1,3 +1,21 @@
+Unreleased repository maintenance (2026-09-03; no version/tag change):
+
+- Corrected existing SGB host JMP operand fetch, SPC700 BRA sequencing and
+  signed BRR scaling; added isolated regressions and UBSan checks. No opcode
+  or hardware timing feature was added and the SGB host remains incomplete.
+- Reject empty/negative-version/truncated common state prefixes and invalid
+  WRAM/VRAM bank indexes before applying them; retain version 8 and legacy tails.
+- Corrected EN/JA/KO guide links when packaging. Published ZIPs are unchanged.
+- Added repeatable host/resource/header/package checks, dual clean-build
+  evidence and build documentation; clarified DS/TWL headers and Detect GBA.
+
+미배포 저장소 정비 (2026-09-03; 버전/태그 변경 없음):
+
+- 기존 SGB 호스트 JMP/BRA 및 BRR 음수 시프트 오류를 수정하고 회귀시험을 추가.
+- 상태 파일 공통 구간 길이와 WRAM/VRAM 뱅크 범위를 적용 전에 검사.
+- 세 언어의 패키지 내 가이드 링크와 빌드·검증 문서를 정비. 과거 배포물은 보존.
+- GBA 감지 문제는 사용자 보고·원인 미확인으로 기록하며 해결됐다고 주장하지 않음.
+
 Version 0.5.9-ko:
 
 - Added default-on DS/DSi Touch Menu controls for menus and the ROM/File

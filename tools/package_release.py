@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Create the deterministic, license-complete GameYob release archive."""
+"""Create a deterministic GameYob archive with accompanying license notices."""
 
 from __future__ import annotations
 
