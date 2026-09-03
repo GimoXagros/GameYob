@@ -1,0 +1,60 @@
+name: Repository preflight
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["chore/repository-preflight-*"]
+  pull_request:
+    paths:
+      - "tools/run_host_tests.py"
+      - ".github/workflows/repository-preflight.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  host:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 tools/run_host_tests.py
+      - name: Undefined behavior checks
+        if: always()
+        run: python3 tools/run_host_tests.py --sanitize
+  ds:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Two clean builds with binary and linker evidence
+        run: |
+          mkdir -p preflight-artifacts
+          docker run --rm \
+            --volume "$GITHUB_WORKSPACE:/workspace" --workdir /workspace \
+            skylyrac/blocksds:slim-v1.22.2@sha256:a073c57ffd340542a6e09d14616dd925d219bc534399dbdc73d2abaa04c1628e \
+            bash -euo pipefail -c '
+              git config --global --add safe.directory /workspace
+              export PATH="$(dirname "$(find /opt/wonderful -name arm-none-eabi-size -type f | head -1)"):$PATH"
+              arm-none-eabi-g++ --version | tee preflight-artifacts/toolchain.txt
+              for pass in first second; do
+                make -f Makefile.blocksds clean
+                make -f Makefile.blocksds 2>&1 | tee preflight-artifacts/build-$pass.log
+                mkdir -p preflight-artifacts/$pass
+                cp platform/ds/gameyob.nds platform/ds/gameyob_dsi.nds preflight-artifacts/$pass/
+                cp build/arm7.elf build/arm9.elf preflight-artifacts/$pass/
+                find build -name "*.map" -exec cp --parents {} preflight-artifacts/$pass/ \;
+                arm-none-eabi-size -A build/arm7.elf build/arm9.elf | tee preflight-artifacts/$pass/sections.txt
+                arm-none-eabi-readelf -l build/arm7.elf build/arm9.elf | tee preflight-artifacts/$pass/segments.txt
+                arm-none-eabi-nm -n build/arm9.elf > preflight-artifacts/$pass/arm9-symbols.txt
+                /opt/blocksds/core/tools/ndstool/ndstool -i platform/ds/gameyob.nds > preflight-artifacts/$pass/nds-header.txt
+                /opt/blocksds/core/tools/ndstool/ndstool -i platform/ds/gameyob_dsi.nds > preflight-artifacts/$pass/dsi-header.txt
+              done
+              cmp preflight-artifacts/first/gameyob.nds preflight-artifacts/second/gameyob.nds
+              cmp preflight-artifacts/first/gameyob_dsi.nds preflight-artifacts/second/gameyob_dsi.nds
+              sha256sum preflight-artifacts/first/*.nds
+            '
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: preflight-${{ github.sha }}
+          path: preflight-artifacts/
+          if-no-files-found: error
