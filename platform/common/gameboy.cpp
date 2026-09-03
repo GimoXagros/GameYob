@@ -1191,14 +1191,16 @@ int Gameboy::loadState(int stateNum) {
         (version <= 4 && romFile->getRamSize() == 0x04 ? 4 : getNumSramBanks());
     const size_t stateOffset = sizeof(version) + sizeof(bgPaletteData) +
         sizeof(sprPaletteData) + sizeof(vram) + sizeof(wram) + 0x200 + stateRamBytes;
-    if (!statePayloadFits(stateFileSize, stateOffset, sizeof(state))) {
+    // Only require the common prefix: old versions can have shorter tails.
+    const size_t statePrefixBytes = offsetof(StateStruct, memoryModel);
+    if (!statePayloadFits(stateFileSize, stateOffset, statePrefixBytes)) {
         printMenuMessage("State is incompatible.");
         file_close(inFile);
         return 1;
     }
     file_seek(inFile, (int)stateOffset, SEEK_SET);
-    file_read(&state, 1, sizeof(state), inFile);
-    if (file_tell(inFile) != (int)(stateOffset + sizeof(state)) ||
+    file_read(&state, 1, statePrefixBytes, inFile);
+    if (file_tell(inFile) != (int)(stateOffset + statePrefixBytes) ||
             !stateMemoryBanksValid(state.wramBank, state.vramBank)) {
         printMenuMessage("State is incompatible.");
         file_close(inFile);
