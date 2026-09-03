@@ -192,6 +192,7 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 ## TODO
 
 Build/test commands and maintenance boundaries: [BUILDING.md](BUILDING.md).
+Evidence and exclusions: [2026-09-03 preflight report](docs/maintenance/repository-preflight-20260903.md).
 Items 1-4 are validation/measurement work (failures can require fixes); item 5
 is partial implementation, item 6 mixes implementation/physical validation and
 unknown specifications, and item 7 is deferred. Existing user-approved RTC,
@@ -225,6 +226,7 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
 ## 할 일
 
 빌드·검사 명령과 정비 범위는 [BUILDING.md](BUILDING.md)를 참고하십시오.
+검사 근거와 미실행 범위는 [2026-09-03 정비 보고서](docs/maintenance/repository-preflight-20260903.md)에 기록했습니다.
 1~4번은 검증·측정(실패 시 수정), 5번은 부분 구현, 6번은 구현·실물 검증·사양 불명,
 7번은 보류 항목입니다. 기존 사용자 승인 RTC·ROM 재실행·보더 결과를 취소하는
 것이 아니라 최신 변경 이후 회귀검증이 필요하다는 뜻입니다. 위 GBA 감지 보고는
