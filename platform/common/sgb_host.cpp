@@ -177,6 +177,24 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     address |= uint32_t(fetch()) << 16;
     return (address + index) & 0xffffff;
   };
+  auto directIndirect = [&](uint16_t index, uint16_t postIndex) -> uint32_t {
+    const uint16_t pointer = read16Bank(host, direct(index));
+    return (uint32_t(cpu.dbr) << 16) | uint16_t(pointer + postIndex);
+  };
+  auto directIndirectLong = [&](uint16_t index) -> uint32_t {
+    const uint16_t pointerAddress = direct(0);
+    uint32_t address = host.read8(pointerAddress);
+    address |= uint32_t(host.read8(uint16_t(pointerAddress + 1))) << 8;
+    address |= uint32_t(host.read8(uint16_t(pointerAddress + 2))) << 16;
+    return (address + index) & 0xffffff;
+  };
+  auto stackRelative = [&]() -> uint32_t {
+    return uint16_t(cpu.sp + fetch());
+  };
+  auto stackRelativeIndirect = [&](uint16_t index) -> uint32_t {
+    const uint16_t pointer = read16Bank(host, stackRelative());
+    return (uint32_t(cpu.dbr) << 16) | uint16_t(pointer + index);
+  };
   auto loadA = [&](uint32_t address, bool bankWrap) {
     const uint16_t value = m8 ? host.read8(address) :
         (bankWrap ? read16Bank(host, address) : read16(host, address));
@@ -463,11 +481,25 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       break;
     }
     case 0xa5: loadA(direct(0), true); break;
+    case 0xa1: loadA(directIndirect(cpu.x, 0), true); break;
+    case 0xa3: loadA(stackRelative(), true); break;
+    case 0xa7: loadA(directIndirectLong(0), false); break;
+    case 0xb1: loadA(directIndirect(0, cpu.y), true); break;
+    case 0xb2: loadA(directIndirect(0, 0), true); break;
+    case 0xb3: loadA(stackRelativeIndirect(cpu.y), true); break;
+    case 0xb7: loadA(directIndirectLong(cpu.y), false); break;
     case 0xb5: loadA(direct(cpu.x), true); break;
     case 0xbd: loadA(absolute(cpu.x), true); break;
     case 0xb9: loadA(absolute(cpu.y), true); break;
     case 0xbf: loadA(absoluteLong(cpu.x), false); break;
     case 0x85: storeA(direct(0), true); break;
+    case 0x81: storeA(directIndirect(cpu.x, 0), true); break;
+    case 0x83: storeA(stackRelative(), true); break;
+    case 0x87: storeA(directIndirectLong(0), false); break;
+    case 0x91: storeA(directIndirect(0, cpu.y), true); break;
+    case 0x92: storeA(directIndirect(0, 0), true); break;
+    case 0x93: storeA(stackRelativeIndirect(cpu.y), true); break;
+    case 0x97: storeA(directIndirectLong(cpu.y), false); break;
     case 0x95: storeA(direct(cpu.x), true); break;
     case 0x9d: storeA(absolute(cpu.x), true); break;
     case 0x99: storeA(absolute(cpu.y), true); break;
