@@ -384,6 +384,99 @@ static void testIndirectLoadStoreAddressing() {
   assert(longBoundary.cpu.state().a == 0x1234);
 }
 
+static uint16_t prepareMemoryOperand(SgbHost &host, int mode,
+                                     uint8_t code[4], size_t &length) {
+  code[1] = 0x20;
+  code[2] = 0x02;
+  code[3] = 0x7e;
+  length = 2;
+  switch (mode) {
+  case 0: return prepareIndirectAddress(host, 0); // (dp,X)
+  case 1: return prepareIndirectAddress(host, 1); // stack relative
+  case 2:
+    host.cpu.state().d = 0x0100;
+    return 0x0120;
+  case 3: return prepareIndirectAddress(host, 2); // [dp]
+  case 4:
+    host.cpu.state().dbr = 0x7e;
+    length = 3;
+    return 0x0220;
+  case 5:
+    length = 4;
+    return 0x0220;
+  case 6: return prepareIndirectAddress(host, 3); // (dp),Y
+  case 7: return prepareIndirectAddress(host, 4); // (dp)
+  case 8: return prepareIndirectAddress(host, 5); // (stack,S),Y
+  case 9:
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().x = 2;
+    return 0x0122;
+  case 10: return prepareIndirectAddress(host, 6); // [dp],Y
+  case 11:
+    host.cpu.state().dbr = 0x7e;
+    host.cpu.state().y = 2;
+    length = 3;
+    return 0x0222;
+  case 12:
+    host.cpu.state().dbr = 0x7e;
+    host.cpu.state().x = 2;
+    length = 3;
+    return 0x0222;
+  default:
+    host.cpu.state().x = 2;
+    length = 4;
+    return 0x0222;
+  }
+}
+
+static void testMemoryArithmeticAddressing() {
+  const uint8_t bases[] = {0x00, 0x20, 0x40, 0x60, 0xc0, 0xe0};
+  const uint8_t offsets[] = {0x01, 0x03, 0x05, 0x07, 0x0d, 0x0f, 0x11,
+                             0x12, 0x13, 0x15, 0x17, 0x19, 0x1d, 0x1f};
+  for (unsigned group = 0; group < sizeof(bases); ++group) {
+    for (unsigned mode = 0; mode < sizeof(offsets); ++mode) {
+      SgbHost host;
+      uint8_t code[4] = {uint8_t(bases[group] + offsets[mode]), 0, 0, 0};
+      size_t length = 0;
+      const uint16_t address = prepareMemoryOperand(host, mode, code, length);
+      uint8_t left = 0;
+      uint8_t right = 0;
+      uint8_t expected = 0;
+      switch (group) {
+      case 0: left = 0xf0; right = 0x0f; expected = 0xff; break; // ORA
+      case 1: left = 0xf0; right = 0x0f; expected = 0x00; break; // AND
+      case 2: left = 0xaa; right = 0xff; expected = 0x55; break; // EOR
+      case 3: left = 1; right = 2; expected = 3; break; // ADC
+      case 4: left = 5; right = 5; expected = 5; break; // CMP
+      default: left = 5; right = 2; expected = 3; break; // SBC
+      }
+      host.cpu.state().a = 0x5a00 | left;
+      host.cpu.state().p = (host.cpu.state().p & ~(C | 0x08)) |
+          (group == 5 ? C : 0);
+      host.wram[address] = right;
+      instruction(host, code, length);
+      assert((host.cpu.state().a & 0xff) == expected);
+      assert((host.cpu.state().a >> 8) == 0x5a);
+      if (group == 1)
+        assert(host.cpu.state().p & Z);
+      if (group == 4)
+        assert((host.cpu.state().p & (C | Z)) == (C | Z));
+      if (group == 5)
+        assert(host.cpu.state().p & C);
+    }
+  }
+
+  SgbHost wide;
+  native16(wide);
+  wide.cpu.state().a = 0x0ff0;
+  wide.cpu.state().dbr = 0x7e;
+  wide.wram[0x02ff] = 0xff;
+  wide.wram[0x0300] = 0x00;
+  const uint8_t and16[] = {0x2d, 0xff, 0x02};
+  instruction(wide, and16, sizeof(and16));
+  assert(wide.cpu.state().a == 0x00f0);
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -393,5 +486,6 @@ int main() {
   testMemoryShiftAndUpdateFamilies();
   testMemoryBitFamilies();
   testIndirectLoadStoreAddressing();
+  testMemoryArithmeticAddressing();
   puts("65C816 instruction vectors passed");
 }
