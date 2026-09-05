@@ -84,15 +84,19 @@ tests therefore remain explicitly pending.
 - Post-expansion core regression run `33941557822` at
   `3babf6e2438ff7ec2afb545ea2c648ea4f785a52`: success, including all 256
   dispatch cases and emulation/native NMI stack vectors.
-- Resulting code-build NDS sizes: 718,336 bytes each (+8,192 bytes from
-  baseline). SHA-256: `31aa9b21aa011223fe7ff8b930fd14ab0397345de37bfa78b3270a3204ba78dd`
+- Final code-build NDS sizes: 728,576 bytes each (+18,432 bytes from
+  baseline). SHA-256: `983435c9a3a2f977b6af5ed7504ee62df54418a20488ef0ae777247ca94531f9`
   for `gameyob.nds`, and
-  `b176c1e0952e1c4431c7813ce23506e13d28e70429a18a8d5bf995d6b8583389`
+  `1eacf533a1c0970a6014b81ac5020cbc3cc8c399a7603aa9dd22bc361f3dd22f`
   for `gameyob_dsi.nds`.
-- Repository preflight now runs normal, UBSan and AddressSanitizer/leak host
-  suites. The final branch preflight and its two clean-build section/map
-  comparison are recorded in the Draft PR because this handoff itself precedes
-  that final run.
+- Final branch-head core run `33941673693` and DS build `33941673699` at
+  `778947d954f9d6fb1e48c7c3e2e6b42367e6cae4`: success.
+- Final Draft-PR preflight `33941673702`: success for normal, UBSan and
+  AddressSanitizer/leak host suites plus two byte-identical clean BlocksDS
+  builds, binary/resource/header checks, and compiler-warning gates.
+- Final ARM9 sections versus baseline: `.text` 240,176 -> 258,112 (+17,936),
+  `.rodata` 294,864 -> 294,968 (+104), `.data` 6,032 -> 6,028 (-4), and
+  `.bss` 215,056 -> 215,080 (+24) bytes. ARM7 material sections are unchanged.
 - Local Windows has Python but no compatible `g++`; host C++ results cited here
   come from Ubuntu Actions. Local Python compilation, package validation,
   repository/resource checking and whitespace checks are run separately.
