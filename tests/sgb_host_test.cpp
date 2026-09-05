@@ -24,13 +24,14 @@ static void testHostMemoryAndCpu() {
   assert(!host.cpu.state().faulted);
 }
 
-static void testUnsupportedCpuOpcodeFaults() {
+static void testSoftwareInterruptOpcode() {
   SgbHost host;
-  const uint8_t program[] = {0x02};
+  const uint8_t program[] = {0x02, 0x00};
   assert(host.writeMemory(0x7e0000, program, sizeof(program)));
   host.jump(0x7e0000, 0);
-  assert(host.cpu.state().faulted);
-  assert(host.cpu.state().faultOpcode == 0x02);
+  assert(!host.cpu.state().faulted);
+  assert(host.cpu.state().pc == 0xffff);
+  assert(host.cpu.state().pbr == 0);
 }
 
 static void testApuProgramTransfer() {
@@ -62,7 +63,7 @@ static void testPrototypeObjectDecode() {
 
 int main() {
   testHostMemoryAndCpu();
-  testUnsupportedCpuOpcodeFaults();
+  testSoftwareInterruptOpcode();
   testApuProgramTransfer();
   testPrototypeObjectDecode();
   puts("SGB host tests passed");
