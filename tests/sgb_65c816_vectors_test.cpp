@@ -326,6 +326,64 @@ static void testMemoryBitFamilies() {
   assert(!(wideShift.cpu.state().p & (Z | N)));
 }
 
+static uint16_t prepareIndirectAddress(SgbHost &host, int mode) {
+  host.cpu.state().d = 0x0100;
+  host.cpu.state().dbr = 0x7e;
+  host.cpu.state().x = mode == 0 ? 2 : 0;
+  host.cpu.state().y = (mode == 3 || mode == 5 || mode == 6) ? 2 : 0;
+  if (mode == 1)
+    return uint16_t(host.cpu.state().sp + 0x20);
+  const uint16_t pointerAddress = mode == 5 ?
+      uint16_t(host.cpu.state().sp + 0x20) :
+      uint16_t(0x0120 + (mode == 0 ? host.cpu.state().x : 0));
+  const uint16_t pointer = (mode == 3 || mode == 5 || mode == 6) ?
+      0x02fe : 0x0300;
+  host.wram[pointerAddress] = pointer & 0xff;
+  host.wram[uint16_t(pointerAddress + 1)] = pointer >> 8;
+  if (mode == 2 || mode == 6)
+    host.wram[uint16_t(pointerAddress + 2)] = 0x7e;
+  return uint16_t(pointer + host.cpu.state().y);
+}
+
+static void testIndirectLoadStoreAddressing() {
+  struct IndirectCase { uint8_t load, store; int mode; } cases[] = {
+      {0xa1, 0x81, 0}, // (dp,X)
+      {0xa3, 0x83, 1}, // stack relative
+      {0xa7, 0x87, 2}, // [dp]
+      {0xb1, 0x91, 3}, // (dp),Y
+      {0xb2, 0x92, 4}, // (dp)
+      {0xb3, 0x93, 5}, // (stack,S),Y
+      {0xb7, 0x97, 6}, // [dp],Y
+  };
+  for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    SgbHost load;
+    const uint16_t loadAddress = prepareIndirectAddress(load, cases[i].mode);
+    load.wram[loadAddress] = 0x5a;
+    const uint8_t loadCode[] = {cases[i].load, 0x20};
+    instruction(load, loadCode, sizeof(loadCode));
+    assert((load.cpu.state().a & 0xff) == 0x5a);
+
+    SgbHost store;
+    const uint16_t storeAddress = prepareIndirectAddress(store, cases[i].mode);
+    store.cpu.state().a = 0xa5;
+    const uint8_t storeCode[] = {cases[i].store, 0x20};
+    instruction(store, storeCode, sizeof(storeCode));
+    assert(store.wram[storeAddress] == 0xa5);
+  }
+
+  SgbHost longBoundary;
+  native16(longBoundary);
+  longBoundary.cpu.state().d = 0x0100;
+  longBoundary.wram[0x0120] = 0xff;
+  longBoundary.wram[0x0121] = 0xff;
+  longBoundary.wram[0x0122] = 0x7e;
+  longBoundary.wram[0xffff] = 0x34;
+  longBoundary.wram[0x10000] = 0x12;
+  const uint8_t ldaLongIndirect[] = {0xa7, 0x20};
+  instruction(longBoundary, ldaLongIndirect, sizeof(ldaLongIndirect));
+  assert(longBoundary.cpu.state().a == 0x1234);
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -334,5 +392,6 @@ int main() {
   testImmediateArithmetic();
   testMemoryShiftAndUpdateFamilies();
   testMemoryBitFamilies();
+  testIndirectLoadStoreAddressing();
   puts("65C816 instruction vectors passed");
 }
