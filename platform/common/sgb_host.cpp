@@ -118,6 +118,51 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     cpu.p = (cpu.p & ~FLAG_C) | ((left & mask) >= (right & mask) ? FLAG_C : 0);
     if (byteWidth) setNz8(result); else setNz16(result);
   };
+  auto arithmetic = [&](uint16_t right, bool subtract) {
+    const uint32_t mask = m8 ? 0xffU : 0xffffU;
+    const uint32_t sign = m8 ? 0x80U : 0x8000U;
+    const uint32_t left = cpu.a & mask;
+    const uint32_t carryIn = cpu.p & FLAG_C ? 1 : 0;
+    const uint32_t binary = subtract ?
+        ((left - right - (carryIn ? 0 : 1)) & mask) :
+        ((left + right + carryIn) & mask);
+    const bool overflow = subtract ?
+        (((left ^ right) & (left ^ binary) & sign) != 0) :
+        ((~(left ^ right) & (left ^ binary) & sign) != 0);
+    uint32_t result = binary;
+    bool carryOut;
+    if (cpu.p & FLAG_D) {
+      result = 0;
+      int carry = subtract ? (carryIn ? 0 : 1) : (int)carryIn;
+      const int digits = m8 ? 2 : 4;
+      for (int digit = 0; digit < digits; ++digit) {
+        const int shift = digit * 4;
+        int value;
+        if (subtract) {
+          value = int((left >> shift) & 15) -
+              int((right >> shift) & 15) - carry;
+          if (value < 0) { value -= 6; carry = 1; }
+          else carry = 0;
+        } else {
+          value = int((left >> shift) & 15) +
+              int((right >> shift) & 15) + carry;
+          if (value > 9) { value += 6; carry = 1; }
+          else carry = 0;
+        }
+        result |= uint32_t(value & 15) << shift;
+      }
+      carryOut = subtract ? carry == 0 : carry != 0;
+    } else if (subtract) {
+      carryOut = left >= right + (carryIn ? 0 : 1);
+    } else {
+      carryOut = left + right + carryIn > mask;
+    }
+    cpu.p = (cpu.p & ~(FLAG_C | FLAG_V)) |
+        (carryOut ? FLAG_C : 0) | (overflow ? FLAG_V : 0);
+    cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | (result & 0xff)) :
+                 uint16_t(result);
+    setAccumulatorNz();
+  };
   auto direct = [&](uint16_t index) -> uint32_t {
     return uint16_t(cpu.d + fetch() + index);
   };
@@ -279,6 +324,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       break;
     case 0xc0:
       compare(cpu.y, immediate(x8), x8);
+      break;
+    case 0x69:
+      arithmetic(immediate(m8), false);
+      break;
+    case 0xe9:
+      arithmetic(immediate(m8), true);
       break;
     case 0x8d: {
       uint32_t a = (cpu.dbr << 16) | fetch();
