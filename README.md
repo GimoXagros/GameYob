@@ -161,7 +161,7 @@ The archive contains `gameyob.nds`, `gameyob_dsi.nds`, the English/Japanese/
 Korean guides, editable language examples, checksums, and required license
 notices. It does not contain a game ROM, BIOS, or native 3DSX executable.
 
-Published release archives through `v0.5.9-ko` are preserved in
+Published release archives through `v0.5.10` are preserved in
 [`old_releases`](old_releases). The earlier native 3DSX binary is preserved
 separately in [`backup/3dsx`](backup/3dsx). `v0.5.10` is a DS/DSi-focused
 release, and its NDS build can also run on Nintendo 3DS in DS mode.
@@ -170,7 +170,7 @@ release, and its NDS build can also run on Nintendo 3DS in DS mode.
 편집 가능한 언어 예제, 체크섬 및 필수 라이선스 고지가 들어 있습니다. 게임
 ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
-`v0.5.9-ko`까지 배포한 압축 파일은 [`old_releases`](old_releases)에
+`v0.5.10`까지 배포한 압축 파일은 [`old_releases`](old_releases)에
 보존하고, 이전 네이티브 3DSX 실행 파일은 [`backup/3dsx`](backup/3dsx)에
 별도로 보존합니다. `v0.5.10`은 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
 3DS의 DS 모드에서도 실행할 수 있습니다.
