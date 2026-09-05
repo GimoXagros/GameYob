@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify SGB opcode coverage inventory
+        run: python3 tools/sgb_opcode_coverage.py --check
       - name: Build and run NiFi protocol tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
