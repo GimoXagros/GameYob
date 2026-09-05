@@ -566,6 +566,43 @@ static void testControlPointerAndPushFamilies() {
   }
 }
 
+static void testBlockMoves() {
+  SgbHost forward;
+  native16(forward);
+  forward.cpu.state().a = 1;
+  forward.cpu.state().x = 0x0100;
+  forward.cpu.state().y = 0x0200;
+  forward.wram[0x0100] = 0x11;
+  forward.wram[0x0101] = 0x22;
+  const uint8_t mvn[] = {0x54, 0x7f, 0x7e};
+  memset(forward.wram, 0, 16);
+  memcpy(forward.wram, mvn, sizeof(mvn));
+  forward.cpu.jump(0x7e0000, 0);
+  assert(forward.cpu.run(forward, 2) == 2);
+  assert(!forward.cpu.state().faulted);
+  assert(forward.wram[0x10200] == 0x11);
+  assert(forward.wram[0x10201] == 0x22);
+  assert(forward.cpu.state().a == 0xffff);
+  assert(forward.cpu.state().x == 0x0102);
+  assert(forward.cpu.state().y == 0x0202);
+  assert(forward.cpu.state().dbr == 0x7f);
+  assert(forward.cpu.state().pc == 3);
+
+  SgbHost backward;
+  native16(backward);
+  backward.cpu.state().a = 0;
+  backward.cpu.state().x = 0x0100;
+  backward.cpu.state().y = 0x0200;
+  backward.wram[0x10100] = 0xa5;
+  const uint8_t mvp[] = {0x44, 0x7e, 0x7f};
+  instruction(backward, mvp, sizeof(mvp));
+  assert(backward.wram[0x0200] == 0xa5);
+  assert(backward.cpu.state().a == 0xffff);
+  assert(backward.cpu.state().x == 0x00ff);
+  assert(backward.cpu.state().y == 0x01ff);
+  assert(backward.cpu.state().dbr == 0x7e);
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -577,5 +614,6 @@ int main() {
   testIndirectLoadStoreAddressing();
   testMemoryArithmeticAddressing();
   testControlPointerAndPushFamilies();
+  testBlockMoves();
   puts("65C816 instruction vectors passed");
 }
