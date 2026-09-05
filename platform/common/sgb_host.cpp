@@ -177,7 +177,16 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     setAccumulatorNz();
   };
   auto direct = [&](uint16_t index) -> uint32_t {
-    return uint16_t(cpu.d + fetch() + index);
+    const uint8_t operand = fetch();
+    if (cpu.emulation && (cpu.d & 0xff) == 0)
+      return (cpu.d & 0xff00) | uint8_t(operand + index);
+    return uint16_t(cpu.d + operand + index);
+  };
+  auto readDirectPointer = [&](uint16_t address) -> uint16_t {
+    uint16_t next = uint16_t(address + 1);
+    if (cpu.emulation && (cpu.d & 0xff) == 0)
+      next = (address & 0xff00) | uint8_t(address + 1);
+    return host.read8(address) | (host.read8(next) << 8);
   };
   auto absolute = [&](uint16_t index) -> uint32_t {
     uint16_t offset = fetch();
@@ -191,7 +200,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     return (address + index) & 0xffffff;
   };
   auto directIndirect = [&](uint16_t index, uint16_t postIndex) -> uint32_t {
-    const uint16_t pointer = read16Bank(host, direct(index));
+    const uint16_t pointer = readDirectPointer(direct(index));
     return (((uint32_t(cpu.dbr) << 16) | pointer) + postIndex) & 0xffffff;
   };
   auto directIndirectLong = [&](uint16_t index) -> uint32_t {
