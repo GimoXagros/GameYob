@@ -109,6 +109,7 @@ public:
   void renderAudio(int16_t *output, size_t samples);
   bool saveState(FileHandle *file) const;
   bool loadState(FileHandle *file);
+  static size_t serializedStateSize();
 
   SgbHostCpu cpu;
   SgbHostPpu ppu;

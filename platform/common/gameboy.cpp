@@ -1191,7 +1191,8 @@ int Gameboy::loadState(int stateNum) {
         (version <= 4 && romFile->getRamSize() == 0x04 ? 4 : getNumSramBanks());
     const size_t stateOffset = sizeof(version) + sizeof(bgPaletteData) +
         sizeof(sprPaletteData) + sizeof(vram) + sizeof(wram) + 0x200 + stateRamBytes;
-    // Only require the common prefix: old versions can have shorter tails.
+    // Old versions stored shorter StateStruct tails. Select their exact size
+    // so the following mapper/SGB data remains aligned.
     const size_t statePrefixBytes = offsetof(StateStruct, memoryModel);
     if (!statePayloadFits(stateFileSize, stateOffset, statePrefixBytes)) {
         printMenuMessage("State is incompatible.");
@@ -1206,6 +1207,128 @@ int Gameboy::loadState(int stateNum) {
         file_close(inFile);
         return 1;
     }
+    const size_t stateBytes = stateStructBytesForVersion(version,
+        offsetof(StateStruct, serialCounter), offsetof(StateStruct, ramEnabled),
+        sizeof(StateStruct));
+    size_t mapperBytes = 0;
+    if (version >= 3) {
+        switch (romFile->getMBC()) {
+            case MMM01: mapperBytes = version >= 6 ? 9 : 0; break;
+            case MBC3: mapperBytes = version == 3 ? 1 : 0; break;
+            case HUC3: mapperBytes = 3; break;
+            case HUC1: mapperBytes = version >= 8 ? 2 : 0; break;
+            case MBC7: mapperBytes = version >= 8 ? 16 : 0; break;
+            default: break;
+        }
+    }
+    size_t tailOffset = stateOffset + stateBytes + mapperBytes;
+    bool storedSgbMode = false;
+    bool hostPresent = false;
+    if (version >= 3) {
+        if (!statePayloadFits(stateFileSize, tailOffset, sizeof(bool))) {
+            printMenuMessage("State is incompatible.");
+            file_close(inFile);
+            return 1;
+        }
+        u8 rawBool = 0;
+        file_seek(inFile, (int)tailOffset, SEEK_SET);
+        file_read(&rawBool, 1, 1, inFile);
+        if (file_tell(inFile) != (int)(tailOffset + 1) ||
+                !stateBoolByteValid(rawBool)) {
+            printMenuMessage("State is incompatible.");
+            file_close(inFile);
+            return 1;
+        }
+        storedSgbMode = rawBool != 0;
+        if (storedSgbMode) {
+            int packetFields[3] = {0, 0, 0};
+            u8 commandAndMask[2] = {0, 0};
+            file_seek(inFile, (int)(tailOffset + sizeof(bool)), SEEK_SET);
+            file_read(packetFields, 1, sizeof(packetFields), inFile);
+            file_read(commandAndMask, 1, sizeof(commandAndMask), inFile);
+            if (file_tell(inFile) !=
+                    (int)(tailOffset + sizeof(bool) + sizeof(packetFields) + 2) ||
+                    !stateSgbScalarsValid(packetFields[0], packetFields[1],
+                        packetFields[2], commandAndMask[0], commandAndMask[1],
+                        0)) {
+                printMenuMessage("State is incompatible.");
+                file_close(inFile);
+                return 1;
+            }
+        }
+        if (storedSgbMode && version >= 7) {
+            const size_t legacySgbBytes = 3 * sizeof(int) + 2 + sizeof(sgbMap);
+            const size_t beforeHost = sizeof(sgbSoundState) +
+                sizeof(sgbAttractionDisabled) + sizeof(sgbTestSpeed) +
+                sizeof(sgbIconDisable) + sizeof(sgbDataAddress) +
+                sizeof(sgbDataLength) + sizeof(sgbData) +
+                sizeof(sgbHostProgramCounter) + sizeof(sgbHostNmiHandler) +
+                sizeof(sgbObjMode) + sizeof(sgbObjPalettes) +
+                sizeof(sgbPalettePriority);
+            const size_t hostFlagOffset = tailOffset + sizeof(bool) +
+                legacySgbBytes + beforeHost;
+            if (!statePayloadFits(stateFileSize, hostFlagOffset, 1)) {
+                printMenuMessage("State is incompatible.");
+                file_close(inFile);
+                return 1;
+            }
+            file_seek(inFile, (int)hostFlagOffset, SEEK_SET);
+            file_read(&rawBool, 1, 1, inFile);
+            if (file_tell(inFile) != (int)(hostFlagOffset + 1) ||
+                    !stateBoolByteValid(rawBool)) {
+                printMenuMessage("State is incompatible.");
+                file_close(inFile);
+                return 1;
+            }
+            hostPresent = rawBool != 0;
+            const size_t dataLengthOffset = tailOffset + sizeof(bool) +
+                legacySgbBytes + sizeof(sgbSoundState) +
+                sizeof(sgbAttractionDisabled) + sizeof(sgbTestSpeed) +
+                sizeof(sgbIconDisable) + sizeof(sgbDataAddress);
+            u8 storedDataLength = 0;
+            file_seek(inFile, (int)dataLengthOffset, SEEK_SET);
+            file_read(&storedDataLength, 1, 1, inFile);
+            if (file_tell(inFile) != (int)(dataLengthOffset + 1) ||
+                    !stateSgbScalarsValid(0, 0, -1, 0, 0,
+                        storedDataLength)) {
+                printMenuMessage("State is incompatible.");
+                file_close(inFile);
+                return 1;
+            }
+            if (hostPresent) {
+                uint32_t hostHeader[2] = {0, 0};
+                const size_t hostOffset = hostFlagOffset + sizeof(bool);
+                file_seek(inFile, (int)hostOffset, SEEK_SET);
+                file_read(hostHeader, 1, sizeof(hostHeader), inFile);
+                const size_t available = (size_t)stateFileSize - hostOffset;
+                if (file_tell(inFile) != (int)(hostOffset + sizeof(hostHeader)) ||
+                        !stateSgbHostHeaderValid(hostHeader[0], hostHeader[1],
+                            available, SgbHost::serializedStateSize())) {
+                    printMenuMessage("State is incompatible.");
+                    file_close(inFile);
+                    return 1;
+                }
+            }
+        }
+    }
+    const size_t legacySgbBytes = 3 * sizeof(int) + 2 + sizeof(sgbMap);
+    const size_t extendedSgbBytes = sizeof(sgbSoundState) +
+        sizeof(sgbAttractionDisabled) + sizeof(sgbTestSpeed) +
+        sizeof(sgbIconDisable) + sizeof(sgbDataAddress) +
+        sizeof(sgbDataLength) + sizeof(sgbData) +
+        sizeof(sgbHostProgramCounter) + sizeof(sgbHostNmiHandler) +
+        sizeof(sgbObjMode) + sizeof(sgbObjPalettes) +
+        sizeof(sgbPalettePriority) + sizeof(bool);
+    size_t expectedStateSize = 0;
+    if (!stateExpectedPayloadSize((size_t)stateFileSize, version, stateOffset,
+            stateBytes, mapperBytes, storedSgbMode, legacySgbBytes,
+            extendedSgbBytes, hostPresent, SgbHost::serializedStateSize(),
+            &expectedStateSize)) {
+        printMenuMessage("State is incompatible.");
+        file_close(inFile);
+        return 1;
+    }
+    (void)expectedStateSize;
     file_seek(inFile, sizeof(version), SEEK_SET);
 
     file_read((char*)bgPaletteData, 1, sizeof(bgPaletteData), inFile);
@@ -1220,7 +1343,7 @@ int Gameboy::loadState(int stateNum) {
     else
         file_read((char*)externRam, 1, 0x2000*getNumSramBanks(), inFile);
 
-    file_read((char*)&state, 1, sizeof(StateStruct), inFile);
+    file_read((char*)&state, 1, stateBytes, inFile);
 
     /* MBC-specific values have been introduced in v3 */
     if (version >= 3) {

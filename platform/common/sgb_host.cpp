@@ -926,6 +926,11 @@ bool SgbHost::saveState(FileHandle *f) const {
   return true;
 }
 
+size_t SgbHost::serializedStateSize() {
+  return 8 + 24 + 0x20000 + 0x10000 + 0x200 + 0x220 + 8 +
+         0x10000 + 0x80 + 1 + 4 + 11 + 8 * 14;
+}
+
 bool SgbHost::loadState(FileHandle *f) {
   if (!f)
     return false;
