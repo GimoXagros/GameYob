@@ -198,6 +198,70 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     else if (bankWrap) write16Bank(host, address, value);
     else write16(host, address, value);
   };
+  auto readMemory = [&](uint32_t address, bool bankWrap) -> uint16_t {
+    return m8 ? host.read8(address) :
+        (bankWrap ? read16Bank(host, address) : read16(host, address));
+  };
+  auto writeMemory = [&](uint32_t address, bool bankWrap, uint16_t value) {
+    if (m8) host.write8(address, value);
+    else if (bankWrap) write16Bank(host, address, value);
+    else write16(host, address, value);
+  };
+  auto modifyMemory = [&](uint32_t address, bool bankWrap, int operation) {
+    const uint32_t mask = m8 ? 0xffU : 0xffffU;
+    const uint32_t sign = m8 ? 0x80U : 0x8000U;
+    const uint32_t value = readMemory(address, bankWrap);
+    uint16_t result = value;
+    bool changesCarry = true;
+    bool carry = false;
+    switch (operation) {
+    case 0: // ASL
+      carry = (value & sign) != 0;
+      result = uint16_t((value << 1) & mask);
+      break;
+    case 1: // ROL
+      carry = (value & sign) != 0;
+      result = uint16_t(((value << 1) | (cpu.p & FLAG_C ? 1 : 0)) & mask);
+      break;
+    case 2: // LSR
+      carry = (value & 1) != 0;
+      result = uint16_t(value >> 1);
+      break;
+    case 3: // ROR
+      carry = (value & 1) != 0;
+      result = uint16_t((value >> 1) | (cpu.p & FLAG_C ? sign : 0));
+      break;
+    case 4: // DEC
+      changesCarry = false;
+      result = uint16_t((value - 1) & mask);
+      break;
+    default: // INC
+      changesCarry = false;
+      result = uint16_t((value + 1) & mask);
+      break;
+    }
+    if (changesCarry)
+      cpu.p = (cpu.p & ~FLAG_C) | (carry ? FLAG_C : 0);
+    writeMemory(address, bankWrap, result);
+    if (m8) setNz8(result); else setNz16(result);
+  };
+  auto bitMemory = [&](uint32_t address, bool bankWrap) {
+    const uint16_t value = readMemory(address, bankWrap);
+    const uint16_t mask = m8 ? 0xff : 0xffff;
+    const uint8_t nv = m8 ? uint8_t(value & (FLAG_N | FLAG_V)) :
+        uint8_t((value >> 8) & (FLAG_N | FLAG_V));
+    cpu.p = (cpu.p & ~(FLAG_N | FLAG_V | FLAG_Z)) | nv |
+        ((cpu.a & value & mask) == 0 ? FLAG_Z : 0);
+  };
+  auto changeMemoryBits = [&](uint32_t address, bool bankWrap, bool set) {
+    const uint16_t mask = m8 ? 0xff : 0xffff;
+    const uint16_t value = readMemory(address, bankWrap);
+    cpu.p = (cpu.p & ~FLAG_Z) |
+        ((cpu.a & value & mask) == 0 ? FLAG_Z : 0);
+    writeMemory(address, bankWrap,
+        set ? uint16_t(value | (cpu.a & mask)) :
+              uint16_t(value & ~(cpu.a & mask)));
+  };
 
   while (executed < budget && !cpu.stopped && !cpu.faulted) {
     if (nmiPending && cpu.nmiVector) {
@@ -435,6 +499,38 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (m8) host.write8(address, 0); else write16Bank(host, address, 0);
       break;
     }
+    case 0x06: modifyMemory(direct(0), true, 0); break;
+    case 0x16: modifyMemory(direct(cpu.x), true, 0); break;
+    case 0x0e: modifyMemory(absolute(0), true, 0); break;
+    case 0x1e: modifyMemory(absolute(cpu.x), true, 0); break;
+    case 0x26: modifyMemory(direct(0), true, 1); break;
+    case 0x36: modifyMemory(direct(cpu.x), true, 1); break;
+    case 0x2e: modifyMemory(absolute(0), true, 1); break;
+    case 0x3e: modifyMemory(absolute(cpu.x), true, 1); break;
+    case 0x46: modifyMemory(direct(0), true, 2); break;
+    case 0x56: modifyMemory(direct(cpu.x), true, 2); break;
+    case 0x4e: modifyMemory(absolute(0), true, 2); break;
+    case 0x5e: modifyMemory(absolute(cpu.x), true, 2); break;
+    case 0x66: modifyMemory(direct(0), true, 3); break;
+    case 0x76: modifyMemory(direct(cpu.x), true, 3); break;
+    case 0x6e: modifyMemory(absolute(0), true, 3); break;
+    case 0x7e: modifyMemory(absolute(cpu.x), true, 3); break;
+    case 0xc6: modifyMemory(direct(0), true, 4); break;
+    case 0xd6: modifyMemory(direct(cpu.x), true, 4); break;
+    case 0xce: modifyMemory(absolute(0), true, 4); break;
+    case 0xde: modifyMemory(absolute(cpu.x), true, 4); break;
+    case 0xe6: modifyMemory(direct(0), true, 5); break;
+    case 0xf6: modifyMemory(direct(cpu.x), true, 5); break;
+    case 0xee: modifyMemory(absolute(0), true, 5); break;
+    case 0xfe: modifyMemory(absolute(cpu.x), true, 5); break;
+    case 0x24: bitMemory(direct(0), true); break;
+    case 0x34: bitMemory(direct(cpu.x), true); break;
+    case 0x2c: bitMemory(absolute(0), true); break;
+    case 0x3c: bitMemory(absolute(cpu.x), true); break;
+    case 0x04: changeMemoryBits(direct(0), true, true); break;
+    case 0x0c: changeMemoryBits(absolute(0), true, true); break;
+    case 0x14: changeMemoryBits(direct(0), true, false); break;
+    case 0x1c: changeMemoryBits(absolute(0), true, false); break;
     case 0x4c: {
       // Fetch both operand bytes before replacing the instruction pointer.
       uint16_t target = fetch();

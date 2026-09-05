@@ -312,6 +312,18 @@ static void testMemoryBitFamilies() {
   instruction(wide, trb16, sizeof(trb16));
   assert(wide.wram[0x02ff] == 0 && wide.wram[0x0300] == 0x40);
   assert(!(wide.cpu.state().p & Z));
+
+  SgbHost wideShift;
+  native16(wideShift);
+  wideShift.cpu.state().dbr = 0x7e;
+  wideShift.wram[0x02ff] = 0x01;
+  wideShift.wram[0x0300] = 0x80;
+  const uint8_t asl16[] = {0x0e, 0xff, 0x02};
+  instruction(wideShift, asl16, sizeof(asl16));
+  assert(wideShift.wram[0x02ff] == 0x02);
+  assert(wideShift.wram[0x0300] == 0x00);
+  assert(wideShift.cpu.state().p & C);
+  assert(!(wideShift.cpu.state().p & (Z | N)));
 }
 
 int main() {
