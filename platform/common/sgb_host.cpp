@@ -91,6 +91,19 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       cpu.sp |= 0x100;
     return host.read8(cpu.sp);
   };
+  auto softwareInterrupt = [&](uint16_t emulationVector,
+                               uint16_t nativeVector) {
+    fetch(); // BRK and COP both consume a signature byte.
+    if (!cpu.emulation)
+      push(cpu.pbr);
+    push(cpu.pc >> 8);
+    push(cpu.pc);
+    push(cpu.emulation ? uint8_t(cpu.p | FLAG_X) : cpu.p);
+    cpu.p = (cpu.p | FLAG_I) & ~FLAG_D;
+    cpu.pbr = 0;
+    cpu.pc = read16Bank(host,
+        cpu.emulation ? emulationVector : nativeVector);
+  };
   auto setNz8 = [&](uint8_t value) {
     cpu.p = (cpu.p & ~(FLAG_N | FLAG_Z)) | (value == 0 ? FLAG_Z : 0) |
             (value & FLAG_N);
@@ -324,6 +337,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     uint8_t op = fetch();
     executed++;
     switch (op) {
+    case 0x00:
+      softwareInterrupt(0xfffe, 0xffe6);
+      break;
+    case 0x02:
+      softwareInterrupt(0xfff4, 0xffe4);
+      break;
     case 0xea:
       break; // NOP
     case 0x18:
