@@ -401,6 +401,9 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       setAccumulatorNz();
       break;
     }
+    case 0x42:
+      fetch(); // WDM reserves and consumes the following signature byte.
+      break;
     case 0x01: case 0x03: case 0x05: case 0x07:
     case 0x0d: case 0x0f: case 0x11: case 0x12:
     case 0x13: case 0x15: case 0x17: case 0x19:
@@ -475,6 +478,26 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0xc0:
       compare(cpu.y, immediate(x8), x8);
       break;
+    case 0xc4: {
+      const uint32_t address = direct(0);
+      compare(cpu.y, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
+    case 0xcc: {
+      const uint32_t address = absolute(0);
+      compare(cpu.y, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
+    case 0xe4: {
+      const uint32_t address = direct(0);
+      compare(cpu.x, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
+    case 0xec: {
+      const uint32_t address = absolute(0);
+      compare(cpu.x, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
     case 0x69:
       arithmetic(immediate(m8), false);
       break;
@@ -646,6 +669,30 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       cpu.pbr = a >> 16;
       break;
     }
+    case 0x6c: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      cpu.pc = read16Bank(host, pointer);
+      break;
+    }
+    case 0x7c: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      const uint32_t pointerAddress = (uint32_t(cpu.pbr) << 16) |
+          uint16_t(pointer + cpu.x);
+      cpu.pc = read16Bank(host, pointerAddress);
+      break;
+    }
+    case 0xdc: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      uint32_t target = host.read8(pointer);
+      target |= uint32_t(host.read8(uint16_t(pointer + 1))) << 8;
+      target |= uint32_t(host.read8(uint16_t(pointer + 2))) << 16;
+      cpu.pc = target;
+      cpu.pbr = target >> 16;
+      break;
+    }
     case 0x20: {
       uint16_t a = fetch();
       a |= fetch() << 8;
@@ -665,6 +712,18 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       push(ret);
       cpu.pc = a;
       cpu.pbr = a >> 16;
+      break;
+    }
+    case 0xfc: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      const uint32_t pointerAddress = (uint32_t(cpu.pbr) << 16) |
+          uint16_t(pointer + cpu.x);
+      const uint16_t target = read16Bank(host, pointerAddress);
+      const uint16_t ret = cpu.pc - 1;
+      push(ret >> 8);
+      push(ret);
+      cpu.pc = target;
       break;
     }
     case 0x60: {
@@ -690,6 +749,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0x80:
       branch(true);
       break;
+    case 0x82: {
+      int16_t offset = fetch();
+      offset |= uint16_t(fetch()) << 8;
+      cpu.pc = uint16_t(cpu.pc + offset);
+      break;
+    }
     case 0x10:
       branch(!(cpu.p & FLAG_N));
       break;
@@ -907,6 +972,27 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0x4b:
       push(cpu.pbr);
       break;
+    case 0x62: {
+      int16_t offset = fetch();
+      offset |= uint16_t(fetch()) << 8;
+      const uint16_t target = uint16_t(cpu.pc + offset);
+      push(target >> 8);
+      push(target);
+      break;
+    }
+    case 0xd4: {
+      const uint16_t value = read16Bank(host, direct(0));
+      push(value >> 8);
+      push(value);
+      break;
+    }
+    case 0xf4: {
+      uint16_t value = fetch();
+      value |= uint16_t(fetch()) << 8;
+      push(value >> 8);
+      push(value);
+      break;
+    }
     case 0xfa:
       cpu.x = pop();
       if (!x8)
