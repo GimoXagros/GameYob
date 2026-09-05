@@ -603,6 +603,38 @@ static void testBlockMoves() {
   assert(backward.cpu.state().dbr == 0x7e);
 }
 
+static void testSoftwareInterrupts() {
+  const uint8_t opcodes[] = {0x00, 0x02};
+  for (unsigned i = 0; i < sizeof(opcodes); ++i) {
+    SgbHost emulation;
+    emulation.cpu.state().p |= 0x08;
+    const uint8_t code[] = {opcodes[i], 0xa5};
+    instruction(emulation, code, sizeof(code));
+    assert(emulation.cpu.state().pc == 0xffff);
+    assert(emulation.cpu.state().pbr == 0);
+    assert(emulation.cpu.state().sp == 0x01fc);
+    assert(emulation.wram[0x01ff] == 0);
+    assert(emulation.wram[0x01fe] == 2);
+    assert(emulation.wram[0x01fd] & X);
+    assert(emulation.cpu.state().p & 0x04);
+    assert(!(emulation.cpu.state().p & 0x08));
+
+    SgbHost native;
+    native16(native);
+    native.cpu.state().p |= 0x08;
+    instruction(native, code, sizeof(code));
+    assert(native.cpu.state().pc == 0xffff);
+    assert(native.cpu.state().pbr == 0);
+    assert(native.cpu.state().sp == 0x01fb);
+    assert(native.wram[0x01ff] == 0x7e);
+    assert(native.wram[0x01fe] == 0);
+    assert(native.wram[0x01fd] == 2);
+    assert(!(native.wram[0x01fc] & (M | X)));
+    assert(native.cpu.state().p & 0x04);
+    assert(!(native.cpu.state().p & 0x08));
+  }
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -615,5 +647,6 @@ int main() {
   testMemoryArithmeticAddressing();
   testControlPointerAndPushFamilies();
   testBlockMoves();
+  testSoftwareInterrupts();
   puts("65C816 instruction vectors passed");
 }
