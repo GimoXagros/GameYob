@@ -55,9 +55,73 @@ static void testRejectsTruncationAndCorruption() {
     const size_t size = nifi::encodePacket(packet, sizeof(packet), header, payload);
 
     nifi::PacketView view;
-    assert(nifi::decodePacket(packet, size - 1, &view) == nifi::DECODE_BAD_LENGTH);
-    packet[size - 1] ^= 0x80;
-    assert(nifi::decodePacket(packet, size, &view) == nifi::DECODE_BAD_CHECKSUM);
+    for (size_t cut = 0; cut < size; ++cut)
+        assert(nifi::decodePacket(packet, cut, &view) != nifi::DECODE_OK);
+    for (size_t offset = 0; offset < size; ++offset) {
+        uint8_t changed[64];
+        memcpy(changed, packet, size);
+        changed[offset] ^= 0x80;
+        assert(nifi::decodePacket(changed, size, &view) != nifi::DECODE_OK);
+    }
+}
+
+static void testSequenceAndAckBoundaries() {
+    nifi::AckTracker ack;
+    ack.begin(0xffff);
+    assert(!ack.accept(0xfffe) && ack.waiting());
+    assert(ack.accept(0xffff) && !ack.waiting());
+    assert(!ack.accept(0xffff)); // duplicate/stale ACK
+    ack.begin(0);
+    assert(!ack.accept(0xffff) && ack.accept(0));
+    assert(nifi::sequenceNewer(0, 0xffff));
+    assert(nifi::sequenceNewer(1, 0xffff));
+    assert(!nifi::sequenceNewer(0xffff, 0));
+    assert(!nifi::sequenceNewer(7, 7));
+    assert(!nifi::sequenceNewer(0x8000, 0));
+}
+
+static void testFragmentSequence() {
+    nifi::FragmentSequence fragments;
+    assert(fragments.accept(0x900, 3, 0, 0x400, 0x400) ==
+        nifi::FRAGMENT_ACCEPTED);
+    assert(fragments.accept(0x900, 3, 0, 0x400, 0x400) ==
+        nifi::FRAGMENT_DUPLICATE);
+    assert(fragments.accept(0x900, 3, 2, 0x100, 0x400) ==
+        nifi::FRAGMENT_GAP);
+    assert(fragments.accept(0x900, 3, 1, 0x400, 0x400) ==
+        nifi::FRAGMENT_INVALID);
+    assert(fragments.accept(0x900, 3, 0, 0x400, 0x400) ==
+        nifi::FRAGMENT_ACCEPTED);
+    assert(fragments.accept(0x900, 3, 1, 0x400, 0x400) ==
+        nifi::FRAGMENT_ACCEPTED);
+    assert(fragments.accept(0x900, 3, 2, 0x100, 0x400) ==
+        nifi::FRAGMENT_COMPLETE);
+    assert(fragments.accept(0, 1, 0, 0, 0x400) == nifi::FRAGMENT_INVALID);
+    assert(fragments.accept(0x401, 1, 0, 0x401, 0x400) ==
+        nifi::FRAGMENT_INVALID);
+    assert(fragments.accept(0x400, 2, 0, 0x400, 0x400) ==
+        nifi::FRAGMENT_INVALID);
+}
+
+static void testFixedSeedMutations() {
+    uint8_t packet[128];
+    uint8_t payload[64];
+    for (size_t i = 0; i < sizeof(payload); ++i) payload[i] = (uint8_t)i;
+    nifi::PacketHeader header;
+    memset(&header, 0, sizeof(header));
+    header.payloadSize = sizeof(payload);
+    header.fragmentCount = 1;
+    header.totalSize = sizeof(payload);
+    const size_t size = nifi::encodePacket(packet, sizeof(packet), header, payload);
+    uint32_t seed = 0x91e10da5U;
+    nifi::PacketView view;
+    for (int i = 0; i < 4096; ++i) {
+        uint8_t changed[128];
+        memcpy(changed, packet, size);
+        seed = seed * 1664525U + 1013904223U;
+        changed[seed % size] ^= uint8_t(1U << ((seed >> 24) & 7));
+        assert(nifi::decodePacket(changed, size, &view) != nifi::DECODE_OK);
+    }
 }
 
 static void testIdentityBounds() {
@@ -96,6 +160,9 @@ int main() {
     testKnownCrc32Vector();
     testIncrementalRomIdentifier();
     testRejectsTruncationAndCorruption();
+    testSequenceAndAckBoundaries();
+    testFragmentSequence();
+    testFixedSeedMutations();
     testIdentityBounds();
     return 0;
 }
