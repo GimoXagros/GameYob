@@ -28,7 +28,8 @@ static void testSoftwareInterruptOpcode() {
   SgbHost host;
   const uint8_t program[] = {0x02, 0x00};
   assert(host.writeMemory(0x7e0000, program, sizeof(program)));
-  host.jump(0x7e0000, 0);
+  host.cpu.jump(0x7e0000, 0);
+  assert(host.cpu.run(host, 1) == 1);
   assert(!host.cpu.state().faulted);
   assert(host.cpu.state().pc == 0xffff);
   assert(host.cpu.state().pbr == 0);
