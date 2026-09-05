@@ -477,6 +477,95 @@ static void testMemoryArithmeticAddressing() {
   assert(wide.cpu.state().a == 0x00f0);
 }
 
+static void testControlPointerAndPushFamilies() {
+  {
+    SgbHost host;
+    const uint8_t wdm[] = {0x42, 0xa5};
+    instruction(host, wdm, sizeof(wdm));
+    assert(host.cpu.state().pc == 2);
+  }
+  {
+    SgbHost host;
+    const uint8_t brl[] = {0x82, 0xfc, 0xff};
+    instruction(host, brl, sizeof(brl));
+    assert(host.cpu.state().pc == 0xffff);
+  }
+  {
+    SgbHost host;
+    host.wram[0x0200] = 0x34;
+    host.wram[0x0201] = 0x12;
+    const uint8_t jmpIndirect[] = {0x6c, 0x00, 0x02};
+    instruction(host, jmpIndirect, sizeof(jmpIndirect));
+    assert(host.cpu.state().pc == 0x1234 && host.cpu.state().pbr == 0x7e);
+  }
+  {
+    SgbHost host;
+    host.cpu.state().x = 2;
+    host.wram[0x0202] = 0x78;
+    host.wram[0x0203] = 0x56;
+    const uint8_t jmpIndexed[] = {0x7c, 0x00, 0x02};
+    instruction(host, jmpIndexed, sizeof(jmpIndexed));
+    assert(host.cpu.state().pc == 0x5678 && host.cpu.state().pbr == 0x7e);
+  }
+  {
+    SgbHost host;
+    host.wram[0x0200] = 0x34;
+    host.wram[0x0201] = 0x12;
+    host.wram[0x0202] = 0x7f;
+    const uint8_t jmpLongIndirect[] = {0xdc, 0x00, 0x02};
+    instruction(host, jmpLongIndirect, sizeof(jmpLongIndirect));
+    assert(host.cpu.state().pc == 0x1234 && host.cpu.state().pbr == 0x7f);
+  }
+  {
+    SgbHost host;
+    host.cpu.state().x = 2;
+    host.wram[0x0202] = 0xbc;
+    host.wram[0x0203] = 0x9a;
+    const uint8_t jsrIndexed[] = {0xfc, 0x00, 0x02};
+    instruction(host, jsrIndexed, sizeof(jsrIndexed));
+    assert(host.cpu.state().pc == 0x9abc);
+    assert(host.cpu.state().sp == 0x01fd);
+    assert(host.wram[0x01ff] == 0 && host.wram[0x01fe] == 2);
+  }
+  {
+    SgbHost host;
+    const uint8_t per[] = {0x62, 0x05, 0x00};
+    instruction(host, per, sizeof(per));
+    assert(host.cpu.state().sp == 0x01fd);
+    assert(host.wram[0x01ff] == 0 && host.wram[0x01fe] == 8);
+  }
+  {
+    SgbHost host;
+    const uint8_t pea[] = {0xf4, 0x34, 0x12};
+    instruction(host, pea, sizeof(pea));
+    assert(host.wram[0x01ff] == 0x12 && host.wram[0x01fe] == 0x34);
+  }
+  {
+    SgbHost host;
+    host.cpu.state().d = 0x0100;
+    host.wram[0x0120] = 0x78;
+    host.wram[0x0121] = 0x56;
+    const uint8_t pei[] = {0xd4, 0x20};
+    instruction(host, pei, sizeof(pei));
+    assert(host.wram[0x01ff] == 0x56 && host.wram[0x01fe] == 0x78);
+  }
+
+  struct CompareMemory { uint8_t op; bool y; bool absolute; } compares[] = {
+      {0xc4, true, false}, {0xcc, true, true},
+      {0xe4, false, false}, {0xec, false, true}};
+  for (unsigned i = 0; i < sizeof(compares) / sizeof(compares[0]); ++i) {
+    SgbHost host;
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().dbr = 0x7e;
+    if (compares[i].y) host.cpu.state().y = 5;
+    else host.cpu.state().x = 5;
+    host.wram[compares[i].absolute ? 0x0220 : 0x0120] = 5;
+    const uint8_t code[] = {compares[i].op, 0x20, 0x02};
+    instruction(host, code, compares[i].absolute ? 3 : 2);
+    assert((host.cpu.state().p & (C | Z | N)) == (C | Z));
+  }
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -487,5 +576,6 @@ int main() {
   testMemoryBitFamilies();
   testIndirectLoadStoreAddressing();
   testMemoryArithmeticAddressing();
+  testControlPointerAndPushFamilies();
   puts("65C816 instruction vectors passed");
 }
