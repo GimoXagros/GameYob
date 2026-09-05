@@ -106,9 +106,47 @@ static void testWidthsTransfersAndStack() {
   assert(host.cpu.state().a == 0x3412);
 }
 
+static void testLoadStoreAddressing() {
+  SgbHost host;
+  host.cpu.state().d = 0x0100;
+  host.cpu.state().x = 3;
+  host.wram[0x0123] = 0x5a;
+  const uint8_t ldaDirectX[] = {0xb5, 0x20};
+  instruction(host, ldaDirectX, sizeof(ldaDirectX));
+  assert((host.cpu.state().a & 0xff) == 0x5a);
+
+  host.cpu.state().dbr = 0x7e;
+  host.cpu.state().y = 2;
+  host.wram[0x0202] = 0xa5;
+  const uint8_t ldaAbsoluteY[] = {0xb9, 0x00, 0x02};
+  instruction(host, ldaAbsoluteY, sizeof(ldaAbsoluteY));
+  assert((host.cpu.state().a & 0xff) == 0xa5);
+
+  host.cpu.state().a = 0x77;
+  const uint8_t staLongX[] = {0x9f, 0xfd, 0x02, 0x7e};
+  instruction(host, staLongX, sizeof(staLongX));
+  assert(host.wram[0x0300] == 0x77);
+
+  host.cpu.state().x = 4;
+  host.wram[0x0144] = 0x66;
+  const uint8_t ldyDirectX[] = {0xb4, 0x40};
+  instruction(host, ldyDirectX, sizeof(ldyDirectX));
+  assert(host.cpu.state().y == 0x66);
+
+  native16(host);
+  host.cpu.state().dbr = 0x7e;
+  host.cpu.state().x = 2;
+  host.wram[0x0302] = 0x34;
+  host.wram[0x0303] = 0x12;
+  const uint8_t ldaAbsoluteX[] = {0xbd, 0x00, 0x03};
+  instruction(host, ldaAbsoluteX, sizeof(ldaAbsoluteX));
+  assert(host.cpu.state().a == 0x1234);
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
   testWidthsTransfersAndStack();
+  testLoadStoreAddressing();
   puts("65C816 instruction vectors passed");
 }
