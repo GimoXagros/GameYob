@@ -90,6 +90,20 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     if (condition)
       cpu.pc = uint16_t(cpu.pc + offset);
   };
+  auto setAccumulatorNz = [&]() {
+    if (m8) setNz8(cpu.a); else setNz16(cpu.a);
+  };
+  auto immediate = [&](bool byteWidth) -> uint16_t {
+    uint16_t value = fetch();
+    if (!byteWidth) value |= uint16_t(fetch()) << 8;
+    return value;
+  };
+  auto compare = [&](uint16_t left, uint16_t right, bool byteWidth) {
+    const uint32_t mask = byteWidth ? 0xffU : 0xffffU;
+    const uint16_t result = uint16_t((left - right) & mask);
+    cpu.p = (cpu.p & ~FLAG_C) | ((left & mask) >= (right & mask) ? FLAG_C : 0);
+    if (byteWidth) setNz8(result); else setNz16(result);
+  };
 
   while (executed < budget && !cpu.stopped && !cpu.faulted) {
     if (nmiPending && cpu.nmiVector) {
@@ -180,6 +194,42 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         setNz8(cpu.y);
       else
         setNz16(cpu.y);
+      break;
+    case 0x09: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a | value) & 0xff);
+      else cpu.a |= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x29: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a & value) & 0xff);
+      else cpu.a &= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x49: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a ^ value) & 0xff);
+      else cpu.a ^= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x89: {
+      const uint16_t value = immediate(m8);
+      const uint16_t result = cpu.a & value & (m8 ? 0xff : 0xffff);
+      cpu.p = (cpu.p & ~FLAG_Z) | (result == 0 ? FLAG_Z : 0);
+      break;
+    }
+    case 0xc9:
+      compare(cpu.a, immediate(m8), m8);
+      break;
+    case 0xe0:
+      compare(cpu.x, immediate(x8), x8);
+      break;
+    case 0xc0:
+      compare(cpu.y, immediate(x8), x8);
       break;
     case 0x8d: {
       uint32_t a = (cpu.dbr << 16) | fetch();
@@ -346,11 +396,47 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         setNz16(cpu.y);
       break;
     case 0x8a:
-      cpu.a = (cpu.a & 0xff00) | (cpu.x & 0xff);
-      setNz8(cpu.a);
+      if (m8) cpu.a = (cpu.a & 0xff00) | (cpu.x & 0xff);
+      else cpu.a = cpu.x;
+      setAccumulatorNz();
       break;
     case 0x98:
-      cpu.a = (cpu.a & 0xff00) | (cpu.y & 0xff);
+      if (m8) cpu.a = (cpu.a & 0xff00) | (cpu.y & 0xff);
+      else cpu.a = cpu.y;
+      setAccumulatorNz();
+      break;
+    case 0x9b:
+      cpu.y = cpu.x & xMask;
+      if (x8) setNz8(cpu.y); else setNz16(cpu.y);
+      break;
+    case 0xbb:
+      cpu.x = cpu.y & xMask;
+      if (x8) setNz8(cpu.x); else setNz16(cpu.x);
+      break;
+    case 0xba:
+      cpu.x = cpu.sp & xMask;
+      if (x8) setNz8(cpu.x); else setNz16(cpu.x);
+      break;
+    case 0x9a:
+      cpu.sp = cpu.x;
+      break;
+    case 0x5b:
+      cpu.d = cpu.a;
+      setNz16(cpu.d);
+      break;
+    case 0x7b:
+      cpu.a = cpu.d;
+      setNz16(cpu.a);
+      break;
+    case 0x1b:
+      cpu.sp = cpu.a;
+      break;
+    case 0x3b:
+      cpu.a = cpu.sp;
+      setNz16(cpu.a);
+      break;
+    case 0xeb:
+      cpu.a = uint16_t((cpu.a << 8) | (cpu.a >> 8));
       setNz8(cpu.a);
       break;
     case 0xe8:
@@ -381,6 +467,60 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       else
         setNz16(cpu.y);
       break;
+    case 0x1a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint16_t result = uint16_t((cpu.a + 1) & mask);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x3a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint16_t result = uint16_t((cpu.a - 1) & mask);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x0a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t((value << 1) & mask);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & sign ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x4a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t(value >> 1);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & 1 ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x2a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t(((value << 1) |
+          (cpu.p & FLAG_C ? 1 : 0)) & mask);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & sign ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x6a: {
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & (m8 ? 0xffU : 0xffffU);
+      const uint16_t result = uint16_t((value >> 1) |
+          (cpu.p & FLAG_C ? sign : 0));
+      cpu.p = (cpu.p & ~FLAG_C) | (value & 1 ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
     case 0x48:
       if (!m8)
         push(cpu.a >> 8);
@@ -399,6 +539,40 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (!x8)
         push(cpu.x >> 8);
       push(cpu.x);
+      break;
+    case 0x5a:
+      if (!x8) push(cpu.y >> 8);
+      push(cpu.y);
+      break;
+    case 0x7a:
+      cpu.y = pop();
+      if (!x8) cpu.y |= pop() << 8;
+      if (x8) setNz8(cpu.y); else setNz16(cpu.y);
+      break;
+    case 0x08:
+      push(cpu.p);
+      break;
+    case 0x28:
+      cpu.p = pop();
+      break;
+    case 0x8b:
+      push(cpu.dbr);
+      break;
+    case 0xab:
+      cpu.dbr = pop();
+      setNz8(cpu.dbr);
+      break;
+    case 0x0b:
+      push(cpu.d >> 8);
+      push(cpu.d);
+      break;
+    case 0x2b:
+      cpu.d = pop();
+      cpu.d |= pop() << 8;
+      setNz16(cpu.d);
+      break;
+    case 0x4b:
+      push(cpu.pbr);
       break;
     case 0xfa:
       cpu.x = pop();
@@ -420,8 +594,14 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       cpu.faultOpcode = op;
       break;
     }
-    if (cpu.emulation)
+    if (cpu.emulation) {
       cpu.p |= FLAG_M | FLAG_X;
+      cpu.sp = 0x100 | (cpu.sp & 0xff);
+    }
+    if (cpu.p & FLAG_X) {
+      cpu.x &= 0xff;
+      cpu.y &= 0xff;
+    }
   }
   return executed;
 }
