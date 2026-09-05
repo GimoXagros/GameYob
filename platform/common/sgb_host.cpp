@@ -330,11 +330,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     if (nmiPending && cpu.nmiVector) {
       nmiPending = false;
       cpu.waiting = 0;
-      push(cpu.pbr);
+      if (!cpu.emulation)
+        push(cpu.pbr);
       push(cpu.pc >> 8);
       push(cpu.pc & 0xff);
-      push(cpu.p);
-      cpu.p |= FLAG_I;
+      push(cpu.emulation ? uint8_t(cpu.p & ~FLAG_X) : cpu.p);
+      cpu.p = (cpu.p | FLAG_I) & ~FLAG_D;
       cpu.pbr = (cpu.nmiVector >> 16) & 0xff;
       cpu.pc = cpu.nmiVector & 0xffff;
     }
