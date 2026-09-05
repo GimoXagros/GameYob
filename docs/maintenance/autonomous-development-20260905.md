@@ -1,7 +1,7 @@
 # Autonomous development handoff - 2026-09-05
 
-This is an unreleased development record. It does not replace v0.5.9-ko and
-does not claim physical-hardware validation.
+This development record was incorporated into v0.5.10. It does not claim
+physical-hardware validation.
 
 ## Baseline and boundaries
 

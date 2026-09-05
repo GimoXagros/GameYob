@@ -20,7 +20,7 @@ docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
 The container provides `BLOCKSDS` and `WONDERFUL_TOOLCHAIN`. Do not override
 them with guessed SDK paths. The audited image reports Wonderful GCC
 `16.1.1 20260516` and ndstool `1.22.2`. ARM7/ARM9 ELFs are in `build/`;
-maps are under `build/blocksds/`. The ROM banner version remains v0.5.9-ko,
+maps are under `build/blocksds/`. The ROM banner version is v0.5.10,
 and Debug version information embeds the current 12-digit Git revision.
 
 Portable tests require Linux, Python 3.10+ and g++. The runner reads the exact
@@ -60,14 +60,14 @@ Packaging (local verification only; this does not publish a release):
 
 ```sh
 python3 tools/package_release.py --nds platform/ds/gameyob.nds \
-  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.9-ko.md \
+  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.10.md \
   --output .codex-tmp/preflight-package/gameyob.zip
 ```
 
 The ZIP contains two NDS programs, EN/JA/KO guides and language examples,
 notices and checksums. It excludes native 3DSX unless explicitly requested
 with the archived-only option. ROMs, BIOS and firmware are never inputs.
-Do not replace published assets with an unreleased maintenance build.
+Publish only a tagged, fully checked release build.
 
 ## 日本語
 

@@ -1,4 +1,4 @@
-Unreleased autonomous development (2026-09-05; no version/tag change):
+Version 0.5.10 (2026-09-05):
 
 - Kept save-state version 8 while adding exact version 1-8 prefix sizing,
   variable mapper/SGB tail preflight, overflow-safe length calculation, every-
@@ -16,14 +16,14 @@ Unreleased autonomous development (2026-09-05; no version/tag change):
 - Added ASan/leak execution to repository preflight. No release, tag, native
   3DSX work, rare-cartridge behavior or published archive was changed.
 
-미배포 자율 개발 (2026-09-05; 버전/태그 변경 없음):
+버전 0.5.10 (2026-09-05):
 
 - 상태 형식 8을 유지하며 1~8 길이·가변 tail 선검증과 절단·변조 시험을 확대.
 - SGB 호스트 65C816 opcode 분기 범위를 51/256에서 256/256으로 확대. 사이클
   정확도·IRQ/참조 trace·실제 SGB 호스트 프로그램 검증은 남아 있어 완성으로 표시하지 않음.
 - NiFi 조각 순서·중복·누락 방어와 ASan 사전 검사를 추가. 실기 무선 승인은 남아 있음.
 
-Unreleased repository maintenance (2026-09-03; no version/tag change):
+Included repository maintenance (2026-09-03):
 
 - Corrected existing SGB host JMP operand fetch, SPC700 BRA sequencing and
   signed BRR scaling; added isolated regressions and UBSan checks. No opcode
@@ -34,7 +34,7 @@ Unreleased repository maintenance (2026-09-03; no version/tag change):
 - Added repeatable host/resource/header/package checks, dual clean-build
   evidence and build documentation; clarified DS/TWL headers and Detect GBA.
 
-미배포 저장소 정비 (2026-09-03; 버전/태그 변경 없음):
+포함된 저장소 정비 (2026-09-03):
 
 - 기존 SGB 호스트 JMP/BRA 및 BRR 음수 시프트 오류를 수정하고 회귀시험을 추가.
 - 상태 파일 공통 구간 길이와 WRAM/VRAM 뱅크 범위를 적용 전에 검사.
