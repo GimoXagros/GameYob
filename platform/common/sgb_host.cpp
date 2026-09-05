@@ -280,6 +280,29 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         set ? uint16_t(value | (cpu.a & mask)) :
               uint16_t(value & ~(cpu.a & mask)));
   };
+  auto applyMemoryArithmetic = [&](uint32_t address, bool bankWrap,
+                                   uint8_t operation) {
+    const uint16_t value = readMemory(address, bankWrap);
+    if (operation == 0x00) { // ORA
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a | value) & 0xff));
+      else cpu.a |= value;
+      setAccumulatorNz();
+    } else if (operation == 0x20) { // AND
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a & value) & 0xff));
+      else cpu.a &= value;
+      setAccumulatorNz();
+    } else if (operation == 0x40) { // EOR
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a ^ value) & 0xff));
+      else cpu.a ^= value;
+      setAccumulatorNz();
+    } else if (operation == 0x60) { // ADC
+      arithmetic(value, false);
+    } else if (operation == 0xc0) { // CMP
+      compare(cpu.a, value, m8);
+    } else { // SBC
+      arithmetic(value, true);
+    }
+  };
 
   while (executed < budget && !cpu.stopped && !cpu.faulted) {
     if (nmiPending && cpu.nmiVector) {
@@ -376,6 +399,51 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a | value) & 0xff);
       else cpu.a |= value;
       setAccumulatorNz();
+      break;
+    }
+    case 0x01: case 0x03: case 0x05: case 0x07:
+    case 0x0d: case 0x0f: case 0x11: case 0x12:
+    case 0x13: case 0x15: case 0x17: case 0x19:
+    case 0x1d: case 0x1f:
+    case 0x21: case 0x23: case 0x25: case 0x27:
+    case 0x2d: case 0x2f: case 0x31: case 0x32:
+    case 0x33: case 0x35: case 0x37: case 0x39:
+    case 0x3d: case 0x3f:
+    case 0x41: case 0x43: case 0x45: case 0x47:
+    case 0x4d: case 0x4f: case 0x51: case 0x52:
+    case 0x53: case 0x55: case 0x57: case 0x59:
+    case 0x5d: case 0x5f:
+    case 0x61: case 0x63: case 0x65: case 0x67:
+    case 0x6d: case 0x6f: case 0x71: case 0x72:
+    case 0x73: case 0x75: case 0x77: case 0x79:
+    case 0x7d: case 0x7f:
+    case 0xc1: case 0xc3: case 0xc5: case 0xc7:
+    case 0xcd: case 0xcf: case 0xd1: case 0xd2:
+    case 0xd3: case 0xd5: case 0xd7: case 0xd9:
+    case 0xdd: case 0xdf:
+    case 0xe1: case 0xe3: case 0xe5: case 0xe7:
+    case 0xed: case 0xef: case 0xf1: case 0xf2:
+    case 0xf3: case 0xf5: case 0xf7: case 0xf9:
+    case 0xfd: case 0xff: {
+      uint32_t address;
+      bool bankWrap = true;
+      switch (op & 0x1f) {
+      case 0x01: address = directIndirect(cpu.x, 0); break;
+      case 0x03: address = stackRelative(); break;
+      case 0x05: address = direct(0); break;
+      case 0x07: address = directIndirectLong(0); bankWrap = false; break;
+      case 0x0d: address = absolute(0); break;
+      case 0x0f: address = absoluteLong(0); bankWrap = false; break;
+      case 0x11: address = directIndirect(0, cpu.y); break;
+      case 0x12: address = directIndirect(0, 0); break;
+      case 0x13: address = stackRelativeIndirect(cpu.y); break;
+      case 0x15: address = direct(cpu.x); break;
+      case 0x17: address = directIndirectLong(cpu.y); bankWrap = false; break;
+      case 0x19: address = absolute(cpu.y); break;
+      case 0x1d: address = absolute(cpu.x); break;
+      default: address = absoluteLong(cpu.x); bankWrap = false; break;
+      }
+      applyMemoryArithmetic(address, bankWrap, op & 0xe0);
       break;
     }
     case 0x29: {
