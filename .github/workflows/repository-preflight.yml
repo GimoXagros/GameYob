@@ -21,6 +21,9 @@ jobs:
       - name: Undefined behavior checks
         if: always()
         run: python3 tools/run_host_tests.py --sanitize
+      - name: Address and leak checks
+        if: always()
+        run: python3 tools/run_host_tests.py --asan
       - name: Isolated SGB regression cases
         if: always()
         run: |
