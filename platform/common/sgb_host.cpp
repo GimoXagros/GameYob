@@ -153,7 +153,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       }
       carryOut = subtract ? carry == 0 : carry != 0;
     } else if (subtract) {
-      carryOut = left >= right + (carryIn ? 0 : 1);
+      carryOut = left >= uint32_t(right) + (carryIn ? 0U : 1U);
     } else {
       carryOut = left + right + carryIn > mask;
     }
