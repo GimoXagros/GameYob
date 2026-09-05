@@ -404,6 +404,26 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0x42:
       fetch(); // WDM reserves and consumes the following signature byte.
       break;
+    case 0x44:
+    case 0x54: {
+      const uint8_t destinationBank = fetch();
+      const uint8_t sourceBank = fetch();
+      const uint32_t source = (uint32_t(sourceBank) << 16) | cpu.x;
+      const uint32_t destination = (uint32_t(destinationBank) << 16) | cpu.y;
+      host.write8(destination, host.read8(source));
+      cpu.dbr = destinationBank;
+      if (op == 0x54) {
+        ++cpu.x;
+        ++cpu.y;
+      } else {
+        --cpu.x;
+        --cpu.y;
+      }
+      --cpu.a;
+      if (cpu.a != 0xffff)
+        cpu.pc = uint16_t(cpu.pc - 3);
+      break;
+    }
     case 0x01: case 0x03: case 0x05: case 0x07:
     case 0x0d: case 0x0f: case 0x11: case 0x12:
     case 0x13: case 0x15: case 0x17: case 0x19:
