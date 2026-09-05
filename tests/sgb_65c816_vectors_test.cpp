@@ -197,11 +197,130 @@ static void testImmediateArithmetic() {
   assert(wide.cpu.state().a == 0 && (wide.cpu.state().p & C));
 }
 
+static void testMemoryShiftAndUpdateFamilies() {
+  struct RmwCase {
+    uint8_t op;
+    bool absolute;
+    bool indexed;
+    uint8_t input;
+    bool carryIn;
+    uint8_t result;
+    bool carryOut;
+  } cases[] = {
+      {0x06, false, false, 0x81, false, 0x02, true},
+      {0x16, false, true,  0x40, false, 0x80, false},
+      {0x0e, true,  false, 0x80, false, 0x00, true},
+      {0x1e, true,  true,  0x01, false, 0x02, false},
+      {0x26, false, false, 0x80, true,  0x01, true},
+      {0x36, false, true,  0x40, false, 0x80, false},
+      {0x2e, true,  false, 0xff, false, 0xfe, true},
+      {0x3e, true,  true,  0x00, true,  0x01, false},
+      {0x46, false, false, 0x01, false, 0x00, true},
+      {0x56, false, true,  0x80, false, 0x40, false},
+      {0x4e, true,  false, 0xff, false, 0x7f, true},
+      {0x5e, true,  true,  0x02, false, 0x01, false},
+      {0x66, false, false, 0x01, true,  0x80, true},
+      {0x76, false, true,  0x80, false, 0x40, false},
+      {0x6e, true,  false, 0x02, true,  0x81, false},
+      {0x7e, true,  true,  0xff, false, 0x7f, true},
+  };
+  for (unsigned i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i) {
+    SgbHost host;
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().dbr = 0x7e;
+    host.cpu.state().x = cases[i].indexed ? 2 : 0;
+    const uint16_t address = cases[i].absolute ?
+        uint16_t(0x0220 + host.cpu.state().x) :
+        uint16_t(0x0120 + host.cpu.state().x);
+    host.wram[address] = cases[i].input;
+    host.cpu.state().p = (host.cpu.state().p & ~C) |
+        (cases[i].carryIn ? C : 0);
+    const uint8_t code[] = {cases[i].op, 0x20, 0x02};
+    instruction(host, code, cases[i].absolute ? 3 : 2);
+    assert(host.wram[address] == cases[i].result);
+    assert(!!(host.cpu.state().p & C) == cases[i].carryOut);
+    assert(!!(host.cpu.state().p & Z) == (cases[i].result == 0));
+    assert(!!(host.cpu.state().p & N) == !!(cases[i].result & 0x80));
+  }
+
+  const uint8_t updateOps[] = {0xc6, 0xd6, 0xce, 0xde,
+                               0xe6, 0xf6, 0xee, 0xfe};
+  for (unsigned i = 0; i < sizeof(updateOps); ++i) {
+    const bool increment = updateOps[i] >= 0xe0;
+    const bool absolute = (updateOps[i] & 0x08) != 0;
+    const bool indexed = (updateOps[i] & 0x10) != 0;
+    SgbHost host;
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().dbr = 0x7e;
+    host.cpu.state().x = indexed ? 2 : 0;
+    const uint16_t address = absolute ?
+        uint16_t(0x0220 + host.cpu.state().x) :
+        uint16_t(0x0120 + host.cpu.state().x);
+    host.wram[address] = increment ? 0xff : 0;
+    const uint8_t code[] = {updateOps[i], 0x20, 0x02};
+    instruction(host, code, absolute ? 3 : 2);
+    assert(host.wram[address] == (increment ? 0 : 0xff));
+    assert(!!(host.cpu.state().p & Z) == increment);
+    assert(!!(host.cpu.state().p & N) != increment);
+  }
+}
+
+static void testMemoryBitFamilies() {
+  struct BitCase { uint8_t op; bool absolute; bool indexed; } bitCases[] = {
+      {0x24, false, false}, {0x34, false, true},
+      {0x2c, true, false}, {0x3c, true, true}};
+  for (unsigned i = 0; i < sizeof(bitCases) / sizeof(bitCases[0]); ++i) {
+    SgbHost host;
+    host.cpu.state().a = 0x0f;
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().dbr = 0x7e;
+    host.cpu.state().x = bitCases[i].indexed ? 2 : 0;
+    const uint16_t address = bitCases[i].absolute ?
+        uint16_t(0x0220 + host.cpu.state().x) :
+        uint16_t(0x0120 + host.cpu.state().x);
+    host.wram[address] = 0xc0;
+    const uint8_t code[] = {bitCases[i].op, 0x20, 0x02};
+    instruction(host, code, bitCases[i].absolute ? 3 : 2);
+    assert(host.cpu.state().p & Z);
+    assert(host.cpu.state().p & N);
+    assert(host.cpu.state().p & V);
+  }
+
+  struct ChangeCase { uint8_t op; bool absolute; uint8_t expected; } changes[] = {
+      {0x04, false, 0xff}, {0x0c, true, 0xff},
+      {0x14, false, 0xf0}, {0x1c, true, 0xf0}};
+  for (unsigned i = 0; i < sizeof(changes) / sizeof(changes[0]); ++i) {
+    SgbHost host;
+    host.cpu.state().a = 0x0f;
+    host.cpu.state().d = 0x0100;
+    host.cpu.state().dbr = 0x7e;
+    const uint16_t address = changes[i].absolute ? 0x0220 : 0x0120;
+    host.wram[address] = 0xf0;
+    const uint8_t code[] = {changes[i].op, 0x20, 0x02};
+    instruction(host, code, changes[i].absolute ? 3 : 2);
+    assert(host.cpu.state().p & Z);
+    assert(host.wram[address] == changes[i].expected);
+  }
+
+  SgbHost wide;
+  native16(wide);
+  wide.cpu.state().a = 0x00ff;
+  wide.cpu.state().dbr = 0x7e;
+  wide.wram[0x02ff] = 0xff;
+  wide.wram[0x0300] = 0x40;
+  const uint8_t trb16[] = {0x1c, 0xff, 0x02};
+  instruction(wide, trb16, sizeof(trb16));
+  assert(wide.wram[0x02ff] == 0 && wide.wram[0x0300] == 0x40);
+  assert(!(wide.cpu.state().p & Z));
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
   testWidthsTransfersAndStack();
   testLoadStoreAddressing();
   testImmediateArithmetic();
+  testMemoryShiftAndUpdateFamilies();
+  testMemoryBitFamilies();
   puts("65C816 instruction vectors passed");
 }
