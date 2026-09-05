@@ -61,6 +61,46 @@ uint32_t crc32Update(uint32_t crc, const uint8_t* data, size_t length) {
 
 namespace nifi {
 
+FragmentResult FragmentSequence::accept(uint32_t totalSize,
+        uint8_t fragmentCount, uint8_t fragmentIndex, size_t payloadSize,
+        size_t fragmentSize) {
+    if (!totalSize || !fragmentSize || !fragmentCount ||
+            fragmentIndex >= fragmentCount ||
+            totalSize > uint32_t(fragmentCount) * fragmentSize ||
+            totalSize <= uint32_t(fragmentCount - 1) * fragmentSize)
+        return FRAGMENT_INVALID;
+    size_t expected = fragmentSize;
+    if (fragmentIndex == fragmentCount - 1) {
+        expected = totalSize % fragmentSize;
+        if (!expected) expected = fragmentSize;
+    }
+    if (payloadSize != expected)
+        return FRAGMENT_INVALID;
+    if (fragmentIndex == 0 && active && total == totalSize &&
+            count == fragmentCount && next != 0)
+        return FRAGMENT_DUPLICATE;
+    if (fragmentIndex == 0) {
+        total = totalSize;
+        count = fragmentCount;
+        next = 0;
+        active = true;
+    }
+    if (!active || total != totalSize || count != fragmentCount)
+        return FRAGMENT_INVALID;
+    if (fragmentIndex < next)
+        return FRAGMENT_DUPLICATE;
+    if (fragmentIndex != next) {
+        reset();
+        return FRAGMENT_GAP;
+    }
+    ++next;
+    if (next == count) {
+        reset();
+        return FRAGMENT_COMPLETE;
+    }
+    return FRAGMENT_ACCEPTED;
+}
+
 uint32_t crc32(const uint8_t* data, size_t length) {
     return ~crc32Update(0xffffffffU, data, length);
 }
@@ -93,6 +133,9 @@ size_t encodePacket(uint8_t* output, size_t outputCapacity,
         return 0;
     if (header.fragmentCount == 1 &&
             (header.fragmentIndex != 0 || header.totalSize != header.payloadSize))
+        return 0;
+    if (header.fragmentCount > 1 &&
+            (!header.payloadSize || header.totalSize < header.payloadSize))
         return 0;
 
     memset(output, 0, HEADER_SIZE);
@@ -150,6 +193,9 @@ DecodeResult decodePacket(const uint8_t* packet, size_t packetLength,
         return DECODE_BAD_FRAGMENT;
     if (header.fragmentCount == 1 &&
             (header.fragmentIndex != 0 || header.totalSize != header.payloadSize))
+        return DECODE_BAD_FRAGMENT;
+    if (header.fragmentCount > 1 &&
+            (!header.payloadSize || header.totalSize < header.payloadSize))
         return DECODE_BAD_FRAGMENT;
 
     uint8_t headerCopy[HEADER_SIZE];

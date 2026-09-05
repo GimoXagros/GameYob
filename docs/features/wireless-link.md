@@ -65,6 +65,14 @@ LAN room; a transport bridge would be a separate project.
 
 ## Remaining validation
 
+The protocol and its portable encoder/decoder have deterministic truncation,
+per-byte corruption, fixed-seed mutation, sequence-wrap, exact/stale/duplicate
+ACK, and fragment duplicate/gap/reordering/size regression tests. The DS
+receiver uses the shared fragment state machine, preserves an active buffer for
+an exact duplicate, and frees/resets it on a gap or malformed sequence. Retry
+and frame deadlines stay bounded. These software tests do not exercise a radio,
+ring-buffer concurrency, or packet loss on physical hardware.
+
 The protocol and its portable encoder/decoder have automated regression tests,
 but the following radio matrix still requires physical systems:
 

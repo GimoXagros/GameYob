@@ -10,11 +10,12 @@
 | CGB priority | LCDC bit 0 cancels BG/window priority | `gb_render_rules_test.cpp` |
 | LCD off | native 3DS game area is cleared to white | 3DS build plus manual test required |
 | Noise channel | hardware-form 15-bit and 7-bit LFSR, periods 32767/127 | `gb_noise_test.cpp` |
-| DS NiFi | packet length, CRC, identity bounds and corruption rejection | `nifi_protocol_test.cpp` |
+| DS NiFi | packet length/CRC, every-byte truncation/corruption, fixed-seed mutation, ACK/sequence wrap and ordered fragment assembly | `nifi_protocol_test.cpp` |
 | RTC | MBC3 rollover/carry/halt and HuC3 minute/day/year rollover | `rtc_test.cpp` |
 | Patched ROM layout | physical/non-power-of-two banks, 8 MiB boundary, RAM headers through 128 KiB | `rom_layout_test.cpp` |
 | MMM01 | power-on menu mapping, ROM/RAM masks, banking, multiplex and locks | `mmm01_test.cpp` |
 | SGB host foundation | bounded WRAM access, CPU faults, APU program transfer and prototype OBJ decode | `sgb_host_test.cpp` |
+| Save states | exact version 1-8 prefix/tail sizing, every-byte truncation and fixed-seed scalar mutation | `state_validation_test.cpp` |
 | SGB packet protocol | all command IDs, packet-count validity and bounded DATA_SND payload | `sgb_protocol_test.cpp` |
 | MBC7 | serial EEPROM protection/read/write/erase/all commands and transaction-state restore | `mbc7_eeprom_test.cpp` |
 | HuC1 | RAM/IR selection and ROM/RAM bank masks | `huc1_rules_test.cpp` |
@@ -39,9 +40,9 @@ recorded so a lawful local copy can be matched to the test result.
 - User-reported Korean Pokemon Silver model-warning screen with Detect GBA On;
   Off boots normally. Exact ROM/build/BIOS/suspend-state combination and root
   cause are not established. This is not attributed to DSpico or GBARunner3.
-- Real legacy `.ys*` fixture validation and malformed variable-tail/state
-  fuzzing: the maintenance guard covers version/common-prefix bounds and
-  WRAM/VRAM bank indexes, not full transactional validation of every state field.
+- Real legacy `.ys*` fixtures remain untested. Synthetic versions 1-8 and
+  variable tails are preflighted before large-array mutation, but loading does
+  not duplicate all emulator RAM and is not a fully transactional operation.
 
 - real DS/DSi/3DS-in-DS-mode wireless-link tests;
 - deferred native Nintendo 3DS regression pass for renderer/sound changes;

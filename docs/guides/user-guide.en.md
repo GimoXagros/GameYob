@@ -1,4 +1,4 @@
-# GameYob v0.5.9-ko user guide (English)
+# GameYob v0.5.10 user guide (English)
 
 ## 1. Choose a build
 
@@ -79,14 +79,22 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown. MBC7 EEPROM/tilt and HuC1 banking/IR selection have automated coverage, but physical MBC7/HuC cartridge validation remains pending.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.
 
-## 11. Unreleased maintenance notes
+## 11. v0.5.10 maintenance notes
 
 Both NDS files have DS+DSi unit code `0x02` and identical program payloads;
 `gameyob_dsi.nds` has the `GYOB` title ID. The launcher chooses the actual mode.
-Post-v0.5.9 maintenance retains state version 8 and adds common-prefix length
+Version 0.5.10 retains state version 8 and adds common-prefix length
 and WRAM/VRAM bank checks. It is not full validation of arbitrary corrupt state
 tails; keep backups, and report rejected legacy states without deleting them.
-The published v0.5.9 ZIP has not been replaced by this maintenance source.
+Install it as a new release rather than overwriting an older archive.
+
+Version 0.5.10 performs full structural preflight of version
+1-8 state tails before large memory writes and expands the experimental SGB
+host 65C816 opcode-dispatch coverage to 256/256. This is dispatch coverage,
+not a cycle-accurate CPU completion claim: cycle timing, IRQ/reference traces,
+and the SPC700/DSP remain incomplete. It also rejects malformed, missing, and
+reordered DS NiFi fragments. These changes have automated tests; keep state
+backups and do not treat them as physical-radio or full SGB-host validation.
 
 Korean Pokemon Silver has a user-reported model-warning screen with Detect
 GBA On and normal startup with it Off. Use Off as a workaround; exact ROM,

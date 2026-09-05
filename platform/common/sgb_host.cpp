@@ -27,6 +27,20 @@ static void write16(SgbHost &host, uint32_t address, uint16_t value) {
   host.write8((address + 1) & 0xffffff, value >> 8);
 }
 
+static uint16_t read16Bank(SgbHost &host, uint32_t address) {
+  const uint32_t bank = address & 0xff0000;
+  const uint16_t offset = address;
+  return host.read8(bank | offset) |
+         (host.read8(bank | uint16_t(offset + 1)) << 8);
+}
+
+static void write16Bank(SgbHost &host, uint32_t address, uint16_t value) {
+  const uint32_t bank = address & 0xff0000;
+  const uint16_t offset = address;
+  host.write8(bank | offset, value & 0xff);
+  host.write8(bank | uint16_t(offset + 1), value >> 8);
+}
+
 static int16_t clamp16(int value) {
   if (value < -32768)
     return -32768;
@@ -77,6 +91,19 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       cpu.sp |= 0x100;
     return host.read8(cpu.sp);
   };
+  auto softwareInterrupt = [&](uint16_t emulationVector,
+                               uint16_t nativeVector) {
+    fetch(); // BRK and COP both consume a signature byte.
+    if (!cpu.emulation)
+      push(cpu.pbr);
+    push(cpu.pc >> 8);
+    push(cpu.pc);
+    push(cpu.emulation ? uint8_t(cpu.p | FLAG_X) : cpu.p);
+    cpu.p = (cpu.p | FLAG_I) & ~FLAG_D;
+    cpu.pbr = 0;
+    cpu.pc = read16Bank(host,
+        cpu.emulation ? emulationVector : nativeVector);
+  };
   auto setNz8 = [&](uint8_t value) {
     cpu.p = (cpu.p & ~(FLAG_N | FLAG_Z)) | (value == 0 ? FLAG_Z : 0) |
             (value & FLAG_N);
@@ -90,16 +117,225 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     if (condition)
       cpu.pc = uint16_t(cpu.pc + offset);
   };
+  auto setAccumulatorNz = [&]() {
+    if (m8) setNz8(cpu.a); else setNz16(cpu.a);
+  };
+  auto immediate = [&](bool byteWidth) -> uint16_t {
+    uint16_t value = fetch();
+    if (!byteWidth) value |= uint16_t(fetch()) << 8;
+    return value;
+  };
+  auto compare = [&](uint16_t left, uint16_t right, bool byteWidth) {
+    const uint32_t mask = byteWidth ? 0xffU : 0xffffU;
+    const uint16_t result = uint16_t((left - right) & mask);
+    cpu.p = (cpu.p & ~FLAG_C) | ((left & mask) >= (right & mask) ? FLAG_C : 0);
+    if (byteWidth) setNz8(result); else setNz16(result);
+  };
+  auto arithmetic = [&](uint16_t right, bool subtract) {
+    const uint32_t mask = m8 ? 0xffU : 0xffffU;
+    const uint32_t sign = m8 ? 0x80U : 0x8000U;
+    const uint32_t left = cpu.a & mask;
+    const uint32_t carryIn = cpu.p & FLAG_C ? 1 : 0;
+    const uint32_t binary = subtract ?
+        ((left - right - (carryIn ? 0 : 1)) & mask) :
+        ((left + right + carryIn) & mask);
+    const bool overflow = subtract ?
+        (((left ^ right) & (left ^ binary) & sign) != 0) :
+        ((~(left ^ right) & (left ^ binary) & sign) != 0);
+    uint32_t result = binary;
+    bool carryOut;
+    if (cpu.p & FLAG_D) {
+      result = 0;
+      int carry = subtract ? (carryIn ? 0 : 1) : (int)carryIn;
+      const int digits = m8 ? 2 : 4;
+      for (int digit = 0; digit < digits; ++digit) {
+        const int shift = digit * 4;
+        int value;
+        if (subtract) {
+          value = int((left >> shift) & 15) -
+              int((right >> shift) & 15) - carry;
+          if (value < 0) { value -= 6; carry = 1; }
+          else carry = 0;
+        } else {
+          value = int((left >> shift) & 15) +
+              int((right >> shift) & 15) + carry;
+          if (value > 9) { value += 6; carry = 1; }
+          else carry = 0;
+        }
+        result |= uint32_t(value & 15) << shift;
+      }
+      carryOut = subtract ? carry == 0 : carry != 0;
+    } else if (subtract) {
+      carryOut = left >= uint32_t(right) + (carryIn ? 0U : 1U);
+    } else {
+      carryOut = left + right + carryIn > mask;
+    }
+    cpu.p = (cpu.p & ~(FLAG_C | FLAG_V)) |
+        (carryOut ? FLAG_C : 0) | (overflow ? FLAG_V : 0);
+    cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | (result & 0xff)) :
+                 uint16_t(result);
+    setAccumulatorNz();
+  };
+  auto direct = [&](uint16_t index) -> uint32_t {
+    const uint8_t operand = fetch();
+    if (cpu.emulation && (cpu.d & 0xff) == 0)
+      return (cpu.d & 0xff00) | uint8_t(operand + index);
+    return uint16_t(cpu.d + operand + index);
+  };
+  auto readDirectPointer = [&](uint16_t address) -> uint16_t {
+    uint16_t next = uint16_t(address + 1);
+    if (cpu.emulation && (cpu.d & 0xff) == 0)
+      next = (address & 0xff00) | uint8_t(address + 1);
+    return host.read8(address) | (host.read8(next) << 8);
+  };
+  auto absolute = [&](uint16_t index) -> uint32_t {
+    uint16_t offset = fetch();
+    offset |= uint16_t(fetch()) << 8;
+    return ((((uint32_t(cpu.dbr) << 16) | offset) + index) & 0xffffff);
+  };
+  auto absoluteLong = [&](uint16_t index) -> uint32_t {
+    uint32_t address = fetch();
+    address |= uint32_t(fetch()) << 8;
+    address |= uint32_t(fetch()) << 16;
+    return (address + index) & 0xffffff;
+  };
+  auto directIndirect = [&](uint16_t index, uint16_t postIndex) -> uint32_t {
+    const uint16_t pointer = readDirectPointer(direct(index));
+    return (((uint32_t(cpu.dbr) << 16) | pointer) + postIndex) & 0xffffff;
+  };
+  auto directIndirectLong = [&](uint16_t index) -> uint32_t {
+    const uint16_t pointerAddress = direct(0);
+    uint32_t address = host.read8(pointerAddress);
+    address |= uint32_t(host.read8(uint16_t(pointerAddress + 1))) << 8;
+    address |= uint32_t(host.read8(uint16_t(pointerAddress + 2))) << 16;
+    return (address + index) & 0xffffff;
+  };
+  auto stackRelative = [&]() -> uint32_t {
+    return uint16_t(cpu.sp + fetch());
+  };
+  auto stackRelativeIndirect = [&](uint16_t index) -> uint32_t {
+    const uint16_t pointer = read16Bank(host, stackRelative());
+    return (((uint32_t(cpu.dbr) << 16) | pointer) + index) & 0xffffff;
+  };
+  auto loadA = [&](uint32_t address, bool bankWrap) {
+    const uint16_t value = m8 ? host.read8(address) :
+        (bankWrap ? read16Bank(host, address) : read16(host, address));
+    cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | value) : value;
+    setAccumulatorNz();
+  };
+  auto storeA = [&](uint32_t address, bool bankWrap) {
+    if (m8) host.write8(address, cpu.a);
+    else if (bankWrap) write16Bank(host, address, cpu.a);
+    else write16(host, address, cpu.a);
+  };
+  auto loadIndex = [&](uint16_t &target, uint32_t address, bool bankWrap) {
+    target = x8 ? host.read8(address) :
+        (bankWrap ? read16Bank(host, address) : read16(host, address));
+    if (x8) setNz8(target); else setNz16(target);
+  };
+  auto storeIndex = [&](uint16_t value, uint32_t address, bool bankWrap) {
+    if (x8) host.write8(address, value);
+    else if (bankWrap) write16Bank(host, address, value);
+    else write16(host, address, value);
+  };
+  auto readMemory = [&](uint32_t address, bool bankWrap) -> uint16_t {
+    return m8 ? host.read8(address) :
+        (bankWrap ? read16Bank(host, address) : read16(host, address));
+  };
+  auto writeMemory = [&](uint32_t address, bool bankWrap, uint16_t value) {
+    if (m8) host.write8(address, value);
+    else if (bankWrap) write16Bank(host, address, value);
+    else write16(host, address, value);
+  };
+  auto modifyMemory = [&](uint32_t address, bool bankWrap, int operation) {
+    const uint32_t mask = m8 ? 0xffU : 0xffffU;
+    const uint32_t sign = m8 ? 0x80U : 0x8000U;
+    const uint32_t value = readMemory(address, bankWrap);
+    uint16_t result = value;
+    bool changesCarry = true;
+    bool carry = false;
+    switch (operation) {
+    case 0: // ASL
+      carry = (value & sign) != 0;
+      result = uint16_t((value << 1) & mask);
+      break;
+    case 1: // ROL
+      carry = (value & sign) != 0;
+      result = uint16_t(((value << 1) | (cpu.p & FLAG_C ? 1 : 0)) & mask);
+      break;
+    case 2: // LSR
+      carry = (value & 1) != 0;
+      result = uint16_t(value >> 1);
+      break;
+    case 3: // ROR
+      carry = (value & 1) != 0;
+      result = uint16_t((value >> 1) | (cpu.p & FLAG_C ? sign : 0));
+      break;
+    case 4: // DEC
+      changesCarry = false;
+      result = uint16_t((value - 1) & mask);
+      break;
+    default: // INC
+      changesCarry = false;
+      result = uint16_t((value + 1) & mask);
+      break;
+    }
+    if (changesCarry)
+      cpu.p = (cpu.p & ~FLAG_C) | (carry ? FLAG_C : 0);
+    writeMemory(address, bankWrap, result);
+    if (m8) setNz8(result); else setNz16(result);
+  };
+  auto bitMemory = [&](uint32_t address, bool bankWrap) {
+    const uint16_t value = readMemory(address, bankWrap);
+    const uint16_t mask = m8 ? 0xff : 0xffff;
+    const uint8_t nv = m8 ? uint8_t(value & (FLAG_N | FLAG_V)) :
+        uint8_t((value >> 8) & (FLAG_N | FLAG_V));
+    cpu.p = (cpu.p & ~(FLAG_N | FLAG_V | FLAG_Z)) | nv |
+        ((cpu.a & value & mask) == 0 ? FLAG_Z : 0);
+  };
+  auto changeMemoryBits = [&](uint32_t address, bool bankWrap, bool set) {
+    const uint16_t mask = m8 ? 0xff : 0xffff;
+    const uint16_t value = readMemory(address, bankWrap);
+    cpu.p = (cpu.p & ~FLAG_Z) |
+        ((cpu.a & value & mask) == 0 ? FLAG_Z : 0);
+    writeMemory(address, bankWrap,
+        set ? uint16_t(value | (cpu.a & mask)) :
+              uint16_t(value & ~(cpu.a & mask)));
+  };
+  auto applyMemoryArithmetic = [&](uint32_t address, bool bankWrap,
+                                   uint8_t operation) {
+    const uint16_t value = readMemory(address, bankWrap);
+    if (operation == 0x00) { // ORA
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a | value) & 0xff));
+      else cpu.a |= value;
+      setAccumulatorNz();
+    } else if (operation == 0x20) { // AND
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a & value) & 0xff));
+      else cpu.a &= value;
+      setAccumulatorNz();
+    } else if (operation == 0x40) { // EOR
+      if (m8) cpu.a = uint16_t((cpu.a & 0xff00) | ((cpu.a ^ value) & 0xff));
+      else cpu.a ^= value;
+      setAccumulatorNz();
+    } else if (operation == 0x60) { // ADC
+      arithmetic(value, false);
+    } else if (operation == 0xc0) { // CMP
+      compare(cpu.a, value, m8);
+    } else { // SBC
+      arithmetic(value, true);
+    }
+  };
 
   while (executed < budget && !cpu.stopped && !cpu.faulted) {
     if (nmiPending && cpu.nmiVector) {
       nmiPending = false;
       cpu.waiting = 0;
-      push(cpu.pbr);
+      if (!cpu.emulation)
+        push(cpu.pbr);
       push(cpu.pc >> 8);
       push(cpu.pc & 0xff);
-      push(cpu.p);
-      cpu.p |= FLAG_I;
+      push(cpu.emulation ? uint8_t(cpu.p & ~FLAG_X) : cpu.p);
+      cpu.p = (cpu.p | FLAG_I) & ~FLAG_D;
       cpu.pbr = (cpu.nmiVector >> 16) & 0xff;
       cpu.pc = cpu.nmiVector & 0xffff;
     }
@@ -111,6 +347,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     uint8_t op = fetch();
     executed++;
     switch (op) {
+    case 0x00:
+      softwareInterrupt(0xfffe, 0xffe6);
+      break;
+    case 0x02:
+      softwareInterrupt(0xfff4, 0xffe4);
+      break;
     case 0xea:
       break; // NOP
     case 0x18:
@@ -181,6 +423,136 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       else
         setNz16(cpu.y);
       break;
+    case 0x09: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a | value) & 0xff);
+      else cpu.a |= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x42:
+      fetch(); // WDM reserves and consumes the following signature byte.
+      break;
+    case 0x44:
+    case 0x54: {
+      const uint8_t destinationBank = fetch();
+      const uint8_t sourceBank = fetch();
+      const uint32_t source = (uint32_t(sourceBank) << 16) | cpu.x;
+      const uint32_t destination = (uint32_t(destinationBank) << 16) | cpu.y;
+      host.write8(destination, host.read8(source));
+      cpu.dbr = destinationBank;
+      if (op == 0x54) {
+        ++cpu.x;
+        ++cpu.y;
+      } else {
+        --cpu.x;
+        --cpu.y;
+      }
+      --cpu.a;
+      if (cpu.a != 0xffff)
+        cpu.pc = uint16_t(cpu.pc - 3);
+      break;
+    }
+    case 0x01: case 0x03: case 0x05: case 0x07:
+    case 0x0d: case 0x0f: case 0x11: case 0x12:
+    case 0x13: case 0x15: case 0x17: case 0x19:
+    case 0x1d: case 0x1f:
+    case 0x21: case 0x23: case 0x25: case 0x27:
+    case 0x2d: case 0x2f: case 0x31: case 0x32:
+    case 0x33: case 0x35: case 0x37: case 0x39:
+    case 0x3d: case 0x3f:
+    case 0x41: case 0x43: case 0x45: case 0x47:
+    case 0x4d: case 0x4f: case 0x51: case 0x52:
+    case 0x53: case 0x55: case 0x57: case 0x59:
+    case 0x5d: case 0x5f:
+    case 0x61: case 0x63: case 0x65: case 0x67:
+    case 0x6d: case 0x6f: case 0x71: case 0x72:
+    case 0x73: case 0x75: case 0x77: case 0x79:
+    case 0x7d: case 0x7f:
+    case 0xc1: case 0xc3: case 0xc5: case 0xc7:
+    case 0xcd: case 0xcf: case 0xd1: case 0xd2:
+    case 0xd3: case 0xd5: case 0xd7: case 0xd9:
+    case 0xdd: case 0xdf:
+    case 0xe1: case 0xe3: case 0xe5: case 0xe7:
+    case 0xed: case 0xef: case 0xf1: case 0xf2:
+    case 0xf3: case 0xf5: case 0xf7: case 0xf9:
+    case 0xfd: case 0xff: {
+      uint32_t address;
+      bool bankWrap = false;
+      switch (op & 0x1f) {
+      case 0x01: address = directIndirect(cpu.x, 0); break;
+      case 0x03: address = stackRelative(); bankWrap = true; break;
+      case 0x05: address = direct(0); bankWrap = true; break;
+      case 0x07: address = directIndirectLong(0); break;
+      case 0x0d: address = absolute(0); break;
+      case 0x0f: address = absoluteLong(0); break;
+      case 0x11: address = directIndirect(0, cpu.y); break;
+      case 0x12: address = directIndirect(0, 0); break;
+      case 0x13: address = stackRelativeIndirect(cpu.y); break;
+      case 0x15: address = direct(cpu.x); bankWrap = true; break;
+      case 0x17: address = directIndirectLong(cpu.y); break;
+      case 0x19: address = absolute(cpu.y); break;
+      case 0x1d: address = absolute(cpu.x); break;
+      default: address = absoluteLong(cpu.x); break;
+      }
+      applyMemoryArithmetic(address, bankWrap, op & 0xe0);
+      break;
+    }
+    case 0x29: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a & value) & 0xff);
+      else cpu.a &= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x49: {
+      const uint16_t value = immediate(m8);
+      if (m8) cpu.a = (cpu.a & 0xff00) | ((cpu.a ^ value) & 0xff);
+      else cpu.a ^= value;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x89: {
+      const uint16_t value = immediate(m8);
+      const uint16_t result = cpu.a & value & (m8 ? 0xff : 0xffff);
+      cpu.p = (cpu.p & ~FLAG_Z) | (result == 0 ? FLAG_Z : 0);
+      break;
+    }
+    case 0xc9:
+      compare(cpu.a, immediate(m8), m8);
+      break;
+    case 0xe0:
+      compare(cpu.x, immediate(x8), x8);
+      break;
+    case 0xc0:
+      compare(cpu.y, immediate(x8), x8);
+      break;
+    case 0xc4: {
+      const uint32_t address = direct(0);
+      compare(cpu.y, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
+    case 0xcc: {
+      const uint32_t address = absolute(0);
+      compare(cpu.y, x8 ? host.read8(address) : read16(host, address), x8);
+      break;
+    }
+    case 0xe4: {
+      const uint32_t address = direct(0);
+      compare(cpu.x, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      break;
+    }
+    case 0xec: {
+      const uint32_t address = absolute(0);
+      compare(cpu.x, x8 ? host.read8(address) : read16(host, address), x8);
+      break;
+    }
+    case 0x69:
+      arithmetic(immediate(m8), false);
+      break;
+    case 0xe9:
+      arithmetic(immediate(m8), true);
+      break;
     case 0x8d: {
       uint32_t a = (cpu.dbr << 16) | fetch();
       a |= uint32_t(fetch()) << 8;
@@ -248,6 +620,89 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         setNz16(cpu.a);
       break;
     }
+    case 0xa5: loadA(direct(0), true); break;
+    case 0xa1: loadA(directIndirect(cpu.x, 0), false); break;
+    case 0xa3: loadA(stackRelative(), true); break;
+    case 0xa7: loadA(directIndirectLong(0), false); break;
+    case 0xb1: loadA(directIndirect(0, cpu.y), false); break;
+    case 0xb2: loadA(directIndirect(0, 0), false); break;
+    case 0xb3: loadA(stackRelativeIndirect(cpu.y), false); break;
+    case 0xb7: loadA(directIndirectLong(cpu.y), false); break;
+    case 0xb5: loadA(direct(cpu.x), true); break;
+    case 0xbd: loadA(absolute(cpu.x), false); break;
+    case 0xb9: loadA(absolute(cpu.y), false); break;
+    case 0xbf: loadA(absoluteLong(cpu.x), false); break;
+    case 0x85: storeA(direct(0), true); break;
+    case 0x81: storeA(directIndirect(cpu.x, 0), false); break;
+    case 0x83: storeA(stackRelative(), true); break;
+    case 0x87: storeA(directIndirectLong(0), false); break;
+    case 0x91: storeA(directIndirect(0, cpu.y), false); break;
+    case 0x92: storeA(directIndirect(0, 0), false); break;
+    case 0x93: storeA(stackRelativeIndirect(cpu.y), false); break;
+    case 0x97: storeA(directIndirectLong(cpu.y), false); break;
+    case 0x95: storeA(direct(cpu.x), true); break;
+    case 0x9d: storeA(absolute(cpu.x), false); break;
+    case 0x99: storeA(absolute(cpu.y), false); break;
+    case 0x9f: storeA(absoluteLong(cpu.x), false); break;
+    case 0xa6: loadIndex(cpu.x, direct(0), true); break;
+    case 0xb6: loadIndex(cpu.x, direct(cpu.y), true); break;
+    case 0xae: loadIndex(cpu.x, absolute(0), false); break;
+    case 0xbe: loadIndex(cpu.x, absolute(cpu.y), false); break;
+    case 0xa4: loadIndex(cpu.y, direct(0), true); break;
+    case 0xb4: loadIndex(cpu.y, direct(cpu.x), true); break;
+    case 0xac: loadIndex(cpu.y, absolute(0), false); break;
+    case 0xbc: loadIndex(cpu.y, absolute(cpu.x), false); break;
+    case 0x86: storeIndex(cpu.x, direct(0), true); break;
+    case 0x96: storeIndex(cpu.x, direct(cpu.y), true); break;
+    case 0x84: storeIndex(cpu.y, direct(0), true); break;
+    case 0x94: storeIndex(cpu.y, direct(cpu.x), true); break;
+    case 0x64: {
+      const uint32_t address = direct(0);
+      if (m8) host.write8(address, 0); else write16Bank(host, address, 0);
+      break;
+    }
+    case 0x74: {
+      const uint32_t address = direct(cpu.x);
+      if (m8) host.write8(address, 0); else write16Bank(host, address, 0);
+      break;
+    }
+    case 0x9e: {
+      const uint32_t address = absolute(cpu.x);
+      if (m8) host.write8(address, 0); else write16(host, address, 0);
+      break;
+    }
+    case 0x06: modifyMemory(direct(0), true, 0); break;
+    case 0x16: modifyMemory(direct(cpu.x), true, 0); break;
+    case 0x0e: modifyMemory(absolute(0), false, 0); break;
+    case 0x1e: modifyMemory(absolute(cpu.x), false, 0); break;
+    case 0x26: modifyMemory(direct(0), true, 1); break;
+    case 0x36: modifyMemory(direct(cpu.x), true, 1); break;
+    case 0x2e: modifyMemory(absolute(0), false, 1); break;
+    case 0x3e: modifyMemory(absolute(cpu.x), false, 1); break;
+    case 0x46: modifyMemory(direct(0), true, 2); break;
+    case 0x56: modifyMemory(direct(cpu.x), true, 2); break;
+    case 0x4e: modifyMemory(absolute(0), false, 2); break;
+    case 0x5e: modifyMemory(absolute(cpu.x), false, 2); break;
+    case 0x66: modifyMemory(direct(0), true, 3); break;
+    case 0x76: modifyMemory(direct(cpu.x), true, 3); break;
+    case 0x6e: modifyMemory(absolute(0), false, 3); break;
+    case 0x7e: modifyMemory(absolute(cpu.x), false, 3); break;
+    case 0xc6: modifyMemory(direct(0), true, 4); break;
+    case 0xd6: modifyMemory(direct(cpu.x), true, 4); break;
+    case 0xce: modifyMemory(absolute(0), false, 4); break;
+    case 0xde: modifyMemory(absolute(cpu.x), false, 4); break;
+    case 0xe6: modifyMemory(direct(0), true, 5); break;
+    case 0xf6: modifyMemory(direct(cpu.x), true, 5); break;
+    case 0xee: modifyMemory(absolute(0), false, 5); break;
+    case 0xfe: modifyMemory(absolute(cpu.x), false, 5); break;
+    case 0x24: bitMemory(direct(0), true); break;
+    case 0x34: bitMemory(direct(cpu.x), true); break;
+    case 0x2c: bitMemory(absolute(0), false); break;
+    case 0x3c: bitMemory(absolute(cpu.x), false); break;
+    case 0x04: changeMemoryBits(direct(0), true, true); break;
+    case 0x0c: changeMemoryBits(absolute(0), false, true); break;
+    case 0x14: changeMemoryBits(direct(0), true, false); break;
+    case 0x1c: changeMemoryBits(absolute(0), false, false); break;
     case 0x4c: {
       // Fetch both operand bytes before replacing the instruction pointer.
       uint16_t target = fetch();
@@ -261,6 +716,30 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       a |= uint32_t(fetch()) << 16;
       cpu.pc = a;
       cpu.pbr = a >> 16;
+      break;
+    }
+    case 0x6c: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      cpu.pc = read16Bank(host, pointer);
+      break;
+    }
+    case 0x7c: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      const uint32_t pointerAddress = (uint32_t(cpu.pbr) << 16) |
+          uint16_t(pointer + cpu.x);
+      cpu.pc = read16Bank(host, pointerAddress);
+      break;
+    }
+    case 0xdc: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      uint32_t target = host.read8(pointer);
+      target |= uint32_t(host.read8(uint16_t(pointer + 1))) << 8;
+      target |= uint32_t(host.read8(uint16_t(pointer + 2))) << 16;
+      cpu.pc = target;
+      cpu.pbr = target >> 16;
       break;
     }
     case 0x20: {
@@ -282,6 +761,18 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       push(ret);
       cpu.pc = a;
       cpu.pbr = a >> 16;
+      break;
+    }
+    case 0xfc: {
+      uint16_t pointer = fetch();
+      pointer |= uint16_t(fetch()) << 8;
+      const uint32_t pointerAddress = (uint32_t(cpu.pbr) << 16) |
+          uint16_t(pointer + cpu.x);
+      const uint16_t target = read16Bank(host, pointerAddress);
+      const uint16_t ret = cpu.pc - 1;
+      push(ret >> 8);
+      push(ret);
+      cpu.pc = target;
       break;
     }
     case 0x60: {
@@ -307,6 +798,12 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0x80:
       branch(true);
       break;
+    case 0x82: {
+      int16_t offset = fetch();
+      offset |= uint16_t(fetch()) << 8;
+      cpu.pc = uint16_t(cpu.pc + offset);
+      break;
+    }
     case 0x10:
       branch(!(cpu.p & FLAG_N));
       break;
@@ -346,11 +843,47 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         setNz16(cpu.y);
       break;
     case 0x8a:
-      cpu.a = (cpu.a & 0xff00) | (cpu.x & 0xff);
-      setNz8(cpu.a);
+      if (m8) cpu.a = (cpu.a & 0xff00) | (cpu.x & 0xff);
+      else cpu.a = cpu.x;
+      setAccumulatorNz();
       break;
     case 0x98:
-      cpu.a = (cpu.a & 0xff00) | (cpu.y & 0xff);
+      if (m8) cpu.a = (cpu.a & 0xff00) | (cpu.y & 0xff);
+      else cpu.a = cpu.y;
+      setAccumulatorNz();
+      break;
+    case 0x9b:
+      cpu.y = cpu.x & xMask;
+      if (x8) setNz8(cpu.y); else setNz16(cpu.y);
+      break;
+    case 0xbb:
+      cpu.x = cpu.y & xMask;
+      if (x8) setNz8(cpu.x); else setNz16(cpu.x);
+      break;
+    case 0xba:
+      cpu.x = cpu.sp & xMask;
+      if (x8) setNz8(cpu.x); else setNz16(cpu.x);
+      break;
+    case 0x9a:
+      cpu.sp = cpu.x;
+      break;
+    case 0x5b:
+      cpu.d = cpu.a;
+      setNz16(cpu.d);
+      break;
+    case 0x7b:
+      cpu.a = cpu.d;
+      setNz16(cpu.a);
+      break;
+    case 0x1b:
+      cpu.sp = cpu.a;
+      break;
+    case 0x3b:
+      cpu.a = cpu.sp;
+      setNz16(cpu.a);
+      break;
+    case 0xeb:
+      cpu.a = uint16_t((cpu.a << 8) | (cpu.a >> 8));
       setNz8(cpu.a);
       break;
     case 0xe8:
@@ -381,6 +914,60 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       else
         setNz16(cpu.y);
       break;
+    case 0x1a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint16_t result = uint16_t((cpu.a + 1) & mask);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x3a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint16_t result = uint16_t((cpu.a - 1) & mask);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x0a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t((value << 1) & mask);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & sign ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x4a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t(value >> 1);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & 1 ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x2a: {
+      const uint32_t mask = m8 ? 0xffU : 0xffffU;
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & mask;
+      const uint16_t result = uint16_t(((value << 1) |
+          (cpu.p & FLAG_C ? 1 : 0)) & mask);
+      cpu.p = (cpu.p & ~FLAG_C) | (value & sign ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
+    case 0x6a: {
+      const uint32_t sign = m8 ? 0x80U : 0x8000U;
+      const uint32_t value = cpu.a & (m8 ? 0xffU : 0xffffU);
+      const uint16_t result = uint16_t((value >> 1) |
+          (cpu.p & FLAG_C ? sign : 0));
+      cpu.p = (cpu.p & ~FLAG_C) | (value & 1 ? FLAG_C : 0);
+      cpu.a = m8 ? uint16_t((cpu.a & 0xff00) | result) : result;
+      setAccumulatorNz();
+      break;
+    }
     case 0x48:
       if (!m8)
         push(cpu.a >> 8);
@@ -400,6 +987,61 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
         push(cpu.x >> 8);
       push(cpu.x);
       break;
+    case 0x5a:
+      if (!x8) push(cpu.y >> 8);
+      push(cpu.y);
+      break;
+    case 0x7a:
+      cpu.y = pop();
+      if (!x8) cpu.y |= pop() << 8;
+      if (x8) setNz8(cpu.y); else setNz16(cpu.y);
+      break;
+    case 0x08:
+      push(cpu.p);
+      break;
+    case 0x28:
+      cpu.p = pop();
+      break;
+    case 0x8b:
+      push(cpu.dbr);
+      break;
+    case 0xab:
+      cpu.dbr = pop();
+      setNz8(cpu.dbr);
+      break;
+    case 0x0b:
+      push(cpu.d >> 8);
+      push(cpu.d);
+      break;
+    case 0x2b:
+      cpu.d = pop();
+      cpu.d |= pop() << 8;
+      setNz16(cpu.d);
+      break;
+    case 0x4b:
+      push(cpu.pbr);
+      break;
+    case 0x62: {
+      int16_t offset = fetch();
+      offset |= uint16_t(fetch()) << 8;
+      const uint16_t target = uint16_t(cpu.pc + offset);
+      push(target >> 8);
+      push(target);
+      break;
+    }
+    case 0xd4: {
+      const uint16_t value = read16Bank(host, direct(0));
+      push(value >> 8);
+      push(value);
+      break;
+    }
+    case 0xf4: {
+      uint16_t value = fetch();
+      value |= uint16_t(fetch()) << 8;
+      push(value >> 8);
+      push(value);
+      break;
+    }
     case 0xfa:
       cpu.x = pop();
       if (!x8)
@@ -420,8 +1062,14 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       cpu.faultOpcode = op;
       break;
     }
-    if (cpu.emulation)
+    if (cpu.emulation) {
       cpu.p |= FLAG_M | FLAG_X;
+      cpu.sp = 0x100 | (cpu.sp & 0xff);
+    }
+    if (cpu.p & FLAG_X) {
+      cpu.x &= 0xff;
+      cpu.y &= 0xff;
+    }
   }
   return executed;
 }
@@ -924,6 +1572,11 @@ bool SgbHost::saveState(FileHandle *f) const {
     file_write(&v.active, 1, 1, f);
   }
   return true;
+}
+
+size_t SgbHost::serializedStateSize() {
+  return 8 + 24 + 0x20000 + 0x10000 + 0x200 + 0x220 + 8 +
+         0x10000 + 0x80 + 1 + 4 + 11 + 8 * 14;
 }
 
 bool SgbHost::loadState(FileHandle *f) {

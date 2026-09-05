@@ -20,7 +20,7 @@ docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
 The container provides `BLOCKSDS` and `WONDERFUL_TOOLCHAIN`. Do not override
 them with guessed SDK paths. The audited image reports Wonderful GCC
 `16.1.1 20260516` and ndstool `1.22.2`. ARM7/ARM9 ELFs are in `build/`;
-maps are under `build/blocksds/`. The ROM banner version remains v0.5.9-ko,
+maps are under `build/blocksds/`. The ROM banner version is v0.5.10,
 and Debug version information embeds the current 12-digit Git revision.
 
 Portable tests require Linux, Python 3.10+ and g++. The runner reads the exact
@@ -29,12 +29,14 @@ compile/run blocks from `core-regression-tests.yml`, avoiding a duplicate list:
 ```sh
 python3 tools/run_host_tests.py
 python3 tools/run_host_tests.py --sanitize
+python3 tools/run_host_tests.py --asan
 python3 tests/package_release_test.py
 python3 tools/check_repository.py --galmuri-dir /path/to/galmuri/dist
 git diff --check
 ```
 
-`--sanitize` enables UBSan, not ASan. The tests use `/tmp` and are not advertised
+`--sanitize` enables UBSan and `--asan` enables AddressSanitizer with leak and
+strict-string checks. The tests use `/tmp` and are not advertised
 as native Windows tests. Resource/package checks can run with Windows Python.
 Use Galmuri revision `71e1cacf1437a11220307120e63e30bc275312d4`; the checker
 writes only temporary generated outputs and leaves tracked assets untouched.
@@ -58,14 +60,14 @@ Packaging (local verification only; this does not publish a release):
 
 ```sh
 python3 tools/package_release.py --nds platform/ds/gameyob.nds \
-  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.9-ko.md \
+  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.10.md \
   --output .codex-tmp/preflight-package/gameyob.zip
 ```
 
 The ZIP contains two NDS programs, EN/JA/KO guides and language examples,
 notices and checksums. It excludes native 3DSX unless explicitly requested
 with the archived-only option. ROMs, BIOS and firmware are never inputs.
-Do not replace published assets with an unreleased maintenance build.
+Publish only a tagged, fully checked release build.
 
 ## 日本語
 
@@ -91,6 +93,7 @@ DS/TWL 코드와 unit code `0x02`를 가지며 후자에는 `GYOB` 제목 ID가 
 
 위의 고정 컨테이너와 명령을 새 체크아웃에서 실행하십시오. 호스트 C++ 시험에는
 Linux·Python 3.10 이상·g++가 필요하며 `--sanitize`는 UBSan입니다.
+`--asan`은 누수 검사를 포함한 AddressSanitizer입니다.
 `--galmuri-dir`를 생략하면 글꼴 전체 재생성은 미실행으로 표시됩니다.
 언어·CP949 검사는 계속 실행됩니다. 리소스·ZIP 검사는 Windows Python에서도
 실행할 수 있습니다. 자동시험은 실기 승인이나 전체 코드 정적 분석을 대체하지

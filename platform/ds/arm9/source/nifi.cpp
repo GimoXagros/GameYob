@@ -61,7 +61,7 @@ const int FRAGMENT_SIZE = 0x400;
 const int OLD_INPUTS_BUFFER_SIZE = CLIENT_FRAME_LAG + 2;
 
 u8* fragmentBuffer = NULL;
-u8 lastFragment;
+nifi::FragmentSequence fragmentSequence;
 
 bool nifiEnabled=true;
 bool nifiInitialized = false;
@@ -355,53 +355,44 @@ void handlePacketCommand(int command, u8* data, u32 dataLen) {
                 u8 command = data[4];
                 u8 numFragments = data[5];
                 u8 fragment = data[6];
-                if (!totalSize || !numFragments || fragment >= numFragments ||
-                        totalSize > (u32)numFragments * FRAGMENT_SIZE ||
-                        totalSize <= (u32)(numFragments - 1) * FRAGMENT_SIZE)
+                nifi::FragmentResult result = fragmentSequence.accept(
+                    totalSize, numFragments, fragment, dataLen - 0x10,
+                    FRAGMENT_SIZE);
+                if (result == nifi::FRAGMENT_DUPLICATE)
                     return;
-
-                int fragmentSize = FRAGMENT_SIZE;
-                if (fragment == numFragments-1) {
-                    fragmentSize = totalSize % FRAGMENT_SIZE;
-                    if (fragmentSize == 0)
-                        fragmentSize = FRAGMENT_SIZE;
-                }
-                if ((u32)fragmentSize + 0x10 != dataLen)
-                    return;
-
-                if (fragmentBuffer == NULL && fragment != 0) {
-                    printLog("NULL Buffer.\n");
+                if (result == nifi::FRAGMENT_INVALID ||
+                        result == nifi::FRAGMENT_GAP) {
+                    if (fragmentBuffer != NULL) {
+                        free(fragmentBuffer);
+                        fragmentBuffer = NULL;
+                    }
+                    fragmentSequence.reset();
+                    printLog("Fragment mismatch\n");
                     return;
                 }
+
                 if (fragment == 0) {
                     if (fragmentBuffer != NULL)
                         free(fragmentBuffer);
                     fragmentBuffer = (u8*)malloc(totalSize);
                     if (fragmentBuffer == 0) {
+                        fragmentSequence.reset();
                         printLog("Nifi not enough memory\n");
                         return;
                     }
                 }
-                else if ((u8)(lastFragment + 1) != fragment) {
-                    if (fragmentBuffer != NULL) {
-                        free(fragmentBuffer);
-                        fragmentBuffer = NULL;
-                    }
-                    printLog("Fragment mismatch\n");
-                    lastFragment = -1;
+                if (fragmentBuffer == NULL) {
+                    fragmentSequence.reset();
                     return;
                 }
 
-                if (fragment == 0 || lastFragment+1 == fragment)
-                    memcpy(fragmentBuffer+fragment*FRAGMENT_SIZE, data+0x10, fragmentSize);
+                memcpy(fragmentBuffer + fragment * FRAGMENT_SIZE,
+                    data + 0x10, dataLen - 0x10);
 
-                lastFragment = fragment;
-
-                if (fragment == numFragments-1) {
+                if (result == nifi::FRAGMENT_COMPLETE) {
                     handlePacketCommand(command, fragmentBuffer, totalSize);
                     free(fragmentBuffer);
                     fragmentBuffer = NULL;
-                    lastFragment = -1;
                 }
             }
             break;
@@ -467,6 +458,11 @@ void packetHandler(int packetID, int readlength)
 
 
 void nifiStop() {
+    if (fragmentBuffer != NULL) {
+        free(fragmentBuffer);
+        fragmentBuffer = NULL;
+    }
+    fragmentSequence.reset();
     isClient = false;
     isHost = false;
     disableNifi();

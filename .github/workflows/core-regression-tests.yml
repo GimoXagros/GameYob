@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify SGB opcode coverage inventory
+        run: python3 tools/sgb_opcode_coverage.py --check
       - name: Build and run NiFi protocol tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
@@ -88,6 +90,13 @@ jobs:
             tests/sgb_host_baseline_test.cpp platform/common/sgb_host.cpp \
             -o /tmp/sgb_host_baseline_test
           /tmp/sgb_host_baseline_test
+      - name: Build and run 65C816 instruction vectors
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            -Iplatform/common/include \
+            tests/sgb_65c816_vectors_test.cpp platform/common/sgb_host.cpp \
+            -o /tmp/sgb_65c816_vectors_test
+          /tmp/sgb_65c816_vectors_test
       - name: Build and run SGB border decoder tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
