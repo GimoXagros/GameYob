@@ -141,6 +141,24 @@ static void testLoadStoreAddressing() {
   const uint8_t ldaAbsoluteX[] = {0xbd, 0x00, 0x03};
   instruction(host, ldaAbsoluteX, sizeof(ldaAbsoluteX));
   assert(host.cpu.state().a == 0x1234);
+
+  SgbHost indexedBankCross;
+  indexedBankCross.cpu.state().dbr = 0x7e;
+  indexedBankCross.cpu.state().x = 2;
+  indexedBankCross.wram[0x10000] = 0x5a;
+  const uint8_t ldaAbsoluteXCross[] = {0xbd, 0xfe, 0xff};
+  instruction(indexedBankCross, ldaAbsoluteXCross,
+              sizeof(ldaAbsoluteXCross));
+  assert((indexedBankCross.cpu.state().a & 0xff) == 0x5a);
+
+  SgbHost wordBankCross;
+  native16(wordBankCross);
+  wordBankCross.cpu.state().dbr = 0x7e;
+  wordBankCross.wram[0xffff] = 0x34;
+  wordBankCross.wram[0x10000] = 0x12;
+  const uint8_t ldaAbsoluteCross[] = {0xad, 0xff, 0xff};
+  instruction(wordBankCross, ldaAbsoluteCross, sizeof(ldaAbsoluteCross));
+  assert(wordBankCross.cpu.state().a == 0x1234);
 }
 
 static uint8_t bcd(int value) { return (uint8_t)((value / 10) * 16 + value % 10); }
@@ -382,6 +400,18 @@ static void testIndirectLoadStoreAddressing() {
   const uint8_t ldaLongIndirect[] = {0xa7, 0x20};
   instruction(longBoundary, ldaLongIndirect, sizeof(ldaLongIndirect));
   assert(longBoundary.cpu.state().a == 0x1234);
+
+  SgbHost indexedBankCross;
+  indexedBankCross.cpu.state().d = 0x0100;
+  indexedBankCross.cpu.state().dbr = 0x7e;
+  indexedBankCross.cpu.state().y = 2;
+  indexedBankCross.wram[0x0120] = 0xfe;
+  indexedBankCross.wram[0x0121] = 0xff;
+  indexedBankCross.wram[0x10000] = 0xa5;
+  const uint8_t ldaIndirectYCross[] = {0xb1, 0x20};
+  instruction(indexedBankCross, ldaIndirectYCross,
+              sizeof(ldaIndirectYCross));
+  assert((indexedBankCross.cpu.state().a & 0xff) == 0xa5);
 }
 
 static uint16_t prepareMemoryOperand(SgbHost &host, int mode,
