@@ -182,7 +182,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
   auto absolute = [&](uint16_t index) -> uint32_t {
     uint16_t offset = fetch();
     offset |= uint16_t(fetch()) << 8;
-    return (uint32_t(cpu.dbr) << 16) | uint16_t(offset + index);
+    return ((((uint32_t(cpu.dbr) << 16) | offset) + index) & 0xffffff);
   };
   auto absoluteLong = [&](uint16_t index) -> uint32_t {
     uint32_t address = fetch();
@@ -192,7 +192,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
   };
   auto directIndirect = [&](uint16_t index, uint16_t postIndex) -> uint32_t {
     const uint16_t pointer = read16Bank(host, direct(index));
-    return (uint32_t(cpu.dbr) << 16) | uint16_t(pointer + postIndex);
+    return (((uint32_t(cpu.dbr) << 16) | pointer) + postIndex) & 0xffffff;
   };
   auto directIndirectLong = [&](uint16_t index) -> uint32_t {
     const uint16_t pointerAddress = direct(0);
@@ -206,7 +206,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
   };
   auto stackRelativeIndirect = [&](uint16_t index) -> uint32_t {
     const uint16_t pointer = read16Bank(host, stackRelative());
-    return (uint32_t(cpu.dbr) << 16) | uint16_t(pointer + index);
+    return (((uint32_t(cpu.dbr) << 16) | pointer) + index) & 0xffffff;
   };
   auto loadA = [&](uint32_t address, bool bankWrap) {
     const uint16_t value = m8 ? host.read8(address) :
@@ -468,22 +468,22 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     case 0xf3: case 0xf5: case 0xf7: case 0xf9:
     case 0xfd: case 0xff: {
       uint32_t address;
-      bool bankWrap = true;
+      bool bankWrap = false;
       switch (op & 0x1f) {
       case 0x01: address = directIndirect(cpu.x, 0); break;
-      case 0x03: address = stackRelative(); break;
-      case 0x05: address = direct(0); break;
-      case 0x07: address = directIndirectLong(0); bankWrap = false; break;
+      case 0x03: address = stackRelative(); bankWrap = true; break;
+      case 0x05: address = direct(0); bankWrap = true; break;
+      case 0x07: address = directIndirectLong(0); break;
       case 0x0d: address = absolute(0); break;
-      case 0x0f: address = absoluteLong(0); bankWrap = false; break;
+      case 0x0f: address = absoluteLong(0); break;
       case 0x11: address = directIndirect(0, cpu.y); break;
       case 0x12: address = directIndirect(0, 0); break;
       case 0x13: address = stackRelativeIndirect(cpu.y); break;
-      case 0x15: address = direct(cpu.x); break;
-      case 0x17: address = directIndirectLong(cpu.y); bankWrap = false; break;
+      case 0x15: address = direct(cpu.x); bankWrap = true; break;
+      case 0x17: address = directIndirectLong(cpu.y); break;
       case 0x19: address = absolute(cpu.y); break;
       case 0x1d: address = absolute(cpu.x); break;
-      default: address = absoluteLong(cpu.x); bankWrap = false; break;
+      default: address = absoluteLong(cpu.x); break;
       }
       applyMemoryArithmetic(address, bankWrap, op & 0xe0);
       break;
@@ -524,7 +524,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     }
     case 0xcc: {
       const uint32_t address = absolute(0);
-      compare(cpu.y, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      compare(cpu.y, x8 ? host.read8(address) : read16(host, address), x8);
       break;
     }
     case 0xe4: {
@@ -534,7 +534,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     }
     case 0xec: {
       const uint32_t address = absolute(0);
-      compare(cpu.x, x8 ? host.read8(address) : read16Bank(host, address), x8);
+      compare(cpu.x, x8 ? host.read8(address) : read16(host, address), x8);
       break;
     }
     case 0x69:
@@ -549,7 +549,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (m8)
         host.write8(a, cpu.a);
       else
-        write16Bank(host, a, cpu.a);
+        write16(host, a, cpu.a);
       break;
     }
     case 0x8f: {
@@ -568,7 +568,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (x8)
         host.write8(a, cpu.x);
       else
-        write16Bank(host, a, cpu.x);
+        write16(host, a, cpu.x);
       break;
     }
     case 0x8c: {
@@ -577,7 +577,7 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (x8)
         host.write8(a, cpu.y);
       else
-        write16Bank(host, a, cpu.y);
+        write16(host, a, cpu.y);
       break;
     }
     case 0x9c: {
@@ -586,13 +586,13 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       if (m8)
         host.write8(a, 0);
       else
-        write16Bank(host, a, 0);
+        write16(host, a, 0);
       break;
     }
     case 0xad: {
       uint32_t a = (cpu.dbr << 16) | fetch();
       a |= uint32_t(fetch()) << 8;
-      cpu.a = m8 ? host.read8(a) : read16Bank(host, a);
+      cpu.a = m8 ? host.read8(a) : read16(host, a);
       if (m8)
         setNz8(cpu.a);
       else
@@ -611,37 +611,37 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
       break;
     }
     case 0xa5: loadA(direct(0), true); break;
-    case 0xa1: loadA(directIndirect(cpu.x, 0), true); break;
+    case 0xa1: loadA(directIndirect(cpu.x, 0), false); break;
     case 0xa3: loadA(stackRelative(), true); break;
     case 0xa7: loadA(directIndirectLong(0), false); break;
-    case 0xb1: loadA(directIndirect(0, cpu.y), true); break;
-    case 0xb2: loadA(directIndirect(0, 0), true); break;
-    case 0xb3: loadA(stackRelativeIndirect(cpu.y), true); break;
+    case 0xb1: loadA(directIndirect(0, cpu.y), false); break;
+    case 0xb2: loadA(directIndirect(0, 0), false); break;
+    case 0xb3: loadA(stackRelativeIndirect(cpu.y), false); break;
     case 0xb7: loadA(directIndirectLong(cpu.y), false); break;
     case 0xb5: loadA(direct(cpu.x), true); break;
-    case 0xbd: loadA(absolute(cpu.x), true); break;
-    case 0xb9: loadA(absolute(cpu.y), true); break;
+    case 0xbd: loadA(absolute(cpu.x), false); break;
+    case 0xb9: loadA(absolute(cpu.y), false); break;
     case 0xbf: loadA(absoluteLong(cpu.x), false); break;
     case 0x85: storeA(direct(0), true); break;
-    case 0x81: storeA(directIndirect(cpu.x, 0), true); break;
+    case 0x81: storeA(directIndirect(cpu.x, 0), false); break;
     case 0x83: storeA(stackRelative(), true); break;
     case 0x87: storeA(directIndirectLong(0), false); break;
-    case 0x91: storeA(directIndirect(0, cpu.y), true); break;
-    case 0x92: storeA(directIndirect(0, 0), true); break;
-    case 0x93: storeA(stackRelativeIndirect(cpu.y), true); break;
+    case 0x91: storeA(directIndirect(0, cpu.y), false); break;
+    case 0x92: storeA(directIndirect(0, 0), false); break;
+    case 0x93: storeA(stackRelativeIndirect(cpu.y), false); break;
     case 0x97: storeA(directIndirectLong(cpu.y), false); break;
     case 0x95: storeA(direct(cpu.x), true); break;
-    case 0x9d: storeA(absolute(cpu.x), true); break;
-    case 0x99: storeA(absolute(cpu.y), true); break;
+    case 0x9d: storeA(absolute(cpu.x), false); break;
+    case 0x99: storeA(absolute(cpu.y), false); break;
     case 0x9f: storeA(absoluteLong(cpu.x), false); break;
     case 0xa6: loadIndex(cpu.x, direct(0), true); break;
     case 0xb6: loadIndex(cpu.x, direct(cpu.y), true); break;
-    case 0xae: loadIndex(cpu.x, absolute(0), true); break;
-    case 0xbe: loadIndex(cpu.x, absolute(cpu.y), true); break;
+    case 0xae: loadIndex(cpu.x, absolute(0), false); break;
+    case 0xbe: loadIndex(cpu.x, absolute(cpu.y), false); break;
     case 0xa4: loadIndex(cpu.y, direct(0), true); break;
     case 0xb4: loadIndex(cpu.y, direct(cpu.x), true); break;
-    case 0xac: loadIndex(cpu.y, absolute(0), true); break;
-    case 0xbc: loadIndex(cpu.y, absolute(cpu.x), true); break;
+    case 0xac: loadIndex(cpu.y, absolute(0), false); break;
+    case 0xbc: loadIndex(cpu.y, absolute(cpu.x), false); break;
     case 0x86: storeIndex(cpu.x, direct(0), true); break;
     case 0x96: storeIndex(cpu.x, direct(cpu.y), true); break;
     case 0x84: storeIndex(cpu.y, direct(0), true); break;
@@ -658,41 +658,41 @@ int SgbHostCpu::run(SgbHost &host, int budget) {
     }
     case 0x9e: {
       const uint32_t address = absolute(cpu.x);
-      if (m8) host.write8(address, 0); else write16Bank(host, address, 0);
+      if (m8) host.write8(address, 0); else write16(host, address, 0);
       break;
     }
     case 0x06: modifyMemory(direct(0), true, 0); break;
     case 0x16: modifyMemory(direct(cpu.x), true, 0); break;
-    case 0x0e: modifyMemory(absolute(0), true, 0); break;
-    case 0x1e: modifyMemory(absolute(cpu.x), true, 0); break;
+    case 0x0e: modifyMemory(absolute(0), false, 0); break;
+    case 0x1e: modifyMemory(absolute(cpu.x), false, 0); break;
     case 0x26: modifyMemory(direct(0), true, 1); break;
     case 0x36: modifyMemory(direct(cpu.x), true, 1); break;
-    case 0x2e: modifyMemory(absolute(0), true, 1); break;
-    case 0x3e: modifyMemory(absolute(cpu.x), true, 1); break;
+    case 0x2e: modifyMemory(absolute(0), false, 1); break;
+    case 0x3e: modifyMemory(absolute(cpu.x), false, 1); break;
     case 0x46: modifyMemory(direct(0), true, 2); break;
     case 0x56: modifyMemory(direct(cpu.x), true, 2); break;
-    case 0x4e: modifyMemory(absolute(0), true, 2); break;
-    case 0x5e: modifyMemory(absolute(cpu.x), true, 2); break;
+    case 0x4e: modifyMemory(absolute(0), false, 2); break;
+    case 0x5e: modifyMemory(absolute(cpu.x), false, 2); break;
     case 0x66: modifyMemory(direct(0), true, 3); break;
     case 0x76: modifyMemory(direct(cpu.x), true, 3); break;
-    case 0x6e: modifyMemory(absolute(0), true, 3); break;
-    case 0x7e: modifyMemory(absolute(cpu.x), true, 3); break;
+    case 0x6e: modifyMemory(absolute(0), false, 3); break;
+    case 0x7e: modifyMemory(absolute(cpu.x), false, 3); break;
     case 0xc6: modifyMemory(direct(0), true, 4); break;
     case 0xd6: modifyMemory(direct(cpu.x), true, 4); break;
-    case 0xce: modifyMemory(absolute(0), true, 4); break;
-    case 0xde: modifyMemory(absolute(cpu.x), true, 4); break;
+    case 0xce: modifyMemory(absolute(0), false, 4); break;
+    case 0xde: modifyMemory(absolute(cpu.x), false, 4); break;
     case 0xe6: modifyMemory(direct(0), true, 5); break;
     case 0xf6: modifyMemory(direct(cpu.x), true, 5); break;
-    case 0xee: modifyMemory(absolute(0), true, 5); break;
-    case 0xfe: modifyMemory(absolute(cpu.x), true, 5); break;
+    case 0xee: modifyMemory(absolute(0), false, 5); break;
+    case 0xfe: modifyMemory(absolute(cpu.x), false, 5); break;
     case 0x24: bitMemory(direct(0), true); break;
     case 0x34: bitMemory(direct(cpu.x), true); break;
-    case 0x2c: bitMemory(absolute(0), true); break;
-    case 0x3c: bitMemory(absolute(cpu.x), true); break;
+    case 0x2c: bitMemory(absolute(0), false); break;
+    case 0x3c: bitMemory(absolute(cpu.x), false); break;
     case 0x04: changeMemoryBits(direct(0), true, true); break;
-    case 0x0c: changeMemoryBits(absolute(0), true, true); break;
+    case 0x0c: changeMemoryBits(absolute(0), false, true); break;
     case 0x14: changeMemoryBits(direct(0), true, false); break;
-    case 0x1c: changeMemoryBits(absolute(0), true, false); break;
+    case 0x1c: changeMemoryBits(absolute(0), false, false); break;
     case 0x4c: {
       // Fetch both operand bytes before replacing the instruction pointer.
       uint16_t target = fetch();
