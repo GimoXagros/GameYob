@@ -76,9 +76,10 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   backward-compatible versioned save states
 - A separate, SGB-only host runtime foundation for bounded SNES WRAM/PPU/APU
   transfers: `DATA_SND`, `DATA_TRN`, `JUMP`, `SOU_TRN`, `SOUND`, `CHR_TRN`, and
-  prototype `OBJ_TRN` now feed host state; unsupported 65C816/SPC700 opcodes
-  fault explicitly, and generated host PCM is kept separate from the four GB
-  channels and mixed by the DS audio hardware
+  prototype `OBJ_TRN` now feed host state; all 256 65C816 opcode bytes have
+  explicit dispatch while unsupported SPC700 opcodes fault explicitly, and
+  generated host PCM is kept separate from the four GB channels and mixed by
+  the DS audio hardware
 - Unreleased development keeps state version 8 while preflighting complete
   versioned mapper/SGB tails, expands 65C816 opcode dispatch coverage from 51
   to 256 of 256, and hardens DS NiFi fragmented receives. Cycle timing,
@@ -134,8 +135,9 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   실제 ROM 뱅크 경계 처리 및 이전 상태 파일과 호환되는 버전별 상태 저장
 - SGB에서만 생성되는 독립 호스트 실행 기반: `DATA_SND`·`DATA_TRN`·`JUMP`·
   `SOU_TRN`·`SOUND`·`CHR_TRN` 및 프로토타입 `OBJ_TRN`을 SNES WRAM·PPU·
-  APU 상태에 연결하고, 미지원 65C816/SPC700 명령은 명시적으로 중단하며,
-  호스트 PCM은 GB 4채널과 분리해 DS 사운드 하드웨어에서 함께 출력
+  APU 상태에 연결하고, 65C816 opcode 256개를 모두 명시적으로 처리하며,
+  미지원 SPC700 명령은 명시적으로 중단합니다. 호스트 PCM은 GB 4채널과
+  분리해 DS 사운드 하드웨어에서 함께 출력합니다.
 
 See [language-file documentation](languages/README.md),
 [wireless-link design](docs/features/wireless-link.md),
@@ -249,11 +251,12 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
    실제 이점을 제공하는 조건을 문서화합니다.
 4. 주사선 도중 WX를 바꾸거나 더 많은 SGB 명령에 의존하는 게임을 실제
    기기에서 확인하여 게임별 호환성 목록을 확대합니다.
-5. `v0.5.8-ko`에서 추가한 SGB 호스트 실행 계층을 완성합니다. 남은
-   65C816 147개·SPC700 235개 opcode case와 타이밍, DSP 엔벌로프·에코 및 프로토타입 호스트 OBJ의
-   최종 DS 화면 합성이 필요합니다. 현재 경계가 있는 실행과 독립 PCM 경로는
-   실제 기반이지만 완전한 호스트 SNES 구현은 아닙니다. 일반 판매 SGB의
-   `OBJ_TRN` 무동작은 하드웨어 사양대로 유지합니다.
+5. `v0.5.8-ko`에서 추가한 SGB 호스트 실행 계층을 완성합니다. 65C816은
+   opcode 분기 범위 256/256에 도달했지만 사이클 정확도·IRQ·참조 trace
+   검증이 남아 있습니다. SPC700 235개 opcode case, DSP 엔벌로프·에코 및
+   프로토타입 호스트 OBJ의 최종 DS 화면 합성도 필요합니다. 현재 경계가
+   있는 실행과 독립 PCM 경로는 실제 기반이지만 완전한 호스트 SNES 구현은
+   아닙니다. 일반 판매 SGB의 `OBJ_TRN` 무동작은 하드웨어 사양대로 유지합니다.
 6. 기존 카트리지 형식 `0x15`-`0x17`은 동작 사양이 알려지지 않아 다른 매퍼로
    추측하거나 대체하지 않습니다. 새 MBC7 EEPROM·기울기 및 HuC1 경로와 기존
    HuC3를 실물 카트리지로 검증해야 하며, MBC7 busy 시간과 상세 HuC3

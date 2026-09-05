@@ -90,7 +90,8 @@ The published v0.5.9 ZIP has not been replaced by this maintenance source.
 
 The current unreleased branch performs full structural preflight of version
 1-8 state tails before large memory writes and expands the experimental SGB
-host 65C816 opcode-dispatch coverage to 256/256. Cycle timing, reference traces,
+host 65C816 opcode-dispatch coverage to 256/256. This is dispatch coverage,
+not a cycle-accurate CPU completion claim: cycle timing, IRQ/reference traces,
 and the SPC700/DSP remain incomplete. It also rejects malformed, missing, and
 reordered DS NiFi fragments. These changes have automated tests; keep state
 backups and do not treat them as physical-radio or full SGB-host validation.

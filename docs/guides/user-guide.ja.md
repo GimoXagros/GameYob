@@ -87,8 +87,9 @@ v0.5.9以降の整備では状態形式8を維持し、共通部分の長さとW
 旧状態ファイルは削除せず報告してください。公開済みv0.5.9 ZIPは置換していません。
 
 現在の未公開ブランチは、大きなメモリへ適用する前に状態形式1～8のtail全体を
-構造検査し、実験的SGBホスト65C816のopcode dispatch coverageを256/256へ
-拡張しました。cycle timing、reference trace、SPC700/DSPは未完成です。
+構造検査し、実験的SGBホスト65C816のオペコード分岐範囲を256/256へ
+拡張しました。これはcycle-accurate CPUの完成を意味しません。
+cycle timing、IRQ/reference trace、SPC700/DSPは未完成です。
 DS NiFiの不正・欠落・順序違いfragmentも拒否します。自動試験済みですが、
 状態バックアップを継続し、実機無線やSGBホスト完成とは扱わないでください。
 
