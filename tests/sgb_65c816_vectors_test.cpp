@@ -143,10 +143,65 @@ static void testLoadStoreAddressing() {
   assert(host.cpu.state().a == 0x1234);
 }
 
+static uint8_t bcd(int value) { return (uint8_t)((value / 10) * 16 + value % 10); }
+
+static void testImmediateArithmetic() {
+  for (int decimal = 0; decimal < 2; ++decimal) {
+    for (int left = 0; left < 100; ++left) {
+      for (int right = 0; right < 100; ++right) {
+        for (int carry = 0; carry < 2; ++carry) {
+          SgbHost add;
+          add.cpu.state().a = 0x5a00 | bcd(left);
+          add.cpu.state().p = (add.cpu.state().p & ~(C | 0x08)) |
+              (carry ? C : 0) | (decimal ? 0x08 : 0);
+          const uint8_t adc[] = {0x69, bcd(right)};
+          instruction(add, adc, sizeof(adc));
+          int raw = bcd(left) + bcd(right) + carry;
+          int expected = decimal ? (left + right + carry) : raw;
+          const uint8_t expectedByte = decimal ? bcd(expected % 100) : expected;
+          assert((add.cpu.state().a & 0xff) == expectedByte);
+          assert((add.cpu.state().a >> 8) == 0x5a);
+          assert(!!(add.cpu.state().p & C) ==
+              (decimal ? expected >= 100 : raw >= 256));
+
+          SgbHost subtract;
+          subtract.cpu.state().a = 0xa500 | bcd(left);
+          subtract.cpu.state().p = (subtract.cpu.state().p & ~(C | 0x08)) |
+              (carry ? C : 0) | (decimal ? 0x08 : 0);
+          const uint8_t sbc[] = {0xe9, bcd(right)};
+          instruction(subtract, sbc, sizeof(sbc));
+          int difference = (decimal ? left : bcd(left)) -
+              (decimal ? right : bcd(right)) - (carry ? 0 : 1);
+          int wrapped = decimal ? ((difference % 100) + 100) % 100 : difference & 0xff;
+          expectedByte = decimal ? bcd(wrapped) : wrapped;
+          assert((subtract.cpu.state().a & 0xff) == expectedByte);
+          assert((subtract.cpu.state().a >> 8) == 0xa5);
+          assert(!!(subtract.cpu.state().p & C) == (difference >= 0));
+        }
+      }
+    }
+  }
+  SgbHost overflow;
+  overflow.cpu.state().a = 0x7f;
+  overflow.cpu.state().p &= ~(C | 0x08);
+  const uint8_t adc[] = {0x69, 1};
+  instruction(overflow, adc, sizeof(adc));
+  assert((overflow.cpu.state().p & V) && (overflow.cpu.state().p & N));
+
+  SgbHost wide;
+  native16(wide);
+  wide.cpu.state().a = 0x9999;
+  wide.cpu.state().p |= C | 0x08;
+  const uint8_t adc16[] = {0x69, 0x00, 0x00};
+  instruction(wide, adc16, sizeof(adc16));
+  assert(wide.cpu.state().a == 0 && (wide.cpu.state().p & C));
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
   testWidthsTransfersAndStack();
   testLoadStoreAddressing();
+  testImmediateArithmetic();
   puts("65C816 instruction vectors passed");
 }
