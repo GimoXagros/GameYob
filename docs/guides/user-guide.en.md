@@ -88,6 +88,13 @@ and WRAM/VRAM bank checks. It is not full validation of arbitrary corrupt state
 tails; keep backups, and report rejected legacy states without deleting them.
 The published v0.5.9 ZIP has not been replaced by this maintenance source.
 
+The current unreleased branch performs full structural preflight of version
+1-8 state tails before large memory writes and expands the experimental SGB
+host 65C816 coverage to 109/256 opcode cases. It also rejects malformed,
+missing, and reordered DS NiFi fragments. These changes have automated tests;
+keep state backups and do not treat them as physical-radio or full SGB-host
+validation.
+
 Korean Pokemon Silver has a user-reported model-warning screen with Detect
 GBA On and normal startup with it Off. Use Off as a workaround; exact ROM,
 BIOS and suspend-state reproduction is pending. No ROM patch is recommended

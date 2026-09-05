@@ -1,3 +1,27 @@
+Unreleased autonomous development (2026-09-05; no version/tag change):
+
+- Kept save-state version 8 while adding exact version 1-8 prefix sizing,
+  variable mapper/SGB tail preflight, overflow-safe length calculation, every-
+  byte truncation fixtures and fixed-seed mutation tests. Large RAM regions are
+  still applied without a full duplicate transaction buffer to respect DS RAM.
+- Expanded the isolated SGB-host 65C816 core from 51 to 109 opcode cases with
+  tested logic, compare, accumulator shift/rotate, increment/decrement,
+  transfer, stack, load/store addressing and immediate binary/BCD ADC/SBC
+  families. Unsupported cases still fault; timing, control flow, interrupts,
+  indirect addressing and block moves remain incomplete.
+- Added an automatically checked opcode inventory and portable NiFi v3 stress
+  coverage for truncation, corruption, sequence/ACK wrap and fragment ordering.
+  DS fragmented receive now rejects gaps and malformed lengths and ignores
+  duplicates without corrupting the active assembly.
+- Added ASan/leak execution to repository preflight. No release, tag, native
+  3DSX work, rare-cartridge behavior or published archive was changed.
+
+미배포 자율 개발 (2026-09-05; 버전/태그 변경 없음):
+
+- 상태 형식 8을 유지하며 1~8 길이·가변 tail 선검증과 절단·변조 시험을 확대.
+- SGB 호스트 65C816을 51/256에서 109/256으로 확대했으나 아직 완성으로 표시하지 않음.
+- NiFi 조각 순서·중복·누락 방어와 ASan 사전 검사를 추가. 실기 무선 승인은 남아 있음.
+
 Unreleased repository maintenance (2026-09-03; no version/tag change):
 
 - Corrected existing SGB host JMP operand fetch, SPC700 BRA sequencing and

@@ -79,6 +79,10 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   prototype `OBJ_TRN` now feed host state; unsupported 65C816/SPC700 opcodes
   fault explicitly, and generated host PCM is kept separate from the four GB
   channels and mixed by the DS audio hardware
+- Unreleased development keeps state version 8 while preflighting complete
+  versioned mapper/SGB tails, expands 65C816 opcode coverage from 51 to 109 of
+  256, and hardens DS NiFi fragmented receives. This is partial development,
+  not a new release or completed SGB/radio implementation.
 
 ## 완료된 작업
 
@@ -211,7 +215,8 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
 4. Expand the physically observed game compatibility matrix, especially games
    that change WX during a scanline and depend on more SGB command cases.
 5. Complete the SGB host runtime introduced in `v0.5.8-ko`: implement the
-   remaining 65C816/SPC700 instruction and timing coverage, complete DSP
+   remaining 147 65C816 and 235 SPC700 opcode cases and timing coverage,
+   complete DSP
    envelopes/echo, and composite prototype host OBJ pixels into the final DS
    output. The current bounded execution and separate PCM path are functional
    foundations, but they are not a complete host-SNES implementation. Retail
@@ -244,7 +249,7 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
 4. 주사선 도중 WX를 바꾸거나 더 많은 SGB 명령에 의존하는 게임을 실제
    기기에서 확인하여 게임별 호환성 목록을 확대합니다.
 5. `v0.5.8-ko`에서 추가한 SGB 호스트 실행 계층을 완성합니다. 남은
-   65C816/SPC700 명령과 타이밍, DSP 엔벌로프·에코 및 프로토타입 호스트 OBJ의
+   65C816 147개·SPC700 235개 opcode case와 타이밍, DSP 엔벌로프·에코 및 프로토타입 호스트 OBJ의
    최종 DS 화면 합성이 필요합니다. 현재 경계가 있는 실행과 독립 PCM 경로는
    실제 기반이지만 완전한 호스트 SNES 구현은 아닙니다. 일반 판매 SGB의
    `OBJ_TRN` 무동작은 하드웨어 사양대로 유지합니다.

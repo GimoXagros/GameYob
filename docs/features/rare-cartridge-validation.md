@@ -1,5 +1,9 @@
 # Rare cartridge implementation and validation
 
+The 2026-09-05 autonomous pass intentionally made no mapper behavior changes:
+65C816 completion was not reached, and undocumented hardware was not guessed.
+The pending boundaries below therefore remain authoritative.
+
 This record separates specification review, automated software checks, and
 physical-cartridge validation. No commercial ROM image or BIOS is stored in
 the repository.
