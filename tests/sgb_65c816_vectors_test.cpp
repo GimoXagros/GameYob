@@ -173,8 +173,8 @@ static void testImmediateArithmetic() {
           int difference = (decimal ? left : bcd(left)) -
               (decimal ? right : bcd(right)) - (carry ? 0 : 1);
           int wrapped = decimal ? ((difference % 100) + 100) % 100 : difference & 0xff;
-          expectedByte = decimal ? bcd(wrapped) : wrapped;
-          assert((subtract.cpu.state().a & 0xff) == expectedByte);
+          const uint8_t expectedSubtract = decimal ? bcd(wrapped) : wrapped;
+          assert((subtract.cpu.state().a & 0xff) == expectedSubtract);
           assert((subtract.cpu.state().a >> 8) == 0xa5);
           assert(!!(subtract.cpu.state().p & C) == (difference >= 0));
         }
