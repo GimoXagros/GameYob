@@ -7,7 +7,10 @@
 void file_read(void *, int, int, FileHandle *) {}
 void file_write(const void *, int, int, FileHandle *) {}
 
-enum { C = 0x01, Z = 0x02, X = 0x10, M = 0x20, V = 0x40, N = 0x80 };
+enum {
+  C = 0x01, Z = 0x02, I = 0x04, D = 0x08,
+  X = 0x10, M = 0x20, V = 0x40, N = 0x80
+};
 
 static void instruction(SgbHost &host, const uint8_t *bytes, size_t size) {
   memset(host.wram, 0, 16);
@@ -704,6 +707,48 @@ static void testSoftwareInterrupts() {
   }
 }
 
+static void testNonMaskableInterrupts() {
+  {
+    SgbHost emulation;
+    emulation.wram[0x0100] = 0xcb; // WAI at the synthetic NMI target.
+    emulation.cpu.state().p |= D;
+    const uint8_t oldP = emulation.cpu.state().p;
+    emulation.cpu.jump(0x7e0200, 0x7e0100);
+    emulation.cpu.requestNmi();
+    assert(emulation.cpu.run(emulation, 1) == 1);
+    assert(emulation.cpu.state().waiting);
+    assert(emulation.cpu.state().pbr == 0x7e);
+    assert(emulation.cpu.state().pc == 0x0101);
+    assert(emulation.cpu.state().sp == 0x01fc);
+    assert(emulation.wram[0x01ff] == 0x02);
+    assert(emulation.wram[0x01fe] == 0x00);
+    assert(emulation.wram[0x01fd] == (uint8_t)(oldP & ~X));
+    assert(emulation.cpu.state().p & I);
+    assert(!(emulation.cpu.state().p & D));
+  }
+
+  {
+    SgbHost native;
+    native16(native);
+    native.wram[0x0100] = 0xcb; // WAI at the synthetic NMI target.
+    native.cpu.state().p |= D;
+    const uint8_t oldP = native.cpu.state().p;
+    native.cpu.jump(0x7e0200, 0x7e0100);
+    native.cpu.requestNmi();
+    assert(native.cpu.run(native, 1) == 1);
+    assert(native.cpu.state().waiting);
+    assert(native.cpu.state().pbr == 0x7e);
+    assert(native.cpu.state().pc == 0x0101);
+    assert(native.cpu.state().sp == 0x01fb);
+    assert(native.wram[0x01ff] == 0x7e);
+    assert(native.wram[0x01fe] == 0x02);
+    assert(native.wram[0x01fd] == 0x00);
+    assert(native.wram[0x01fc] == oldP);
+    assert(native.cpu.state().p & I);
+    assert(!(native.cpu.state().p & D));
+  }
+}
+
 int main() {
   testImmediateLogicAndCompare();
   testAccumulatorShifts();
@@ -717,5 +762,6 @@ int main() {
   testControlPointerAndPushFamilies();
   testBlockMoves();
   testSoftwareInterrupts();
+  testNonMaskableInterrupts();
   puts("65C816 instruction vectors passed");
 }
