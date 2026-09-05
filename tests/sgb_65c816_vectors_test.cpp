@@ -159,6 +159,23 @@ static void testLoadStoreAddressing() {
   const uint8_t ldaAbsoluteCross[] = {0xad, 0xff, 0xff};
   instruction(wordBankCross, ldaAbsoluteCross, sizeof(ldaAbsoluteCross));
   assert(wordBankCross.cpu.state().a == 0x1234);
+
+  SgbHost emulationDirectWrap;
+  emulationDirectWrap.cpu.state().d = 0x0100;
+  emulationDirectWrap.cpu.state().x = 2;
+  emulationDirectWrap.wram[0x0101] = 0x5a;
+  emulationDirectWrap.wram[0x0201] = 0xa5;
+  const uint8_t ldaDirectXWrap[] = {0xb5, 0xff};
+  instruction(emulationDirectWrap, ldaDirectXWrap, sizeof(ldaDirectXWrap));
+  assert((emulationDirectWrap.cpu.state().a & 0xff) == 0x5a);
+
+  SgbHost nativeDirectCross;
+  native16(nativeDirectCross);
+  nativeDirectCross.cpu.state().d = 0x0100;
+  nativeDirectCross.cpu.state().x = 2;
+  nativeDirectCross.wram[0x0201] = 0xa5;
+  instruction(nativeDirectCross, ldaDirectXWrap, sizeof(ldaDirectXWrap));
+  assert(nativeDirectCross.cpu.state().a == 0x00a5);
 }
 
 static uint8_t bcd(int value) { return (uint8_t)((value / 10) * 16 + value % 10); }
@@ -412,6 +429,28 @@ static void testIndirectLoadStoreAddressing() {
   instruction(indexedBankCross, ldaIndirectYCross,
               sizeof(ldaIndirectYCross));
   assert((indexedBankCross.cpu.state().a & 0xff) == 0xa5);
+
+  SgbHost indirectPageWrap;
+  indirectPageWrap.cpu.state().d = 0x0100;
+  indirectPageWrap.cpu.state().dbr = 0x7e;
+  indirectPageWrap.wram[0x01ff] = 0x00;
+  indirectPageWrap.wram[0x0100] = 0x03;
+  indirectPageWrap.wram[0x0200] = 0x04;
+  indirectPageWrap.wram[0x0300] = 0x77;
+  const uint8_t ldaIndirectWrap[] = {0xb2, 0xff};
+  instruction(indirectPageWrap, ldaIndirectWrap, sizeof(ldaIndirectWrap));
+  assert((indirectPageWrap.cpu.state().a & 0xff) == 0x77);
+
+  SgbHost longIndirectCross;
+  longIndirectCross.cpu.state().d = 0x0100;
+  longIndirectCross.wram[0x01ff] = 0x00;
+  longIndirectCross.wram[0x0200] = 0x03;
+  longIndirectCross.wram[0x0201] = 0x7e;
+  longIndirectCross.wram[0x0300] = 0x88;
+  const uint8_t ldaLongIndirectCross[] = {0xa7, 0xff};
+  instruction(longIndirectCross, ldaLongIndirectCross,
+              sizeof(ldaLongIndirectCross));
+  assert((longIndirectCross.cpu.state().a & 0xff) == 0x88);
 }
 
 static uint16_t prepareMemoryOperand(SgbHost &host, int mode,
