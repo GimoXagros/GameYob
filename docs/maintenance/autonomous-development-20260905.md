@@ -32,8 +32,8 @@ an allocation/file-close fault harness remain future work.
 
 ## B. SGB 65C816 - partial
 
-`tools/sgb_opcode_coverage.py` derives and checks the inventory. Coverage moved
-from 51/256 to 109/256 opcode cases. Added tested families include:
+`tools/sgb_opcode_coverage.py` derives and checks the inventory. Opcode dispatch
+coverage moved from 51/256 to 256/256 cases. Added tested families include:
 
 - immediate ORA, AND, EOR, BIT, CMP, CPX, CPY, ADC and SBC;
 - packed-BCD 8-bit ADC/SBC across every valid 00-99 operand pair and carry,
@@ -42,15 +42,19 @@ from 51/256 to 109/256 opcode cases. Added tested families include:
 - TXY, TYX, TSX, TXS, TCD, TDC, TCS, TSC and XBA, with corrected 16-bit
   TXA/TYA and X-width truncation;
 - PHP/PLP, PHB/PLB, PHD/PLD, PHK and PHY/PLY;
-- direct, indexed-direct, absolute-indexed, long-indexed load/store coverage
-  for the implemented A/X/Y and STZ forms, including bank wrapping.
+- all direct, absolute, long, indirect and stack-relative load/store and
+  arithmetic addressing forms, including tested bank and direct-page wrapping;
+- memory BIT/TRB/TSB, shifts, rotates, increment and decrement;
+- branch, jump, call, return, push-effective-address, BRK/COP, mode-sensitive
+  NMI entry, and MVN/MVP block moves.
 
-The remaining 147 cases include indirect and stack-relative addressing,
-memory-form arithmetic/logic/shift families, broad control flow, interrupts,
-block moves and a true cycle model. Unsupported opcodes still fault explicitly.
-Because B is incomplete, stages C (SPC700) and D (DSP/OBJ) were not started.
-SPC700 therefore remains 21/256 and the prior DSP/prototype OBJ scope is
-unchanged.
+Every opcode byte now has an explicit implementation and tested dispatch path,
+so there are no remaining opcode-byte gaps. This does not complete the CPU:
+`run` still budgets instructions rather than real 65C816 cycles, timing
+penalties are absent, IRQ is not externally driven, and broad trace/differential
+and SGB-program validation remain. Because those stage-B gates are incomplete,
+stages C (SPC700) and D (DSP/OBJ) were not started. SPC700 therefore remains
+21/256 and the prior DSP/prototype OBJ scope is unchanged.
 
 ## E. Rare cartridges - not started
 
@@ -77,6 +81,9 @@ tests therefore remain explicitly pending.
   `dbfcdd9fbb9e94271ebcf3f8f529f7fb353dc055`: success.
 - Intermediate DS build runs `33939776804` and `33939797570` at the same SHA:
   success, no build-step warnings treated as errors.
+- Post-expansion core regression run `33941557822` at
+  `3babf6e2438ff7ec2afb545ea2c648ea4f785a52`: success, including all 256
+  dispatch cases and emulation/native NMI stack vectors.
 - Resulting code-build NDS sizes: 718,336 bytes each (+8,192 bytes from
   baseline). SHA-256: `31aa9b21aa011223fe7ff8b930fd14ab0397345de37bfa78b3270a3204ba78dd`
   for `gameyob.nds`, and
@@ -92,11 +99,12 @@ tests therefore remain explicitly pending.
 
 ## Next safe starting points
 
-1. Continue stage B with test-first indirect/stack-relative and memory-form
-   arithmetic families, followed by control flow, interrupts, block moves and
-   cycles. Keep explicit faults until each opcode is specified and tested.
-2. Only after all 256 65C816 cases and timing gates pass, begin isolated SPC700
-   work; only after that begin DSP/prototype OBJ work.
+1. Continue stage B with a real cycle budget and per-addressing-mode timing,
+   branch/page/direct-page penalties, externally driven IRQ vectors, and
+   reference-trace/differential validation. The 256-byte dispatch inventory is
+   complete, but it is not a timing-completion claim.
+2. Only after the 65C816 timing and validation gates pass, begin isolated
+   SPC700 work; only after that begin DSP/prototype OBJ work.
 3. Add a file-operation fault-injection harness and licensed/synthetic
    historical state fixtures without duplicating full DS memory.
 4. Run the physical NiFi matrix and long-session/state compatibility matrix;

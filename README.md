@@ -80,9 +80,10 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   fault explicitly, and generated host PCM is kept separate from the four GB
   channels and mixed by the DS audio hardware
 - Unreleased development keeps state version 8 while preflighting complete
-  versioned mapper/SGB tails, expands 65C816 opcode coverage from 51 to 109 of
-  256, and hardens DS NiFi fragmented receives. This is partial development,
-  not a new release or completed SGB/radio implementation.
+  versioned mapper/SGB tails, expands 65C816 opcode dispatch coverage from 51
+  to 256 of 256, and hardens DS NiFi fragmented receives. Cycle timing,
+  reference-trace validation, SPC700/DSP work, and physical-radio tests remain;
+  this is not a new release or completed SGB/radio implementation.
 
 ## 완료된 작업
 
@@ -214,9 +215,9 @@ The following DS/DSi-focused work remains after `v0.5.9-ko`.
    when `gameyob_dsi.nds` provides a measurable benefit.
 4. Expand the physically observed game compatibility matrix, especially games
    that change WX during a scanline and depend on more SGB command cases.
-5. Complete the SGB host runtime introduced in `v0.5.8-ko`: implement the
-   remaining 147 65C816 and 235 SPC700 opcode cases and timing coverage,
-   complete DSP
+5. Complete the SGB host runtime introduced in `v0.5.8-ko`: add cycle-accurate
+   65C816 timing, IRQ/reference-trace validation, the remaining 235 SPC700
+   opcode cases, and complete DSP
    envelopes/echo, and composite prototype host OBJ pixels into the final DS
    output. The current bounded execution and separate PCM path are functional
    foundations, but they are not a complete host-SNES implementation. Retail
