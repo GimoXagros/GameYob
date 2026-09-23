@@ -131,7 +131,8 @@ void file_flush(FileHandle* handle) { fflush(handle->file); }
 void file_putc(char value, FileHandle* handle) { fputc(value, handle->file); }
 void file_setSize(FileHandle*, size_t) {}
 void file_write(const void* source, int size, int count, FileHandle* handle) {
-    fwrite(source, size, count, handle->file);
+    if (handle && handle->file && source && size > 0 && count > 0)
+        fwrite(source, size, count, handle->file);
 }
 void printMenuMessage(const char*) {}
 time_t getTime() { return 0; }
