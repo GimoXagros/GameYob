@@ -125,9 +125,6 @@ void Gameboy::init()
     {
         gbRegs.pc.w = 0;
         gbMode = CGB;
-        // The CPU executes from g_gbRegs, not gbRegs. The skip-BIOS branch
-        // gets this copy from initGameboyMode(), but boot-ROM entry does not.
-        memcpy(&g_gbRegs, &gbRegs, sizeof(gbRegs));
     }
     else
     {

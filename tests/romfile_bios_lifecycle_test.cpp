@@ -377,9 +377,11 @@ int main(int argc, char** argv) {
             gameboy->memory[0] != gameboy->getRomFile()->bios)
         return 15;
     if (gameboy->gbRegs.af.w != 0 || gameboy->gbRegs.bc.w != 0 ||
-            gameboy->gbRegs.de.w != 0 || gameboy->gbRegs.hl.w != 0 ||
-            g_gbRegs.pc.w != 0 || g_gbRegs.af.w != 0)
+            gameboy->gbRegs.de.w != 0 || gameboy->gbRegs.hl.w != 0)
         return 29;
+    // runEmul copies the per-instance registers to the CPU's active bank
+    // before calling runOpcode. Reproduce that boundary for these two steps.
+    memcpy(&g_gbRegs, &gameboy->gbRegs, sizeof(Registers));
     if (gameboy->runOpcode(4) != 4 || g_gbRegs.pc.w != 1 ||
             g_gbRegs.af.b.l != 0x10 || gameboy->runOpcode(4) != 4 ||
             g_gbRegs.pc.w != 2 || g_gbRegs.af.b.l != 0)
