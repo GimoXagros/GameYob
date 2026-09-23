@@ -458,6 +458,9 @@ void packetHandler(int packetID, int readlength)
 
 
 void nifiStop() {
+    // The raw packet callback can consume fragmentBuffer. Detach WiFi first
+    // and preserve disableNifi's existing bounded deinit wait before freeing it.
+    disableNifi();
     if (fragmentBuffer != NULL) {
         free(fragmentBuffer);
         fragmentBuffer = NULL;
@@ -465,7 +468,6 @@ void nifiStop() {
     fragmentSequence.reset();
     isClient = false;
     isHost = false;
-    disableNifi();
     nifiUnpause();
 }
 

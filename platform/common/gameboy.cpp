@@ -41,6 +41,11 @@ Gameboy::Gameboy() : hram(highram+0xe00), ioRam(highram+0xf00) {
     // private
     resettingGameboy = false;
     framesSinceAutosaveStarted=0;
+    // loadSave can return before reaching its successful-file setup. Keep
+    // autosave bookkeeping defined even for a first-ROM read failure.
+    fatBytesPerSector = 512;
+    numSaveWrites = 0;
+    memset(dirtySectors, 0, sizeof(dirtySectors));
 
     externRam = NULL;
     saveModified = false;
@@ -98,6 +103,9 @@ void Gameboy::init()
         }
     } // !gbsMode
 
+    // A real boot ROM normally establishes register values itself. Start its
+    // emulated entry from deterministic zeroes; these are not post-BIOS values.
+    memset(&gbRegs, 0, sizeof(gbRegs));
     gbRegs.sp.w = 0xFFFE;
     ime = 0;
     halt = 0;
@@ -107,6 +115,11 @@ void Gameboy::init()
     doubleSpeed = 0;
 
     sgbMode = false;
+
+    // Decide the boot entry before selecting PC. initMMU maps memory using
+    // this same decision; otherwise a previous ROM's biosOn selects the PC.
+    biosOn = biosExists && !probingForBorder && !gbsMode &&
+        (biosEnabled == 2 || (biosEnabled == 1 && resultantGBMode == 0));
 
     if (biosOn)
     {
@@ -726,6 +739,7 @@ void Gameboy::unloadRom() {
     saveModified = false;
     autosaveStarted = false;
     framesSinceAutosaveStarted = 0;
+    numSaveWrites = 0;
     memset(dirtySectors, 0, sizeof(dirtySectors));
     romFile = NULL;
     delete sgbHost;
@@ -846,11 +860,28 @@ int Gameboy::loadSave(int saveId)
         file_write(externRam, 1, 256, saveFile);
     }
     file_seek(saveFile, 0, SEEK_SET);
+    if (file_tell(saveFile) != 0) {
+        file_close(saveFile);
+        saveFile = NULL;
+        return 1;
+    }
     if (ramSize > 0)
         file_read(externRam, 1, ramSize, saveFile);
+    if (file_tell(saveFile) != ramSize) {
+        // Keep the original save untouched if a read failed or was short.
+        // The initialized RAM may run without persistence for this session.
+        file_close(saveFile);
+        saveFile = NULL;
+        return 1;
+    }
 
     if (storedClockAvailable) {
         file_read(&gbClock, 1, sizeof(gbClock), saveFile);
+        if (file_tell(saveFile) != ramSize + (int)sizeof(gbClock)) {
+            file_close(saveFile);
+            saveFile = NULL;
+            return 1;
+        }
         const time_t now = getTime();
         if (gbClock.last <= 0 || gbClock.last > now)
             gbClock.last = now;
@@ -860,6 +891,11 @@ int Gameboy::loadSave(int saveId)
     // physical FAT sectors: BlocksDS may move clusters while a file is open.
     fatBytesPerSector = 512;
     file_seek(saveFile, 0, SEEK_SET);
+    if (file_tell(saveFile) != 0) {
+        file_close(saveFile);
+        saveFile = NULL;
+        return 1;
+    }
 
     return 0;
 }

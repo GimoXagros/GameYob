@@ -144,14 +144,6 @@ void Gameboy::initMMU()
     memset(camRegisters, 0, sizeof(camRegisters));
     camRegistersEnabled = false;
 
-    biosOn = false;
-    if (biosExists && !probingForBorder && !gbsMode) {
-        if (biosEnabled == 2)
-            biosOn = true;
-        else if (biosEnabled == 1 && resultantGBMode == 0)
-            biosOn = true;
-    }
-
     mapMemory();
     for (int i=0; i<8; i++)
         memset(wram[i], 0, 0x1000);
