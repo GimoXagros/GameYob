@@ -41,6 +41,11 @@ Gameboy::Gameboy() : hram(highram+0xe00), ioRam(highram+0xf00) {
     // private
     resettingGameboy = false;
     framesSinceAutosaveStarted=0;
+    // loadSave can return before reaching its successful-file setup. Keep
+    // autosave bookkeeping defined even for a first-ROM read failure.
+    fatBytesPerSector = 512;
+    numSaveWrites = 0;
+    memset(dirtySectors, 0, sizeof(dirtySectors));
 
     externRam = NULL;
     saveModified = false;
@@ -98,6 +103,9 @@ void Gameboy::init()
         }
     } // !gbsMode
 
+    // A real boot ROM normally establishes register values itself. Start its
+    // emulated entry from deterministic zeroes; these are not post-BIOS values.
+    memset(&gbRegs, 0, sizeof(gbRegs));
     gbRegs.sp.w = 0xFFFE;
     ime = 0;
     halt = 0;
@@ -117,6 +125,9 @@ void Gameboy::init()
     {
         gbRegs.pc.w = 0;
         gbMode = CGB;
+        // The CPU executes from g_gbRegs, not gbRegs. The skip-BIOS branch
+        // gets this copy from initGameboyMode(), but boot-ROM entry does not.
+        memcpy(&g_gbRegs, &gbRegs, sizeof(gbRegs));
     }
     else
     {
@@ -731,6 +742,7 @@ void Gameboy::unloadRom() {
     saveModified = false;
     autosaveStarted = false;
     framesSinceAutosaveStarted = 0;
+    numSaveWrites = 0;
     memset(dirtySectors, 0, sizeof(dirtySectors));
     romFile = NULL;
     delete sgbHost;

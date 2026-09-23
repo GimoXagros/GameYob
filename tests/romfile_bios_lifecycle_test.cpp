@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdexcept>
 #include <string>
+#include <new>
 
 #include "romfile.h"
 #include "gameboy.h"
@@ -184,6 +185,8 @@ static void writeFixture(const char* path, size_t bytes, bool rom, bool color = 
     assert(file);
     for (size_t i = 0; i < bytes; ++i) {
         u8 value = static_cast<u8>(i);
+        if (!rom && bytes == 0x900 && i < 2)
+            value = i == 0 ? 0x37 : 0x3f; // Synthetic SCF, CCF boot prefix.
         if (rom && i == 0x147) value = 0;
         if (rom && i == 0x143) value = color ? 0x80 : 0;
         if (rom && i == 0x146 && !color) value = 0x03;
@@ -216,6 +219,45 @@ int main(int argc, char** argv) {
     writeFixture(biosPathArg, 0x900, false);
 #ifdef MANAGER_TEST
     snprintf(biosPath, sizeof(biosPath), "%s", biosPathArg);
+    {
+        // Poison the storage to expose metadata accidentally left at its
+        // pre-construction value, then fail the first save read before init.
+        RomFile rom(largePath.c_str());
+        const std::string savePath = std::string(rom.getStorageBasename()) + ".sav";
+        writeFixture(savePath.c_str(), 0x2000, false);
+        FILE* save = fopen(savePath.c_str(), "r+b");
+        assert(save);
+        fputc(0x5a, save);
+        fclose(save);
+        alignas(Gameboy) unsigned char storage[sizeof(Gameboy)];
+        memset(storage, 0xa5, sizeof(storage));
+        Gameboy* fresh = new (storage) Gameboy();
+        gameboy = fresh;
+        fresh->setRomFile(&rom);
+        autoSavingEnabled = true;
+        failSaveRead = true;
+        if (fresh->loadSave(1) == 0) return 25;
+        fresh->init();
+        fresh->writeSram(0, 0xa5);
+        fresh->updateAutosave();
+        fresh->updateAutosave();
+        fresh->gameboySyncAutosave();
+        fresh->unloadRom();
+        fresh->~Gameboy();
+        gameboy = NULL;
+        if (liveFiles != 0 || firstByte(savePath.c_str()) != 0x5a) return 26;
+        failSaveRead = false;
+        Gameboy retry;
+        gameboy = &retry;
+        retry.setRomFile(&rom);
+        if (retry.loadSave(1) != 0 || !retry.externRam ||
+                retry.externRam[0] != 0x5a) return 27;
+        retry.init();
+        retry.unloadRom();
+        gameboy = NULL;
+        autoSavingEnabled = false;
+        if (liveFiles != 0 || firstByte(savePath.c_str()) != 0x5a) return 28;
+    }
     mgr_init();
     bool savedLarge = false;
     for (int session = 0; session < 1000; ++session) {
@@ -334,6 +376,14 @@ int main(int argc, char** argv) {
     if (!biosExists || !gameboy->biosOn || gameboy->gbRegs.pc.w != 0 ||
             gameboy->memory[0] != gameboy->getRomFile()->bios)
         return 15;
+    if (gameboy->gbRegs.af.w != 0 || gameboy->gbRegs.bc.w != 0 ||
+            gameboy->gbRegs.de.w != 0 || gameboy->gbRegs.hl.w != 0 ||
+            g_gbRegs.pc.w != 0 || g_gbRegs.af.w != 0)
+        return 29;
+    if (gameboy->runOpcode(4) != 4 || g_gbRegs.pc.w != 1 ||
+            g_gbRegs.af.b.l != 0x10 || gameboy->runOpcode(4) != 4 ||
+            g_gbRegs.pc.w != 2 || g_gbRegs.af.b.l != 0)
+        return 30;
     gameboy->gbRegs.pc.w = 0x2345;
     gameboy->saveState(0);
     const std::string badState =
