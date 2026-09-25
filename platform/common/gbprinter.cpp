@@ -106,10 +106,11 @@ void initGbPrinter() {
 #endif
     makeOutputPathStable();
 }
-static bool decodeData(u8* result, unsigned* resultSize) {
+static bool decodeData(u8* result, unsigned capacity, unsigned* resultSize) {
     unsigned out = 0;
     if (!compression) {
-        memcpy(result, packet, packetSize);
+        if (packetSize > capacity) return false;
+        if (result) memcpy(result, packet, packetSize);
         *resultSize = packetSize;
         return true;
     }
@@ -117,8 +118,8 @@ static bool decodeData(u8* result, unsigned* resultSize) {
         const u8 control = packet[pos++];
         if (control < 0x80) {
             const unsigned count = control + 1;
-            if (count > packetSize - pos || count > MAX_PACKET - out) return false;
-            memcpy(result + out, packet + pos, count);
+            if (count > packetSize - pos || count > capacity - out) return false;
+            if (result) memcpy(result + out, packet + pos, count);
             pos += count;
             out += count;
         }
@@ -126,8 +127,9 @@ static bool decodeData(u8* result, unsigned* resultSize) {
             // Nintendo's printer manual includes 0xFF: repeat 129 bytes.
             if (pos == packetSize) return false;
             const unsigned count = control - 0x80 + 2;
-            if (count > MAX_PACKET - out) return false;
-            memset(result + out, packet[pos++], count);
+            if (count > capacity - out) return false;
+            if (result) memset(result + out, packet[pos], count);
+            ++pos;
             out += count;
         }
     }
@@ -156,15 +158,24 @@ static void executePacket() {
             printLog("Printer DATA received while printing\n");
             return;
         }
-        u8 decoded[MAX_PACKET];
+        // Validate the entire encoded stream and the remaining printer RAM
+        // before writing any pixel bytes. Compressed DATA may expand beyond
+        // the 640-byte packet limit without exceeding the 8 KiB image RAM.
         unsigned decodedSize = 0;
-        if (!decodeData(decoded, &decodedSize) || decodedSize > MAX_IMAGE - imageSize) {
+        const unsigned remaining = MAX_IMAGE - imageSize;
+        if (!decodeData(NULL, remaining, &decodedSize)) {
             status |= PACKET_ERROR;
             printLog("Printer DATA decode or image overflow\n");
             return;
         }
         if (decodedSize) {
-            memcpy(image + imageSize, decoded, decodedSize);
+            unsigned committedSize = 0;
+            if (!decodeData(image + imageSize, remaining, &committedSize) ||
+                    committedSize != decodedSize) {
+                status |= PACKET_ERROR;
+                printLog("Printer DATA second-pass mismatch\n");
+                return;
+            }
             imageSize += decodedSize;
             emptyDataReceived = false;
             status |= READY;

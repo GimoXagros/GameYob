@@ -173,5 +173,33 @@ int main() {
     sendPacket(2, {1, 0, 0xe4, 0x40});
     finishPrint();
     assert(fs::exists(dir / "relative-0.bmp"));
+    // Encoded packet size and expanded printer RAM capacity are independent.
+    initGbPrinter();
+    std::vector<u8> sixRepeats;
+    for (int i = 0; i < 6; ++i) {
+        sixRepeats.push_back(0xff);
+        sixRepeats.push_back(0x12);
+    }
+    sendPacket(4, sixRepeats, 1);
+    assert(imageSize == 774 && image[0] == 0x12 && image[773] == 0x12);
+    sendPacket(4, {0x80, 0x42, 0xff}, 1); // Valid prefix, truncated tail.
+    assert((status & PACKET_ERROR) && imageSize == 774 &&
+           image[774] == 0 && image[0] == 0x12);
+    std::vector<u8> fillRemaining;
+    for (int i = 0; i < 56; ++i) {
+        fillRemaining.push_back(0xff);
+        fillRemaining.push_back(0x34);
+    }
+    fillRemaining.push_back(0x80); // 56*129 + 2 = 7,226 bytes.
+    fillRemaining.push_back(0x56);
+    sendPacket(4, fillRemaining, 1);
+    assert(imageSize == MAX_IMAGE && image[773] == 0x12 &&
+           image[774] == 0x34 && image[MAX_IMAGE - 1] == 0x56);
+    sendPacket(4, {0x80, 0x99}, 1); // 2 expanded bytes over capacity.
+    assert((status & PACKET_ERROR) && imageSize == MAX_IMAGE &&
+           image[0] == 0x12 && image[MAX_IMAGE - 1] == 0x56);
+    sendPacket(4, {0xff}, 1); // Truncated stream cannot alter full image.
+    assert((status & PACKET_ERROR) && imageSize == MAX_IMAGE &&
+           image[0] == 0x12 && image[MAX_IMAGE - 1] == 0x56);
     std::cout << "gbprinter_test PASS synthetic output: " << dir.string() << "\n";
 }
