@@ -37,5 +37,19 @@ int main() {
         assert(trace.pop(&samples[i - 1]));
         assert(samples[i - 1].publishedFrame == i);
     }
+    // Opening the diagnostic menu must preserve the pre-menu evidence even
+    // if rendering continues while the user navigates to Export.
+    trace.record(line(30, 8, 24));
+    trace.freeze();
+    for (unsigned i = 0; i < 32; ++i)
+        trace.record(line(31 + i, 9, 72));
+    assert(trace.overwritten() == 1);
+    assert(trace.pop(&samples[0]));
+    assert(samples[0].hostFrame == 30);
+    assert(!trace.pop(&samples[0]));
+    trace.resume();
+    trace.record(line(70, 10, 120));
+    assert(trace.pop(&samples[0]));
+    assert(samples[0].hostFrame == 70);
     return 0;
 }

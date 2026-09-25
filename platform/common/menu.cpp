@@ -718,6 +718,11 @@ void setMenuDefaults() {
 }
 
 void displayMenu() {
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+    // Preserve the short pre-menu ring while the user navigates to Dump.
+    // The normal build has no trace state or menu-time recording overhead.
+    freezeVideoFrameTrace();
+#endif
     menuOn = true;
 #ifdef DS
     touchUiBegin(&menuTouchDebounce);
@@ -737,6 +742,9 @@ void displayMenu() {
 }
 void closeMenu() {
     menuOn = false;
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+    resumeVideoFrameTrace();
+#endif
     setPrintConsole(menuConsole);
     clearConsole();
     mgr_unpause();

@@ -178,6 +178,13 @@ void Gameboy::init()
         }
     } // !gbsMode
 
+    // Mode selection can itself turn a temporary SGB-border probe into a
+    // real SGB boot (for example, Prefer SGB or GBC Off followed by Reset).
+    // Restore the loaded save before initializing that real execution, not
+    // only when the probe flag was already clear on entry.
+    if (borderProbeActive && !probingForBorder)
+        endBorderProbe();
+
     // A real boot ROM normally establishes register values itself. Start its
     // emulated entry from deterministic zeroes; these are not post-BIOS values.
     memset(&gbRegs, 0, sizeof(gbRegs));

@@ -215,6 +215,24 @@ uint32_t videoFrameTraceOverwritten() {
     REG_IME = previousIme;
     return count;
 }
+
+void freezeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.freeze();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void resumeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.resume();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
 #define TRACE_VIDEO(type, line) traceVideoEvent((type), (line))
 #else
 #define TRACE_VIDEO(type, line) ((void)0)

@@ -33,9 +33,11 @@ struct VideoFrameEvent {
 template <unsigned Capacity>
 class VideoFrameTraceRing {
 public:
-    VideoFrameTraceRing() : written_(0), read_(0), overwritten_(0) {}
+    VideoFrameTraceRing() : written_(0), read_(0), overwritten_(0), frozen_(false) {}
 
     void record(const VideoFrameEvent& event) {
+        if (frozen_)
+            return;
         if (written_ - read_ == Capacity) {
             ++read_;
             ++overwritten_;
@@ -53,12 +55,15 @@ public:
     }
 
     uint32_t overwritten() const { return overwritten_; }
+    void freeze() { frozen_ = true; }
+    void resume() { frozen_ = false; }
 
 private:
     VideoFrameEvent events_[Capacity];
     uint32_t written_;
     uint32_t read_;
     uint32_t overwritten_;
+    bool frozen_;
 };
 
 // A sampled host frame showing two published guest generations is a definite
@@ -83,4 +88,6 @@ static inline bool videoTraceHasMixedFrame(const VideoFrameEvent* events,
 // callers can format or write the copied data after interrupts are restored.
 unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity);
 uint32_t videoFrameTraceOverwritten();
+void freezeVideoFrameTrace();
+void resumeVideoFrameTrace();
 #endif

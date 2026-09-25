@@ -73,9 +73,80 @@ static int checkProbe(const std::string& path, u8 ramCode,
     return liveFiles == 0 ? 0 : 9;
 }
 
+static int checkRealSgbTransition(const std::string& path,
+        int gameboyMode, int superMode, bool timeout) {
+    makeProbeRom(path, 0x02);
+    RomFile rom(path.c_str());
+    Gameboy instance;
+    gameboy = &instance;
+    instance.setRomFile(&rom);
+    if (instance.loadSave(1) != 0) return 1;
+    instance.externRam[0] = 0x5a;
+    instance.gbClock.mbc3.s = 17;
+    if (instance.saveGame() != 0) return 2;
+    gbcModeOption = 2;
+    sgbModeOption = 1;
+    biosEnabled = 0;
+    sgbBordersEnabled = true;
+    probingForBorder = true;
+    instance.init();
+    if (!probingForBorder || !instance.sgbMode) return 3;
+    instance.writeSram(0, 0xa5);
+    instance.gbClock.mbc3.s = 42;
+    // This matches Settings -> SGB preference (or GBC Off) -> Reset while
+    // the temporary border probe is still running.
+    gbcModeOption = gameboyMode;
+    sgbModeOption = superMode;
+    instance.init();
+    if (probingForBorder || !instance.sgbMode || instance.saveGame() != 0)
+        return 4;
+    if (instance.externRam[0] != 0x5a || instance.gbClock.mbc3.s != 17)
+        return 5;
+    instance.init(); // Repeated real reset must not re-arm probe isolation.
+    if (instance.saveGame() != 0) return 11;
+    // Exercise the existing timeout/cancel transition against the same
+    // file-backed cartridge after a real SGB reset.
+    gbcModeOption = 2;
+    sgbModeOption = 1;
+    probingForBorder = true;
+    instance.init();
+    if (!probingForBorder) return 12;
+    instance.writeSram(0, 0xc7);
+    instance.gbClock.mbc3.s = 42;
+    if (timeout) {
+        for (int i = 0; i < 450; ++i) instance.updateVBlank();
+    } else {
+        sgbBordersEnabled = false;
+        instance.updateVBlank();
+    }
+    if (probingForBorder || instance.saveGame() != 0 ||
+            instance.externRam[0] != 0x5a || instance.gbClock.mbc3.s != 17)
+        return 13;
+    instance.writeSram(0, 0x6b);
+    instance.gbClock.mbc3.s = 25;
+    if (instance.saveGame() != 0) return 6;
+    instance.unloadRom();
+    gameboy = NULL;
+    if (liveFiles != 0) return 7;
+    RomFile reloadRom(path.c_str());
+    Gameboy reloaded;
+    gameboy = &reloaded;
+    reloaded.setRomFile(&reloadRom);
+    if (reloaded.loadSave(1) != 0) return 8;
+    if (reloaded.externRam[0] != 0x6b || reloaded.gbClock.mbc3.s != 25)
+        return 9;
+    reloaded.unloadRom();
+    gameboy = NULL;
+    return liveFiles == 0 ? 0 : 10;
+}
+
 int main(int argc, char** argv) {
     assert(argc == 1);
     const std::string stem = std::string(argv[0]) + ".probe";
+    const int preferSgb = checkRealSgbTransition(stem + "-prefer-sgb.gb", 2, 2, true);
+    if (preferSgb) return 40 + preferSgb;
+    const int gbcOff = checkRealSgbTransition(stem + "-gbc-off.gb", 0, 1, false);
+    if (gbcOff) return 50 + gbcOff;
     const u8 ramCodes[] = {0x00, 0x02, 0x04}; // 0, 8, 128 KiB.
     for (size_t i = 0; i < sizeof(ramCodes); ++i) {
         for (int exitPath = 0; exitPath < 4; ++exitPath) {
