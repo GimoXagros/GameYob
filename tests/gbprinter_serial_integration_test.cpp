@@ -6,6 +6,7 @@
 #undef main
 #include <vector>
 extern Gameboy* gbUno;
+extern Gameboy* gbDuo;
 
 static int exchange(Gameboy& gb, u8 sent, u8 expected) {
     gb.ioRam[0x0f] &= ~INT_SERIAL;
@@ -87,10 +88,51 @@ static int runCase(const std::string& path, bool color) {
     return result;
 }
 
+static int checkLinkedPeer(const std::string& path) {
+    writeFixture(path.c_str(), 0x8000, true, false);
+    FILE* fixture = fopen(path.c_str(), "r+b");
+    assert(fixture);
+    fseek(fixture, 0x100, SEEK_SET);
+    fputc(0x18, fixture); fputc(0xfe, fixture);
+    fclose(fixture);
+    printerEnabled = false;
+    RomFile rom(path.c_str());
+    Gameboy internal, external;
+    gameboy = &internal;
+    gbUno = &internal;
+    gbDuo = &external;
+    hostGb = &internal;
+    internal.setRomFile(&rom);
+    external.setRomFile(&rom);
+    internal.init();
+    external.init();
+    internal.linkedGameboy = &external;
+    external.linkedGameboy = &internal;
+    internal.writeIO(0x01, 0x12);
+    external.writeIO(0x01, 0x34);
+    external.writeIO(0x02, 0x80);
+    internal.writeIO(0x02, 0x81);
+    const int first = internal.runEmul();
+    if (!(first & RET_LINK) || !(internal.ioRam[0x02] & 0x80) ||
+            external.cycleToSerialTransfer < 0)
+        return 31; // Handshake pending: internal SC must stay armed.
+    external.runEmul();
+    if ((internal.ioRam[0x02] & 0x80) ||
+            (external.ioRam[0x02] & 0x80) ||
+            internal.ioRam[0x01] != 0x34 ||
+            external.ioRam[0x01] != 0x12)
+        return 32;
+    external.unloadRom();
+    internal.unloadRom();
+    gameboy = gbUno = gbDuo = hostGb = NULL;
+    return 0;
+}
+
 int main(int argc, char** argv) {
     assert(argc == 1);
     const std::string stem = std::string(argv[0]) + ".serial";
     int result = runCase(stem + "-gb.gb", false);
     if (!result) result = runCase(stem + "-cgb.gbc", true);
+    if (!result) result = checkLinkedPeer(stem + "-link.gb");
     return result;
 }

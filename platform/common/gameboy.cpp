@@ -515,9 +515,10 @@ int Gameboy::runEmul()
                 }
                 else
                     ioRam[0x01] = 0xff;
-                // An internal-clock transfer is complete before the guest
-                // receives its IRQ, including printer and disconnected paths.
-                ioRam[0x02] &= ~0x80;
+                // Only the standalone printer/disconnected transfer is
+                // complete here. Linked peers clear SC at their handshake.
+                if (linkedGameboy == NULL)
+                    ioRam[0x02] &= ~0x80;
                 requestInterrupt(INT_SERIAL);
             }
             else
