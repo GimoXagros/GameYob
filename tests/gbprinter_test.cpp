@@ -75,7 +75,7 @@ int main() {
     assert(imageSize == 16 && (status & READY));
     sendPacket(4, std::vector<u8>(16, 0)); // Split DATA, same sheet.
     assert(imageSize == 32);
-    const unsigned retained = imageSize;
+    unsigned retained = imageSize;
     sendPacket(4, std::vector<u8>(16, 0xff), 0, false);
     assert(imageSize == retained && image[0] == 0xff);
     assert(sendPacket(2, {1, 0x13, 0xe4, 0x40}, 0, false) & READY);
@@ -85,8 +85,11 @@ int main() {
     assert((status & PACKET_ERROR) && imageSize == retained);
     sendPacket(4, {0x7f, 0x12}, 1);
     assert((status & PACKET_ERROR) && imageSize == retained);
-    sendPacket(4, {0xff, 0x12}, 1);
+    sendPacket(4, {0xff}, 1); // Missing repeated byte is invalid.
     assert((status & PACKET_ERROR) && imageSize == retained);
+    sendPacket(4, {0xff, 0x12}, 1); // Manual: 0xFF repeats 129 bytes.
+    assert(imageSize == retained + 129);
+    retained = imageSize;
     sendPacket(4, std::vector<u8>(641, 0));
     assert((status & PACKET_ERROR) && imageSize == retained);
     sendPacket(4);

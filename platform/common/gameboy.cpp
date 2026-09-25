@@ -55,6 +55,9 @@ Gameboy::Gameboy() : hram(highram+0xe00), ioRam(highram+0xf00) {
     gbClock.last = getTime();
     rtcLatchState = 0;
     rtcLatched = false;
+    borderProbeRam = NULL;
+    borderProbeRamBytes = 0;
+    borderProbeActive = false;
 
     cheatEngine = new CheatEngine(this);
     soundEngine = new SoundEngine(this);
@@ -67,9 +70,67 @@ Gameboy::~Gameboy() {
     delete soundEngine;
 }
 
+bool Gameboy::beginBorderProbe() {
+    if (borderProbeActive)
+        return true;
+#ifdef BORDER_PROBE_TEST
+    extern bool borderProbeForceAllocFailure;
+    if (borderProbeForceAllocFailure)
+        return false;
+#endif
+
+    const int bytes = getNumSramBanks() * 0x2000;
+    if (bytes < 0 || bytes > MAX_SRAM_SIZE || (bytes && !externRam))
+        return false;
+    u8* copy = bytes ? (u8*)malloc(bytes) : NULL;
+    if (bytes && !copy)
+        return false;
+    if (bytes)
+        memcpy(copy, externRam, bytes);
+
+    borderProbeRam = copy;
+    borderProbeRamBytes = bytes;
+    borderProbeClock = gbClock;
+    borderProbeRtcLatchState = rtcLatchState;
+    borderProbeRtcLatched = rtcLatched;
+    borderProbeSaveModified = saveModified;
+    borderProbeAutosaveStarted = autosaveStarted;
+    borderProbeAutosaveFrames = framesSinceAutosaveStarted;
+    borderProbeSaveWrites = numSaveWrites;
+    memcpy(borderProbeDirtySectors, dirtySectors, sizeof(dirtySectors));
+    borderProbeActive = true;
+    return true;
+}
+
+void Gameboy::endBorderProbe() {
+    if (!borderProbeActive)
+        return;
+    if (borderProbeRamBytes && externRam)
+        memcpy(externRam, borderProbeRam, borderProbeRamBytes);
+    gbClock = borderProbeClock;
+    rtcLatchState = borderProbeRtcLatchState;
+    rtcLatched = borderProbeRtcLatched;
+    saveModified = borderProbeSaveModified;
+    autosaveStarted = borderProbeAutosaveStarted;
+    framesSinceAutosaveStarted = borderProbeAutosaveFrames;
+    numSaveWrites = borderProbeSaveWrites;
+    memcpy(dirtySectors, borderProbeDirtySectors, sizeof(dirtySectors));
+    free(borderProbeRam);
+    borderProbeRam = NULL;
+    borderProbeRamBytes = 0;
+    borderProbeActive = false;
+}
+
 void Gameboy::init()
 {
     enableSleepMode();
+
+    // PCT_TRN, timeout and cancellation all converge here before the real
+    // boot. Restore the loaded save, never the probe's transient writes.
+    if (borderProbeActive && (!probingForBorder || !sgbBordersEnabled)) {
+        probingForBorder = false;
+        endBorderProbe();
+    }
 
     if (gbsMode) {
         resultantGBMode = 1; // GBC
@@ -97,6 +158,20 @@ void Gameboy::init()
         bool sgbEnhanced = romFile->getOldLicensee() == 0x33 && romFile->getSgbFlag() == 0x03;
         if (sgbEnhanced && resultantGBMode != 2 && probingForBorder) {
             resultantGBMode = 2;
+            if (!beginBorderProbe()) {
+                // No spare memory is safer than probing against a real save.
+                probingForBorder = false;
+                sgbBorderLoaded = false;
+                if ((gbcModeOption == 1 &&
+                         romFile->getCgbFlag() == 0xC0) ||
+                        (gbcModeOption == 2 &&
+                         (romFile->getCgbFlag() == 0x80 ||
+                          romFile->getCgbFlag() == 0xC0)))
+                    initGBCMode();
+                else
+                    initGBMode();
+                printLog("SGB border probe skipped: save isolation unavailable.\n");
+            }
         }
         else {
             probingForBorder = false;
@@ -326,6 +401,12 @@ void Gameboy::updateVBlank() {
         }
 
         if (probingForBorder) {
+            if (!sgbBordersEnabled) {
+                probingForBorder = false;
+                sgbBorderLoaded = false;
+                init();
+                return;
+            }
             gameboyFrameCounter++;
             if (gameboyFrameCounter >= 450) {
                 // Give up on finding a sgb border.
@@ -434,6 +515,9 @@ int Gameboy::runEmul()
                 }
                 else
                     ioRam[0x01] = 0xff;
+                // An internal-clock transfer is complete before the guest
+                // receives its IRQ, including printer and disconnected paths.
+                ioRam[0x02] &= ~0x80;
                 requestInterrupt(INT_SERIAL);
             }
             else
@@ -728,6 +812,7 @@ void Gameboy::setRomFile(RomFile* r) {
 }
 
 void Gameboy::unloadRom() {
+    endBorderProbe();
     gameboySyncAutosave();
     cheatEngine->unloadCheats();
     if (saveFile != NULL)
@@ -763,6 +848,8 @@ bool Gameboy::isRomLoaded() {
 
 int Gameboy::loadSave(int saveId)
 {
+    if (borderProbeActive)
+        return 1;
     if (saveFile != NULL) {
         file_close(saveFile);
         saveFile = NULL;
@@ -902,6 +989,8 @@ int Gameboy::loadSave(int saveId)
 
 int Gameboy::saveGame()
 {
+    if (borderProbeActive)
+        return 1;
     if (saveFile == NULL)
         return 0;
 
@@ -937,6 +1026,8 @@ size_t Gameboy::getLinkSaveDataSize()
 
 bool Gameboy::exportLinkSaveData(u8* output, size_t outputSize)
 {
+    if (borderProbeActive)
+        return false;
     if (!output || outputSize != getLinkSaveDataSize())
         return false;
 
@@ -952,6 +1043,8 @@ bool Gameboy::exportLinkSaveData(u8* output, size_t outputSize)
 
 bool Gameboy::importLinkSaveData(const u8* input, size_t inputSize)
 {
+    if (borderProbeActive)
+        return false;
     if (!input || inputSize != getLinkSaveDataSize())
         return false;
 
@@ -970,6 +1063,8 @@ bool Gameboy::importLinkSaveData(const u8* input, size_t inputSize)
 }
 
 void Gameboy::gameboySyncAutosave() {
+    if (borderProbeActive)
+        return;
     if (!autosaveStarted || saveFile == NULL)
         return;
 
@@ -1058,7 +1153,7 @@ struct StateStruct {
 };
 
 void Gameboy::saveState(int stateNum) {
-    if (!isRomLoaded())
+    if (!isRomLoaded() || borderProbeActive)
         return;
 
     FileHandle* outFile;
@@ -1172,7 +1267,7 @@ void Gameboy::saveState(int stateNum) {
 }
 
 int Gameboy::loadState(int stateNum) {
-    if (!isRomLoaded())
+    if (!isRomLoaded() || borderProbeActive)
         return 1;
 
     FileHandle *inFile;
@@ -1530,7 +1625,7 @@ int Gameboy::loadState(int stateNum) {
 }
 
 void Gameboy::deleteState(int stateNum) {
-    if (!isRomLoaded())
+    if (!isRomLoaded() || borderProbeActive)
         return;
 
     if (!checkStateExists(stateNum))

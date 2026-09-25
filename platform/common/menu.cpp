@@ -5,6 +5,11 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+#include <errno.h>
+#include <sys/stat.h>
+#include "../ds/arm9/source/video_frame_trace.h"
+#endif
 #include "menu.h"
 #include "gbprinter.h"
 #include "console.h"
@@ -433,6 +438,56 @@ void versionInfoFunc(int value) {
     displaySubMenu(subMenuGenericUpdateFunc);
     printVersionInfo();
 }
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+void videoTraceDumpFunc(int) {
+    // Explicit foreground action. The IRQ producer never allocates or writes
+    // to SD, and an existing diagnostic file is never opened for writing.
+    char path[64];
+    FILE* output = NULL;
+    for (unsigned number = 0; number < 100; ++number) {
+        snprintf(path, sizeof(path), "gameyob_video_trace_%02u.csv", number);
+        struct stat existing;
+        if (stat(path, &existing) == 0)
+            continue;
+        if (errno != ENOENT)
+            break;
+        output = fopen(path, "wx");
+        if (output || errno != EEXIST)
+            break;
+    }
+    if (!output) {
+        printMenuMessage("Video trace: cannot create file.");
+        return;
+    }
+    const uint32_t overwritten = videoFrameTraceOverwritten();
+    bool ok = fprintf(output, "overwritten,%lu\n", (unsigned long)overwritten) > 0;
+    ok = ok && fprintf(output, "host,guest,published,line,type,draw,render,"
+        "vram_c,vram_d,ready,scale,filter,capture,main,sub\n") > 0;
+    VideoFrameEvent event;
+    unsigned count = 0;
+    while (ok && count < 256 && readVideoFrameTrace(&event, 1) == 1) {
+        ok = fprintf(output,
+            "%lu,%lu,%lu,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lu,%lu,%lu\n",
+            (unsigned long)event.hostFrame,
+            (unsigned long)event.guestFrame,
+            (unsigned long)event.publishedFrame,
+            event.physicalLine, event.type, event.drawingBuffer,
+            event.renderingBuffer, event.vramC, event.vramD,
+            event.transferReady, event.scalingMode, event.filterMode,
+            (unsigned long)event.captureControl,
+            (unsigned long)event.displayControlMain,
+            (unsigned long)event.displayControlSub) > 0;
+        ++count;
+    }
+    const int flushResult = fflush(output);
+    const int closeResult = fclose(output);
+    if (flushResult != 0 || closeResult != 0 || !ok)
+        printMenuMessage("Video trace: write failed.");
+    else
+        printMenuMessage(count ? "Video trace saved in current folder." :
+            "Video trace empty; try immediately after blink.");
+}
+#endif
 
 void setChanEnabled(int chan, int value) {
     if (value == 0)
@@ -593,7 +648,11 @@ SubMenu menuList[] = {
     },
     {
         "Debug",
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+        9,
+#else
         8,
+#endif
         {
             {"Wait for Vblank", vblankWaitFunc, 2, {"Off","On"}, 0, MENU_DS},
             {"Hblank", hblankEnableFunc, 2, {"Off","On"}, 1, MENU_DS},
@@ -607,6 +666,9 @@ SubMenu menuList[] = {
 #endif
             {"ROM Info", romInfoFunc, 0, {}, 0, MENU_ALL},
             {"Version Info", versionInfoFunc, 0, {}, 0, MENU_ALL}
+#if defined(DS) && defined(GAMEYOB_VIDEO_TRACE)
+            ,{"Video Trace Dump", videoTraceDumpFunc, 0, {}, 0, MENU_DS}
+#endif
         }
     },
     {

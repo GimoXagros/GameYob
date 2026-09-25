@@ -3,7 +3,11 @@
 #include <errno.h>
 #include <sys/stat.h>
 #ifdef GBPRINTER_TEST
+#ifdef _WIN32
 #include <direct.h>
+#else
+#include <unistd.h>
+#endif
 typedef unsigned char u8;
 #define MAX_FILENAME_LEN 768
 enum { ICON_NULL, ICON_PRINTER };
@@ -35,7 +39,7 @@ static void makeOutputPathStable() {
     if (!outputBase[0] || outputBase[0] == '/' || strchr(outputBase, ':'))
         return;
     char cwd[MAX_FILENAME_LEN], full[MAX_FILENAME_LEN];
-#ifdef GBPRINTER_TEST
+#if defined(GBPRINTER_TEST) && defined(_WIN32)
     char* resolved = _getcwd(cwd, sizeof(cwd));
 #else
     char* resolved = getcwd(cwd, sizeof(cwd));
@@ -119,8 +123,8 @@ static bool decodeData(u8* result, unsigned* resultSize) {
             out += count;
         }
         else {
-            // Nintendo's printer manual defines repeat controls 0x80..0xFE.
-            if (control == 0xff || pos == packetSize) return false;
+            // Nintendo's printer manual includes 0xFF: repeat 129 bytes.
+            if (pos == packetSize) return false;
             const unsigned count = control - 0x80 + 2;
             if (count > MAX_PACKET - out) return false;
             memset(result + out, packet[pos++], count);

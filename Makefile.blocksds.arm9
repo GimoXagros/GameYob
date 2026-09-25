@@ -15,6 +15,9 @@ REVISION	:= $(shell git rev-parse --short=12 HEAD)
 DEFINES		:= -DNO_VIZ -DGIT_REVISION=\"$(REVISION)\" \
 		   -DGAMEYOB_VERSION=\"v0.5.9-ko\" \
 		   -DC_IO_FUNCTIONS -DNIFI -DDS
+ifeq ($(VIDEO_TRACE),1)
+DEFINES += -DGAMEYOB_VIDEO_TRACE
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \
