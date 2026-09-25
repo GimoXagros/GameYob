@@ -3,7 +3,6 @@
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <vector>
 #include <nds.h>
 #include <stdio.h>
 #include <math.h>
@@ -18,6 +17,8 @@
 #include "inputhelper.h"
 #include "common.h"
 #include "soundengine.h"
+#include "error.h"
+#include "vblank_task_queue.h"
 
 
 #define BACKDROP_COLOUR RGB15(0,0,0)
@@ -418,10 +419,19 @@ void hblankHandler()
     doHBlank(line);
 }
 
-std::vector<void (*)()> vblankTasks;
+static VBlankTaskQueue<64> vblankTasks;
+static volatile bool vblankTaskOverflow = false;
 
 void doAtVBlank(void (*func)(void)) {
-    vblankTasks.push_back(func);
+    // A foreground enqueue may be interrupted by VBlank. This short section
+    // protects only the queue metadata, never a callback or VRAM transfer.
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (!vblankTasks.enqueue(func))
+        vblankTaskOverflow = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
 }
 
 
@@ -476,11 +486,9 @@ void vblankHandler()
         filterFlip = !filterFlip;
     }
 
-    // Copy the list so that functions which access vblankTasks work.
-    std::vector<void (*)()> tasks = vblankTasks;
-    vblankTasks.clear();
-    for (uint i=0; i<tasks.size(); i++) {
-        tasks[i]();
+    const VBlankTaskQueue<64>::Batch tasks = vblankTasks.beginDrain();
+    for (unsigned i=0; i<tasks.count; i++) {
+        tasks.tasks[i]();
     }
 }
 
@@ -1157,6 +1165,11 @@ void copyTile(u8 *src,u16 *dest) {
 
 void drawScreen()
 {
+    // Overflow is exceptional: do not silently lose a display transition.
+    // Report from foreground code, never from the VBlank interrupt.
+    if (vblankTaskOverflow)
+        fatalerr("VBlank display task queue overflow");
+
     if (probingForBorder)
         return;
 
