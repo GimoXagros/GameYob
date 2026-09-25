@@ -1444,6 +1444,11 @@ void SgbHost::reset() {
   cpu.reset();
   ppu.reset();
   apu.reset();
+  // The SGB border/palette commands do not start host programs. The CPU is
+  // started by JUMP and the SPC700 by SOU_TRN; until then, running the
+  // zero-filled reset memories wastes thousands of instructions per frame.
+  cpu.state().stopped = 1;
+  apu.cpu.stopped = 1;
 }
 
 uint8_t SgbHost::read8(uint32_t a) {
@@ -1511,9 +1516,12 @@ void SgbHost::jump(uint32_t a, uint32_t n) {
   cpu.run(*this, 4096);
 }
 void SgbHost::runFrame() {
-  cpu.requestNmi();
-  cpu.run(*this, 8192);
-  apu.run(4096);
+  if (!cpu.state().stopped) {
+    cpu.requestNmi();
+    cpu.run(*this, 8192);
+  }
+  if (!apu.cpu.stopped)
+    apu.run(4096);
 }
 void SgbHost::renderAudio(int16_t *o, size_t n) { apu.render(o, n); }
 
