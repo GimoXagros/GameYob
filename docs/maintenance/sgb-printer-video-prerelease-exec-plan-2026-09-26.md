@@ -104,16 +104,21 @@ failure and bound RLE/packet sizes. No real user printouts in fixtures/assets.
 - [x] Actual integration agent prepared verified BASE, worktrees and permissions.
 - [x] Specialist partial fixes/diagnostics and independent evidence review.
 - [x] Shared integration and frozen candidate software tests.
-- [ ] Final review, exact-C/tag build and package gates.
+- [x] Full final review and targeted correction review; exact-source software and DS builds.
+- [ ] Public tag/build/package gates (blocked; no tag created).
 - [ ] Published prerelease and public-download verification.
 
 ## Outcome
 
-Software candidate 53692f5 includes the printer decoded-length correction and
-passes exact-SHA CI and artifact verification; final read-only review pending. No new
-release/tag published. Previous freeze USER_REPORTED resolved with exact tested
-SHA unknown. Flicker has diagnostics but no validated fix. Publication remains
-blocked, with PARTIAL_FIX_DIAGNOSTICS_READY the provisional outcome.
+Software candidate `a0846aae39fc9999ddda34269de317429dee85d1` corrects the
+review's probe-transition save regression and menu trace-retention gap. Exact
+source tests/builds passed and the same reviewer accepted the targeted delta.
+Earlier 53692f5 artifacts remain superseded and must not be handed off.
+Final status: PARTIAL_FIX_DIAGNOSTICS_READY, not a published prerelease.
+Previous freeze is USER_REPORTED resolved with exact tested SHA unknown.
+Flicker has diagnostics but no validated cause-linked fix. Publication remains
+blocked by that missing fix and unresolved inherited provenance. Local diagnostic
+packaging and evidence documentation do not imply redistribution clearance.
 
 ## Decisions and discoveries
 
@@ -237,3 +242,42 @@ blocked, with PARTIAL_FIX_DIAGNOSTICS_READY the provisional outcome.
   Earlier candidate/build notes above are preserved historical checkpoints,
   not current acceptance. No valid fix for full-black scaling incident yet;
   no publication authorized while that and provenance gate remain unresolved.
+- Integration committed five final docs at e3efa655, then both workers ended.
+  Actual `/root/final_reviewer` spawned with Astra/xhigh (resolved metadata
+  UNVERIFIED). Read-only review: no P0; P1 mode change/reset while probing can
+  clear probingForBorder without ending snapshot, blocking saves and discarding
+  real-SGB progress on unload. Existing tests lacked file-backed mode transition.
+- P2: trace continues overwriting 256-event history during menu navigation;
+  freeze/preserve on entry or immediate trigger required for usable capture.
+  Reviewer finished before integration resumed. Main authorized bounded P1/P2
+  fixes plus pre-fix reproducer, new exact-source tests/builds and targeted
+  reviewer follow-up. No 536 build/private handoff or prerelease in the meantime.
+- Correction `a0846aae39fc9999ddda34269de317429dee85d1`: production-linked
+  file-backed probe transition reproducer exit 44 before fix, exit 0 afterward;
+  Prefer SGB/GBC Off, repeated reset, timeout/cancellation and SRAM/RTC reload
+  covered. Debug-only ring freezes before menu display changes and resumes on
+  exit. Retention/resume test passes; pre-fix lacked the API (compile failure,
+  not a reproduced hardware flicker).
+- Exact a084 CI PASS: core 36182509783, ordinary DS 36182509785, full preflight
+  36182535946 (normal/UBSan/ASan+LSan and two clean pinned builds), separate
+  diagnostic 36182538849. Normal and diagnostic NDS structure checks passed.
+- Same `/root/final_reviewer` targeted delta review completed with implementation
+  stopped: P1/P2 resolved, no new blocking finding; engineering allows clearly
+  labeled private exact-a084 diagnostic handoff, not publication/legal approval.
+  Only roughly 0.2 seconds before menu entry is retained; delayed capture is
+  inconclusive. No actual hardware trace acquired.
+- Latest user reissued the same three-fix/publication gates. Main retained the
+  conditional publication stop, resumed Luna for final four-document alignment
+  and integration for local notice-bearing diagnostic packaging, without further
+  source changes. Next actionable evidence is a prompt trace capture of the
+  full-black scaling incident, plus resolution of the inherited provenance gate.
+- User supplied current INI, read only. Integration verified enum meanings:
+  Printer On, Aspect scaling + filter On, Top screen, VBlank wait Off,
+  HBlank/Window On, GBC mode/BIOS On; SGB mode/borders and custom border Off.
+  This corroborates the printer/scaling configuration but is not a snapshot
+  captured at the earlier incident. Do not retroactively replace the reported
+  SGB-On slowdown conditions. Original configuration and storage left untouched.
+- User clarified the current border-Off values are a workaround chosen because
+  of the slowdown. Preserve SGB-On slowdown/fast-forward failure as USER_REPORTED
+  incident conditions, not disproved by the newer INI. The custom-border value
+  at the original incident remains unspecified.
