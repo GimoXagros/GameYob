@@ -12,11 +12,53 @@
 #define GAMEYOB_VERSION "unknown"
 #endif
 
-bool exportVideoTraceProfileCsv(VideoTraceProfile::Phase phase,
-                                uint32_t firstGuestFrame,
-                                uint32_t lastGuestFrame,
-                                uint32_t overwrittenBefore,
-                                const char* directory) {
+VideoTraceProfileExportResult exportVideoTraceProfileCsv(
+    VideoTraceProfile::Phase phase, unsigned attempt,
+    uint32_t firstGuestFrame, uint32_t lastGuestFrame,
+    uint32_t overwrittenBefore, const char* directory) {
+    // Frozen-ring copy is diagnostic-only and remains outside the display IRQ.
+    static VideoFrameEvent events[256];
+    unsigned count = 0;
+    while (count < 256 && readVideoFrameTrace(&events[count], 1) == 1)
+        ++count;
+    VideoFrameEvent extra;
+    const uint32_t overwrittenDelta =
+        videoFrameTraceOverwritten() - overwrittenBefore;
+    if (count == 256 && readVideoFrameTrace(&extra, 1) == 1)
+        return VIDEO_PROFILE_INVALID;
+
+    unsigned completes = 0, publishes = 0, uploads = 0;
+    bool pendingUpload = false;
+    uint32_t pendingGuest = 0;
+    const unsigned expectedFastForward = phase == VideoTraceProfile::FAST;
+    bool valid = lastGuestFrame - firstGuestFrame == 19 &&
+                 overwrittenDelta == 0;
+    for (unsigned i = 0; i < count; ++i) {
+        const VideoFrameEvent& event = events[i];
+        if (event.gfxMask || event.fastForward != expectedFastForward)
+            valid = false;
+        if (event.type == VIDEO_GUEST_COMPLETE) {
+            ++completes;
+            if (event.guestFrame != firstGuestFrame + completes - 1)
+                valid = false;
+        } else if (event.type == VIDEO_PUBLISH) {
+            ++publishes;
+            if (pendingUpload || event.guestFrame < firstGuestFrame ||
+                    event.guestFrame > lastGuestFrame)
+                valid = false;
+            pendingUpload = true;
+            pendingGuest = event.guestFrame;
+        } else if (event.type == VIDEO_UPLOAD_END) {
+            ++uploads;
+            if (!pendingUpload || event.guestFrame != pendingGuest)
+                valid = false;
+            pendingUpload = false;
+        }
+    }
+    if (!valid || pendingUpload || completes != 20 || publishes == 0 ||
+            publishes != uploads)
+        return VIDEO_PROFILE_INVALID;
+
     char path[256];
     FILE* output = 0;
     for (unsigned number = 0; number < 100; ++number) {
@@ -25,28 +67,27 @@ bool exportVideoTraceProfileCsv(VideoTraceProfile::Phase phase,
             directory ? directory : "", VideoTraceProfile::phaseName(phase),
             number);
         if (length < 0 || (unsigned)length >= sizeof(path))
-            return false;
+            return VIDEO_PROFILE_IO_ERROR;
         // Exclusive creation is mandatory: never replace a previous trace.
         output = fopen(path, "wx");
         if (output || errno != EEXIST)
             break;
     }
     if (!output)
-        return false;
+        return VIDEO_PROFILE_IO_ERROR;
 
-    const uint32_t overwrittenDelta =
-        videoFrameTraceOverwritten() - overwrittenBefore;
     bool ok = fprintf(output, "profile,%s\nrevision,%s\nversion,%s\n"
-        "first_guest,%lu\nlast_guest,%lu\noverwritten_delta,%lu\n",
+        "attempt,%u\nfirst_guest,%lu\nlast_guest,%lu\noverwritten_delta,%lu\n"
+        "guest_completes,%u\npublishes,%u\nupload_ends,%u\n",
         VideoTraceProfile::phaseName(phase), GIT_REVISION, GAMEYOB_VERSION,
+        attempt,
         (unsigned long)firstGuestFrame, (unsigned long)lastGuestFrame,
-        (unsigned long)overwrittenDelta) > 0;
+        (unsigned long)overwrittenDelta, completes, publishes, uploads) > 0;
     ok = ok && fprintf(output, "host,guest,published,line,type,draw,render,"
         "vram_c,vram_d,ready,scale,filter,capture,main,sub,"
         "fast_forward,gb_mode,sgb_mode,gfx_mask,tile_queue,map_queue\n") > 0;
-    VideoFrameEvent event;
-    unsigned count = 0;
-    while (ok && count < 256 && readVideoFrameTrace(&event, 1) == 1) {
+    for (unsigned i = 0; ok && i < count; ++i) {
+        const VideoFrameEvent& event = events[i];
         ok = fprintf(output,
             "%lu,%lu,%lu,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lu,%lu,%lu,"
             "%u,%u,%u,%u,%u,%u\n",
@@ -61,11 +102,9 @@ bool exportVideoTraceProfileCsv(VideoTraceProfile::Phase phase,
             (unsigned long)event.displayControlSub,
             event.fastForward, event.gbMode, event.sgbMode, event.gfxMask,
             event.tileQueueLength, event.mapQueueLength) > 0;
-        ++count;
     }
-    if (count == 256 && readVideoFrameTrace(&event, 1) == 1)
-        ok = false;
     const int closeResult = fclose(output);
-    return ok && closeResult == 0;
+    return ok && closeResult == 0 ? VIDEO_PROFILE_WRITTEN :
+                                    VIDEO_PROFILE_IO_ERROR;
 }
 #endif

@@ -153,21 +153,30 @@ int main(int argc, char* argv[])
         if (runVideoProfile && gameboy) {
             const uint32_t guestFrame = gameboy->gameboyFrameCounter;
             const VideoTraceProfile::Action action = videoProfile.observe(
-                !probingForBorder, guestFrame);
+                !probingForBorder, gfxMask == 0, guestFrame);
             if (action == VideoTraceProfile::START_WINDOW) {
                 VideoFrameEvent discarded;
                 while (readVideoFrameTrace(&discarded, 1) == 1) {}
                 profileFirstGuestFrame = guestFrame + 1;
                 profileOverwrittenBefore = videoFrameTraceOverwritten();
                 resumeVideoFrameTrace();
+            } else if (action == VideoTraceProfile::ABORT_WINDOW) {
+                freezeVideoFrameTrace();
+                printLog("Video publication profile discarded a masked window.\n");
             } else if (action == VideoTraceProfile::END_WINDOW) {
                 // observe() restores the pre-profile FF state before I/O.
                 freezeVideoFrameTrace();
-                if (!exportVideoTraceProfileCsv(videoProfile.phase(),
-                        profileFirstGuestFrame, guestFrame,
-                        profileOverwrittenBefore))
+                const VideoTraceProfileExportResult result =
+                    exportVideoTraceProfileCsv(videoProfile.phase(),
+                        videoProfile.attempt(), profileFirstGuestFrame,
+                        guestFrame, profileOverwrittenBefore);
+                if (result == VIDEO_PROFILE_INVALID) {
+                    videoProfile.retryInvalidEvidence(guestFrame);
+                    printLog("Video publication profile discarded invalid evidence.\n");
+                } else if (result == VIDEO_PROFILE_IO_ERROR) {
+                    videoProfile.stop();
                     printLog("Video publication profile export failed.\n");
-                if (videoProfile.nextWindow()) {
+                } else if (videoProfile.nextWindow()) {
                     VideoFrameEvent discarded;
                     while (readVideoFrameTrace(&discarded, 1) == 1) {}
                     profileFirstGuestFrame = guestFrame + 1;

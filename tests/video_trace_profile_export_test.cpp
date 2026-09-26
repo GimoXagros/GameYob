@@ -5,15 +5,19 @@
 #include "../platform/ds/arm9/source/video_frame_trace.h"
 
 static unsigned reads = 0;
+static bool injectMask = false;
 
 unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity) {
-    if (!capacity || reads++)
+    if (!capacity || reads >= 60)
         return 0;
     *output = VideoFrameEvent();
-    output->guestFrame = 201;
-    output->type = VIDEO_PUBLISH;
+    output->guestFrame = 201 + reads / 3;
+    output->type = reads % 3 == 0 ? VIDEO_GUEST_COMPLETE :
+                   reads % 3 == 1 ? VIDEO_PUBLISH : VIDEO_UPLOAD_END;
     output->fastForward = 1;
+    output->gfxMask = injectMask && reads == 10;
     output->tileQueueLength = 7;
+    ++reads;
     return 1;
 }
 uint32_t videoFrameTraceOverwritten() { return 4; }
@@ -30,9 +34,9 @@ int main(int argc, char** argv) {
     assert(fputs("preserve-me\n", seed) >= 0);
     assert(fclose(seed) == 0);
 
-    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 201, 220, 3,
-                                      argv[1]));
-    char buffer[1024];
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 1, 201, 220, 4,
+                                      argv[1]) == VIDEO_PROFILE_WRITTEN);
+    char buffer[2048];
     FILE* original = fopen(path, "rb");
     assert(original);
     assert(fgets(buffer, sizeof(buffer), original));
@@ -47,10 +51,21 @@ int main(int argc, char** argv) {
     buffer[length] = 0;
     assert(fclose(output) == 0);
     assert(strstr(buffer, "profile,fast_forward"));
-    assert(strstr(buffer, "overwritten_delta,1"));
+    assert(strstr(buffer, "attempt,1"));
+    assert(strstr(buffer, "overwritten_delta,0"));
+    assert(strstr(buffer, "publishes,20"));
     assert(strstr(buffer, "fast_forward,gb_mode,sgb_mode,gfx_mask,"));
     assert(strstr(buffer, "0,201,0,0,2,"));
-    assert(!exportVideoTraceProfileCsv(VideoTraceProfile::NORMAL, 0, 0, 0,
-                                       "missing-profile-directory/"));
+    reads = 0;
+    injectMask = true;
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
+                                      argv[1]) == VIDEO_PROFILE_INVALID);
+    snprintf(path, sizeof(path), "%sgameyob_video_profile_fast_forward_02.csv",
+             argv[1]);
+    assert(fopen(path, "rb") == 0); // Invalid evidence creates no file.
+    reads = 0;
+    injectMask = false;
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
+                    "missing-profile-directory/") == VIDEO_PROFILE_IO_ERROR);
     return 0;
 }
