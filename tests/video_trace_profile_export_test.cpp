@@ -6,6 +6,9 @@
 
 static unsigned reads = 0;
 static bool injectMask = false;
+static bool injectFastMismatch = false;
+static bool omitUpload = false;
+static uint32_t overwritten = 4;
 
 unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity) {
     if (!capacity || reads >= 60)
@@ -14,13 +17,15 @@ unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity) {
     output->guestFrame = 201 + reads / 3;
     output->type = reads % 3 == 0 ? VIDEO_GUEST_COMPLETE :
                    reads % 3 == 1 ? VIDEO_PUBLISH : VIDEO_UPLOAD_END;
-    output->fastForward = 1;
+    if (omitUpload && reads == 2)
+        output->type = VIDEO_HOST_VBLANK;
+    output->fastForward = injectFastMismatch && reads == 10 ? 0 : 1;
     output->gfxMask = injectMask && reads == 10;
     output->tileQueueLength = 7;
     ++reads;
     return 1;
 }
-uint32_t videoFrameTraceOverwritten() { return 4; }
+uint32_t videoFrameTraceOverwritten() { return overwritten; }
 void freezeVideoFrameTrace() {}
 void resumeVideoFrameTrace() {}
 
@@ -65,6 +70,22 @@ int main(int argc, char** argv) {
     assert(fopen(path, "rb") == 0); // Invalid evidence creates no file.
     reads = 0;
     injectMask = false;
+    injectFastMismatch = true;
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
+                                      argv[1]) == VIDEO_PROFILE_INVALID);
+    reads = 0;
+    injectFastMismatch = false;
+    omitUpload = true;
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
+                                      argv[1]) == VIDEO_PROFILE_INVALID);
+    reads = 0;
+    omitUpload = false;
+    overwritten = 5;
+    assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
+                                      argv[1]) == VIDEO_PROFILE_INVALID);
+    assert(fopen(path, "rb") == 0);
+    reads = 0;
+    overwritten = 4;
     assert(exportVideoTraceProfileCsv(VideoTraceProfile::FAST, 2, 201, 220, 4,
                     "missing-profile-directory/") == VIDEO_PROFILE_IO_ERROR);
     return 0;

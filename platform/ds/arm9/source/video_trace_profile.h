@@ -44,6 +44,8 @@ public:
             frames_ = 0;
             return NONE;
         }
+        if (phase_ == WARMUP)
+            return NONE;
         if (phase_ == STABLE) {
             if (!unmasked) {
                 frames_ = 0;

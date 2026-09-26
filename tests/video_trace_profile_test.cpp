@@ -38,7 +38,12 @@ int main() {
 
     bool ff = false;
     VideoTraceProfile masked(0, &ff);
-    advance(masked, 1, 179);
+    for (unsigned frame = 1; frame <= 3; ++frame)
+        assert(masked.observe(true, false, frame) == VideoTraceProfile::NONE);
+    assert(masked.phase() == VideoTraceProfile::WARMUP && masked.attempt() == 1);
+    for (unsigned frame = 4; frame <= 179; ++frame)
+        assert(masked.observe(true, false, frame) == VideoTraceProfile::NONE);
+    assert(masked.phase() == VideoTraceProfile::WARMUP && masked.attempt() == 1);
     assert(masked.observe(true, true, 180) == VideoTraceProfile::NONE);
     advance(masked, 181, 209);
     assert(masked.observe(true, false, 210) == VideoTraceProfile::NONE);
