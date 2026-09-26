@@ -20,6 +20,7 @@
 #include "error.h"
 #include "vblank_task_queue.h"
 #include "video_frame_trace.h"
+#include "gbgfx_stage.h"
 
 
 #define BACKDROP_COLOUR RGB15(0,0,0)
@@ -37,6 +38,20 @@ u16* const color0Map[2] = {BG_MAP_RAM(color0_map_base[0]), BG_MAP_RAM(color0_map
 u16* const overlayMap[2] = {BG_MAP_RAM(overlay_map_base[0]), BG_MAP_RAM(overlay_map_base[1])};
 u16* const offMap = BG_MAP_RAM(off_map_base);
 u16* const borderMap = BG_MAP_RAM(border_map_base);
+
+static GbTileTargets liveGbTileTargets() {
+    GbTileTargets result = { BG_GFX + 0x8000, BG_GFX + 0xc000,
+                             BG_GFX + 0x10000, BG_GFX + 0x14000,
+                             SPRITE_GFX };
+    return result;
+}
+
+static GbMapTargets liveGbMapTargets() {
+    GbMapTargets result = { { map[0], map[1] },
+                            { color0Map[0], color0Map[1] },
+                            { overlayMap[0], overlayMap[1] } };
+    return result;
+}
 
 const int firstGbSprite = 128-40;
 
@@ -760,7 +775,8 @@ void resetSgbBorder() {
 // SGB palettes can't quite be perfect because SGB doesn't (necessarily) align 
 // palettes with tiles. Mostly problematic with scrolling around status bars.  
 // Bars on the bottom are favored by this code.
-void refreshSgbPalette() {
+static void refreshSgbPaletteTo(const GbMapTargets& targets,
+                                const ScanlineStruct* source) {
     int winMap=0,bgMap=0;
     bool winJustDisabled = false;
     bool winOn=0;
@@ -769,16 +785,16 @@ void refreshSgbPalette() {
     for (int y=0; y<18; y++) {
         winJustDisabled = false;
         for (int yPix=y*8-7; yPix<=y*8; yPix++) {
-            if (yPix >= 0 && drawingState[yPix].modified && drawingState[yPix].mapsModified) {
+            if (yPix >= 0 && source[yPix].modified && source[yPix].mapsModified) {
                 if (!winJustDisabled)
-                    winJustDisabled = winOn && (!drawingState[yPix].winOn);
-                winOn = drawingState[yPix].winOn;
-                winX = drawingState[yPix].winX;
-                winY = drawingState[yPix].winY;
-                hofs = drawingState[yPix].hofs;
-                vofs = drawingState[yPix].vofs;
-                winMap = drawingState[yPix].winMap;
-                bgMap = drawingState[yPix].bgMap;
+                    winJustDisabled = winOn && (!source[yPix].winOn);
+                winOn = source[yPix].winOn;
+                winX = source[yPix].winX;
+                winY = source[yPix].winY;
+                hofs = source[yPix].hofs;
+                vofs = source[yPix].vofs;
+                winMap = source[yPix].winMap;
+                bgMap = source[yPix].bgMap;
             }
         }
         for (int x=0; x<20; x++) {
@@ -792,8 +808,7 @@ void refreshSgbPalette() {
                     int realx = (((x+j)*8+hofs)&0xff)/8;
                     int realy = (((y-yLoop)*8+vofs+7)&0xff)/8;
                     int i = realy*32+realx;
-                    map[bgMap][i] &= ~(7<<12);
-                    map[bgMap][i] |= (palette<<12);
+                    remapSgbMapPalette(targets.normal[bgMap], i, palette);
                 }
             }
 
@@ -809,8 +824,7 @@ void refreshSgbPalette() {
 
                         if (realx >= 0 && realy >= 0 && realx < 32 && realy < 32) {
                             int i = realy*32+realx;
-                            map[winMap][i] &= ~(7<<12);
-                            map[winMap][i] |= (palette<<12);
+                            remapSgbMapPalette(targets.normal[winMap], i, palette);
                         }
                     }
                 }
@@ -819,6 +833,9 @@ void refreshSgbPalette() {
     }
 }
 
+void refreshSgbPalette() {
+    refreshSgbPaletteTo(liveGbMapTargets(), drawingState);
+}
 
 void displayIcon(int iconid) {
     const u16* gfx;
@@ -1157,99 +1174,34 @@ void setSgbMap(u8* src) {
     }
 }
 
-void updateTileMaps() {
+static void updateTileMapTo(const GbMapTargets& targets, int m, int i) {
+    changedMap[m][i] = false;
+    int mapAddr = (m ? 0x1c00+i : 0x1800+i);
+    convertGbMapEntry(targets, m, i,
+                      gameboy->vram[0][mapAddr],
+                      gameboy->vram[1][mapAddr], gameboy->gbMode == CGB);
+}
+
+static void updateTileMapsTo(const GbMapTargets& targets) {
     for (int m=0; m<2; m++) {
         while (changedMapQueueLength[m] != 0) {
             int tile = changedMapQueue[m][--changedMapQueueLength[m]];
-            updateTileMap(m, tile);
+            updateTileMapTo(targets, m, tile);
         }
     }
 }
+
+void updateTileMaps() {
+    updateTileMapsTo(liveGbMapTargets());
+}
+
 void updateTileMap(int m, int i) {
-    changedMap[m][i] = false;
-    int mapAddr = (m ? 0x1c00+i : 0x1800+i);
-    int tileNum = gameboy->vram[0][mapAddr];
-
-    int bank=0;
-    int flipX = 0, flipY = 0;
-    int paletteid = 0;
-    int priority = 0;
-
-    if (gameboy->gbMode == CGB)
-    {
-        flipX = !!(gameboy->vram[1][mapAddr] & 0x20);
-        flipY = !!(gameboy->vram[1][mapAddr] & 0x40);
-        bank = !!(gameboy->vram[1][mapAddr] & 0x8);
-        paletteid = gameboy->vram[1][mapAddr] & 0x7;
-        priority = !!(gameboy->vram[1][mapAddr] & 0x80);
-    }
-    if (priority)
-        overlayMap[m][i] = (tileNum+(bank*0x100)) | (paletteid<<12) | (flipX<<10) | (flipY<<11);
-    else {
-        overlayMap[m][i] = 0x300;
-    }
-    map[m][i] = (tileNum+(bank*0x100)) | (paletteid<<12) | (flipX<<10) | (flipY<<11);
-    color0Map[m][i] = paletteid<<12;
+    updateTileMapTo(liveGbMapTargets(), m, i);
 }
 
 void drawTile(int tileNum, int bank) {
-    int index = (tileNum<<4)+(bank*0x100*16);
-    int signedIndex=index;
-    if (tileNum >= 0x100)
-        signedIndex -= (0x100<<4);
-
-    bool unsign = tileNum < 0x100;
-    bool sign = tileNum >= 0x80;
-    u8* src = &gameboy->vram[bank][tileNum<<4];
-    for (int y=0; y<8; y++) {
-        int b1=*(src++);
-        int b2=*(src++)<<1;
-        int bb0=0, bb1=0;
-        int fb0=0, fb1=0;
-        int sb0=0, sb1=0;
-        int shift=12;
-        for (int x=0; x<4; x++) {
-            int colorid = b1&1;
-            b1 >>= 1;
-            colorid |= b2&2;
-            b2 >>= 1;
-
-            fb1 |= (colorid+1)<<shift;
-            if (colorid != 0)
-                bb1 |= ((colorid+1)<<shift);
-            if (unsign)
-                sb1 |= (colorid<<shift);
-            shift -= 4;
-        }
-        shift = 12;
-        for (int x=0; x<4; x++) {
-            int colorid = b1&1;
-            b1 >>= 1;
-            colorid |= b2&2;
-            b2 >>= 1;
-
-            fb0 |= (colorid+1)<<shift;
-            if (colorid != 0)
-                bb0 |= ((colorid+1)<<shift);
-            if (unsign)
-                sb0 |= (colorid<<shift);
-            shift -= 4;
-        }
-        if (unsign) {
-            BG_GFX[0x8000+index] = bb0;
-            BG_GFX[0x8000+index+1] = bb1;
-            BG_GFX[0x10000+index] = fb0;
-            BG_GFX[0x10000+index+1] = fb1;
-            SPRITE_GFX[index++] = sb0;
-            SPRITE_GFX[index++] = sb1;
-        }
-        if (sign) {
-            BG_GFX[0xc000+signedIndex] = bb0;
-            BG_GFX[0xc000+signedIndex+1] = bb1;
-            BG_GFX[0x14000+signedIndex++] = fb0;
-            BG_GFX[0x14000+signedIndex++] = fb1;
-        }
-    }
+    convertGbTile(liveGbTileTargets(), tileNum, bank,
+                  &gameboy->vram[bank][tileNum << 4]);
 }
 
 // Currently not actually used
@@ -1653,11 +1605,12 @@ void writeVram16(u16 dest, u16 src) {
 }
 
 
-void updateTiles() {
+static void updateTilesTo(const GbTileTargets& targets) {
     while (changedTileQueueLength > 0) {
         int val = changedTileQueue[--changedTileQueueLength];
         int bank = val>>9,tile=val&0x1ff;
-        drawTile(tile, bank);
+        convertGbTile(targets, tile, bank,
+                      &gameboy->vram[bank][tile << 4]);
         changedTile[bank][tile] = false;
     }
     // copy "changedTileInFrame" to "changedTile", where they'll be applied next 
@@ -1669,6 +1622,10 @@ void updateTiles() {
         changedTile[bank][tile] = true;
         changedTileQueue[changedTileQueueLength++] = val;
     }
+}
+
+void updateTiles() {
+    updateTilesTo(liveGbTileTargets());
 }
 
 void updateBgPalette(int paletteid, u8* data, u8 dmgPal) {
