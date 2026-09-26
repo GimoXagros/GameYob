@@ -306,7 +306,17 @@ bool RomFile::loadBios(const char* filename) {
         return false;
     }
 
+    // FileHandle's read API is void. Check the cursor before and after to
+    // reject a failed size-query restore or a short/error read.
+    if (file_tell(file) != 0) {
+        file_close(file);
+        return false;
+    }
     file_read(bios, 1, sizeof(bios), file);
+    if (file_tell(file) != (int)sizeof(bios)) {
+        file_close(file);
+        return false;
+    }
     file_close(file);
     biosExists = true;
 

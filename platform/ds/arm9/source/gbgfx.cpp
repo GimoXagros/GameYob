@@ -3,7 +3,6 @@
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <vector>
 #include <nds.h>
 #include <stdio.h>
 #include <math.h>
@@ -18,6 +17,9 @@
 #include "inputhelper.h"
 #include "common.h"
 #include "soundengine.h"
+#include "error.h"
+#include "vblank_task_queue.h"
+#include "video_frame_trace.h"
 
 
 #define BACKDROP_COLOUR RGB15(0,0,0)
@@ -152,6 +154,95 @@ ScanlineStruct scanlineBuffers[2][144];
 
 ScanlineStruct *drawingState = scanlineBuffers[0];
 ScanlineStruct *renderingState = scanlineBuffers[1];
+
+#ifdef GAMEYOB_VIDEO_TRACE
+static VideoFrameTraceRing<256> videoTrace;
+static uint32_t publishedGuestFrame = 0;
+
+static void traceVideoEvent(VideoFrameEventType type, unsigned line) {
+    // Take the source fields and append one entry as a single brief snapshot.
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    VideoFrameEvent event = {};
+    event.hostFrame = dsFrameCounter;
+    event.guestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+    event.publishedFrame = publishedGuestFrame;
+    event.captureControl = REG_DISPCAPCNT;
+    event.displayControlMain = REG_DISPCNT;
+    event.displayControlSub = REG_DISPCNT_SUB;
+    event.physicalLine = line;
+    event.type = type;
+    event.drawingBuffer = drawingState == scanlineBuffers[0] ? 0 : 1;
+    event.renderingBuffer = renderingState == scanlineBuffers[0] ? 0 : 1;
+    event.vramC = VRAM_C_CR;
+    event.vramD = VRAM_D_CR;
+    event.transferReady = sharedData->scaleTransferReady;
+    event.scalingMode = scaleMode;
+    event.filterMode = scaleFilter;
+    event.fastForward = fastForwardMode || fastForwardKey;
+    event.gbMode = gameboy ? gameboy->gbMode : 0;
+    event.sgbMode = gameboy && gameboy->sgbMode;
+    event.gfxMask = gfxMask;
+    event.tileQueueLength = changedTileQueueLength + changedTileInFrameQueueLength;
+    event.mapQueueLength = changedMapQueueLength[0] + changedMapQueueLength[1];
+
+    // The producer runs in both foreground and display IRQ context. There is
+    // no allocation or I/O here, and the interrupt exclusion is short.
+    videoTrace.record(event);
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity) {
+    if (!output)
+        return 0;
+    unsigned count = 0;
+    while (count < capacity) {
+        const int previousIme = REG_IME;
+        REG_IME = 0;
+        __asm__ volatile("" ::: "memory");
+        const bool available = videoTrace.pop(&output[count]);
+        __asm__ volatile("" ::: "memory");
+        REG_IME = previousIme;
+        if (!available)
+            break;
+        ++count;
+    }
+    return count;
+}
+
+uint32_t videoFrameTraceOverwritten() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const uint32_t count = videoTrace.overwritten();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+    return count;
+}
+
+void freezeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.freeze();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void resumeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.resume();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+#define TRACE_VIDEO(type, line) traceVideoEvent((type), (line))
+#else
+#define TRACE_VIDEO(type, line) ((void)0)
+#endif
 
 typedef struct
 {
@@ -383,6 +474,13 @@ void doHBlank(int line);
 void doHBlank(int line) {
     if (line >= 192)
         return;
+#ifdef GAMEYOB_VIDEO_TRACE
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    if (line >= screenOffsY && line < screenOffsY + 144 &&
+            ((line - screenOffsY) & 7) == 0)
+        TRACE_VIDEO(VIDEO_HOST_LINE, line);
+#endif
+#endif
     if ((isFileChooserOn() || isMenuOn()) && line%8 == 0) {
         // Change the backdrop color for a certain row.
         // This is used in the file selection menu.
@@ -418,10 +516,19 @@ void hblankHandler()
     doHBlank(line);
 }
 
-std::vector<void (*)()> vblankTasks;
+static VBlankTaskQueue<64> vblankTasks;
+static volatile bool vblankTaskOverflow = false;
 
 void doAtVBlank(void (*func)(void)) {
-    vblankTasks.push_back(func);
+    // A foreground enqueue may be interrupted by VBlank. This short section
+    // protects only the queue metadata, never a callback or VRAM transfer.
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (!vblankTasks.enqueue(func))
+        vblankTaskOverflow = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
 }
 
 
@@ -431,6 +538,9 @@ void vcountHandler() {
     vramSetBankC(VRAM_C_SUB_BG);
     if (sharedData->scalingOn)
         vramSetBankD(VRAM_D_LCD);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    TRACE_VIDEO(VIDEO_VRAM_DISPLAY, 235);
+#endif
 
     // Do hblank stuff for the very top line (physical line 0)
     doHBlank(0);
@@ -458,6 +568,11 @@ void vblankHandler()
     }
     didVblank = true;
     dsFrameCounter = dsFrameCounter + 1;
+    TRACE_VIDEO(VIDEO_HOST_VBLANK, 192);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    if (sharedData->scalingOn)
+        TRACE_VIDEO(VIDEO_VRAM_ARM7, 192);
+#endif
 
     memset(lineCompleted, 0, sizeof(lineCompleted));
     if (scaleFilter == 1) {
@@ -476,11 +591,9 @@ void vblankHandler()
         filterFlip = !filterFlip;
     }
 
-    // Copy the list so that functions which access vblankTasks work.
-    std::vector<void (*)()> tasks = vblankTasks;
-    vblankTasks.clear();
-    for (uint i=0; i<tasks.size(); i++) {
-        tasks[i]();
+    const VBlankTaskQueue<64>::Batch tasks = vblankTasks.beginDrain();
+    for (unsigned i=0; i<tasks.count; i++) {
+        tasks.tasks[i]();
     }
 }
 
@@ -1157,6 +1270,12 @@ void copyTile(u8 *src,u16 *dest) {
 
 void drawScreen()
 {
+    TRACE_VIDEO(VIDEO_GUEST_COMPLETE, REG_VCOUNT);
+    // Overflow is exceptional: do not silently lose a display transition.
+    // Report from foreground code, never from the VBlank interrupt.
+    if (vblankTaskOverflow)
+        fatalerr("VBlank display task queue overflow");
+
     if (probingForBorder)
         return;
 
@@ -1181,9 +1300,22 @@ void drawScreen()
     if (gfxMask)
         return;
 
+    // In a trace build, publish the pointer and its generation atomically for
+    // the HBlank observer. The release build retains its original fast path.
+#ifdef GAMEYOB_VIDEO_TRACE
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+#endif
     ScanlineStruct* tmp = renderingState;
     renderingState = drawingState;
     drawingState = tmp;
+#ifdef GAMEYOB_VIDEO_TRACE
+    publishedGuestFrame = gameboy->gameboyFrameCounter;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+#endif
+    TRACE_VIDEO(VIDEO_PUBLISH, REG_VCOUNT);
 
     screenDisabled = lastScreenDisabled;
     if (!(gameboy->ioRam[0x40] & 0x80))
@@ -1196,6 +1328,7 @@ void drawScreen()
     updateTileMaps();
     if (gameboy->sgbMode)
         refreshSgbPalette();
+    TRACE_VIDEO(VIDEO_UPLOAD_END, REG_VCOUNT);
 }
 
 void drawSprites(u8* data, int tall) {

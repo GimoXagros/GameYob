@@ -59,6 +59,8 @@ void gbsRedraw() {
 
 void gbsLoadSong() {
     u8* romSlot0 = gameboy->getRomFile()->getRomBank(0);
+    // Song resets call initMMU without Gameboy::init. GBS always skips BIOS.
+    gameboy->biosOn = false;
     gameboy->initMMU();
     gameboy->ime = 0;
 

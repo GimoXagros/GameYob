@@ -160,3 +160,53 @@ jobs:
             tests/huc1_rules_test.cpp platform/common/huc1_rules.cpp \
             -o /tmp/huc1_rules_test
           /tmp/huc1_rules_test
+      - name: Build and run ROM reload lifecycle tests
+        run: |
+          g++ -std=c++17 -w -ffunction-sections -fdata-sections -Wl,--gc-sections -DMANAGER_TEST -DNIFI -DSDL -DC_IO_FUNCTIONS -include platform/sdl/include/typedefs.h -Itests/support -Iplatform/common/include tests/romfile_bios_lifecycle_test.cpp platform/common/gbmanager.cpp platform/common/romfile.cpp platform/common/gameboy.cpp platform/common/mmu.cpp platform/common/mbc.cpp platform/common/sgb.cpp platform/common/sgb_host.cpp platform/common/sgb_protocol.cpp platform/common/huc1_rules.cpp platform/common/rtc.cpp platform/common/gbcpu.cpp platform/common/rom_layout.cpp platform/common/nifi_protocol.cpp platform/common/mmm01.cpp platform/common/mbc7_eeprom.cpp -o /tmp/rom_reload_lifecycle_test
+          /tmp/rom_reload_lifecycle_test
+      - name: Build and run SGB idle-host tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror -Iplatform/common/include tests/sgb_host_idle_test.cpp platform/common/sgb_host.cpp -o /tmp/sgb_host_idle_test
+          /tmp/sgb_host_idle_test
+      - name: Build and run bounded VBlank queue tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/vblank_task_queue_test.cpp -o /tmp/vblank_task_queue_test
+          /tmp/vblank_task_queue_test
+      - name: Build and run frame trace invariant tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/video_frame_trace_test.cpp -o /tmp/video_frame_trace_test
+          /tmp/video_frame_trace_test
+      - name: Build and run publication profile tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/video_trace_profile_test.cpp -o /tmp/video_trace_profile_test
+          /tmp/video_trace_profile_test
+          g++ -std=c++11 -Wall -Wextra -Werror -DGAMEYOB_VIDEO_TRACE -DGAMEYOB_VIDEO_PUBLICATION_ONLY \
+            tests/video_trace_profile_export_test.cpp platform/ds/arm9/source/video_trace_profile_export.cpp \
+            -o /tmp/video_trace_profile_export_test
+          trace_dir="$(mktemp -d)"
+          /tmp/video_trace_profile_export_test "$trace_dir/"
+      - name: Build and run FF-release capture tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/video_ff_release_capture_test.cpp -o /tmp/video_ff_release_capture_test
+          /tmp/video_ff_release_capture_test
+          g++ -std=c++11 -Wall -Wextra -Werror -DGAMEYOB_VIDEO_TRACE -DGAMEYOB_VIDEO_PUBLICATION_ONLY -DGAMEYOB_VIDEO_FF_RELEASE \
+            tests/video_ff_release_export_test.cpp platform/ds/arm9/source/video_trace_profile_export.cpp \
+            -o /tmp/video_ff_release_export_test
+          release_dir="$(mktemp -d)"
+          /tmp/video_ff_release_export_test "$release_dir"
+      - name: Build and run synthetic printer packet and BMP tests
+        run: |
+          g++ -std=c++17 -Wall -Wextra -Werror tests/gbprinter_test.cpp -o /tmp/gbprinter_test
+          /tmp/gbprinter_test
+      - name: Build and run production-linked border probe isolation tests
+        run: |
+          g++ -std=c++17 -w -ffunction-sections -fdata-sections -Wl,--gc-sections -DBORDER_PROBE_TEST -DMANAGER_TEST -DNIFI -DSDL -DC_IO_FUNCTIONS -include platform/sdl/include/typedefs.h -Itests/support -Iplatform/common/include tests/sgb_probe_save_isolation_test.cpp platform/common/gbmanager.cpp platform/common/romfile.cpp platform/common/gameboy.cpp platform/common/mmu.cpp platform/common/mbc.cpp platform/common/sgb.cpp platform/common/sgb_host.cpp platform/common/sgb_protocol.cpp platform/common/huc1_rules.cpp platform/common/rtc.cpp platform/common/gbcpu.cpp platform/common/rom_layout.cpp platform/common/nifi_protocol.cpp platform/common/mmm01.cpp platform/common/mbc7_eeprom.cpp -o /tmp/sgb_probe_save_isolation_test
+          /tmp/sgb_probe_save_isolation_test
+      - name: Build and run SGB probe host-control tests
+        run: |
+          g++ -std=c++17 -w -ffunction-sections -fdata-sections -Wl,--gc-sections -DBORDER_INPUT_TEST -DMANAGER_TEST -DNIFI -DSDL -DC_IO_FUNCTIONS -include platform/sdl/include/typedefs.h -Itests/support -Iplatform/common/include tests/sgb_probe_host_input_test.cpp platform/common/gbmanager.cpp platform/common/romfile.cpp platform/common/gameboy.cpp platform/common/mmu.cpp platform/common/mbc.cpp platform/common/sgb.cpp platform/common/sgb_host.cpp platform/common/sgb_protocol.cpp platform/common/huc1_rules.cpp platform/common/rtc.cpp platform/common/gbcpu.cpp platform/common/rom_layout.cpp platform/common/nifi_protocol.cpp platform/common/mmm01.cpp platform/common/mbc7_eeprom.cpp -o /tmp/sgb_probe_host_input_test
+          /tmp/sgb_probe_host_input_test
+      - name: Build and run FF01/FF02 printer serial integration tests
+        run: |
+          g++ -std=c++17 -w -ffunction-sections -fdata-sections -Wl,--gc-sections -DMANAGER_TEST -DNIFI -DSDL -DC_IO_FUNCTIONS -include platform/sdl/include/typedefs.h -Itests/support -Iplatform/common/include tests/gbprinter_serial_integration_test.cpp platform/common/gbmanager.cpp platform/common/romfile.cpp platform/common/gameboy.cpp platform/common/mmu.cpp platform/common/mbc.cpp platform/common/sgb.cpp platform/common/sgb_host.cpp platform/common/sgb_protocol.cpp platform/common/huc1_rules.cpp platform/common/rtc.cpp platform/common/gbcpu.cpp platform/common/rom_layout.cpp platform/common/nifi_protocol.cpp platform/common/mmm01.cpp platform/common/mbc7_eeprom.cpp platform/common/gbprinter.cpp -o /tmp/gbprinter_serial_integration_test
+          /tmp/gbprinter_serial_integration_test

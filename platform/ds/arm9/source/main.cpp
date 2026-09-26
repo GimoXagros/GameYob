@@ -23,6 +23,13 @@
 #include "gbmanager.h"
 #include "config.h"
 #include "error.h"
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+#include "video_frame_trace.h"
+#include "video_ff_release_capture.h"
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+#include "video_frame_trace.h"
+#include "video_trace_profile.h"
+#endif
 
 void updateVBlank();
 
@@ -131,9 +138,87 @@ int main(int argc, char* argv[])
         mgr_selectRom();
     }
 
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+    VideoFfReleaseCapture ffReleaseCapture;
+    unsigned ffReleaseVcount = 0;
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+    // This scripted diagnostic runs only for an explicitly autoloaded ROM.
+    // Keep the 180-frame warmup out of the trace ring and never write in IRQ.
+    const bool runVideoProfile = autoloadRom && *autoloadRom;
+    VideoTraceProfile videoProfile(gameboy ? gameboy->gameboyFrameCounter : 0,
+                                   &fastForwardMode);
+    uint32_t profileFirstGuestFrame = 0;
+    uint32_t profileOverwrittenBefore = 0;
+    if (runVideoProfile)
+        freezeVideoFrameTrace();
+#endif
     for (;;) {
         mgr_runFrame();
         mgr_updateVBlank();
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+        const uintptr_t activeRom = gameboy && gameboy->isRomLoaded() ?
+            (uintptr_t)gameboy->getRomFile() : 0;
+        const bool captureUsable = !probingForBorder && !isMenuOn() &&
+            !isFileChooserOn() && !mgr_isPaused();
+        const VideoFfReleaseCapture::Action releaseAction =
+            ffReleaseCapture.observe(activeRom, captureUsable,
+                gameboy ? gameboy->gameboyFrameCounter : 0,
+                fastForwardKey || fastForwardMode);
+        if (releaseAction == VideoFfReleaseCapture::NEW_ROM ||
+                releaseAction == VideoFfReleaseCapture::CANCEL) {
+            VideoFrameEvent discarded;
+            while (readVideoFrameTrace(&discarded, 1) == 1) {}
+            if (!isMenuOn() && !isFileChooserOn())
+                resumeVideoFrameTrace();
+            if (releaseAction == VideoFfReleaseCapture::CANCEL)
+                printMenuMessage("FF trace cancelled; hold and release L again.");
+        } else if (releaseAction == VideoFfReleaseCapture::RELEASE) {
+            ffReleaseVcount = REG_VCOUNT;
+        } else if (releaseAction == VideoFfReleaseCapture::READY) {
+            freezeVideoFrameTrace();
+            if (exportVideoFfReleaseTrace(ffReleaseCapture.releaseGuest(),
+                                          ffReleaseVcount))
+                printMenuMessage("FF release trace saved in current folder.");
+            else
+                printMenuMessage("FF release trace failed; no valid file.");
+        }
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+        if (runVideoProfile && gameboy) {
+            const uint32_t guestFrame = gameboy->gameboyFrameCounter;
+            const VideoTraceProfile::Action action = videoProfile.observe(
+                !probingForBorder, gfxMask == 0, guestFrame);
+            if (action == VideoTraceProfile::START_WINDOW) {
+                VideoFrameEvent discarded;
+                while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                profileFirstGuestFrame = guestFrame + 1;
+                profileOverwrittenBefore = videoFrameTraceOverwritten();
+                resumeVideoFrameTrace();
+            } else if (action == VideoTraceProfile::ABORT_WINDOW) {
+                freezeVideoFrameTrace();
+                printLog("Video publication profile discarded a masked window.\n");
+            } else if (action == VideoTraceProfile::END_WINDOW) {
+                // observe() restores the pre-profile FF state before I/O.
+                freezeVideoFrameTrace();
+                const VideoTraceProfileExportResult result =
+                    exportVideoTraceProfileCsv(videoProfile.phase(),
+                        videoProfile.attempt(), profileFirstGuestFrame,
+                        guestFrame, profileOverwrittenBefore);
+                if (result == VIDEO_PROFILE_INVALID) {
+                    videoProfile.retryInvalidEvidence(guestFrame);
+                    printLog("Video publication profile discarded invalid evidence.\n");
+                } else if (result == VIDEO_PROFILE_IO_ERROR) {
+                    videoProfile.stop();
+                    printLog("Video publication profile export failed.\n");
+                } else if (videoProfile.nextWindow()) {
+                    VideoFrameEvent discarded;
+                    while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                    profileFirstGuestFrame = guestFrame + 1;
+                    profileOverwrittenBefore = videoFrameTraceOverwritten();
+                    resumeVideoFrameTrace();
+                }
+            }
+        }
+#endif
     }
 
     return 0;

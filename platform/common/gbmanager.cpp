@@ -233,10 +233,6 @@ void mgr_loadRom(const char* filename) {
     // Never let that transient boot state leak into the next cartridge.
     probingForBorder = false;
 
-#ifdef NIFI
-    nifiStop();
-#endif
-
     // A cartridge-owned SGB border must never survive into the next ROM.
     // Reset the platform renderer before opening the new cartridge so even a
     // slow SD read cannot leave the previous border visible on screen.
@@ -319,6 +315,11 @@ void mgr_loadRom(const char* filename) {
 }
 
 void mgr_unloadRom() {
+#ifdef NIFI
+    // Unregister wireless callbacks before either Gameboy or RomFile can be
+    // destroyed, including chooser and application-exit transitions.
+    nifiStop();
+#endif
 #ifdef CPU_DEBUG
     stopDebugger();
 #endif
@@ -386,6 +387,31 @@ void mgr_updateVBlank() {
         // Check some buttons
         buttonsPressed = 0xff;
 
+        // Host controls must remain responsive during the disposable SGB
+        // boot. Guest joypad input stays neutral until the real game starts.
+        fastForwardKey = keyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD));
+        if (keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE)))
+            fastForwardMode = !fastForwardMode;
+#ifdef DS
+        sharedData->hyperSound = (fastForwardKey || fastForwardMode) ?
+            false : hyperSound;
+#endif
+        if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE)
+#if defined(_3DS)
+                    | KEY_TOUCH
+#endif
+                    )) {
+            if (singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
+                mgr_pause();
+            forceReleaseKey(0xffffffff);
+            fastForwardKey = false;
+            fastForwardMode = false;
+#ifdef DS
+            sharedData->hyperSound = hyperSound;
+#endif
+            displayMenu();
+            return;
+        }
         if (probingForBorder)
             return;
 
@@ -439,24 +465,6 @@ void mgr_updateVBlank() {
             }
         }
 
-        fastForwardKey = keyPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD));
-        if (keyJustPressed(mapFuncKey(FUNC_KEY_FAST_FORWARD_TOGGLE)))
-            fastForwardMode = !fastForwardMode;
-
-        if (keyJustPressed(mapFuncKey(FUNC_KEY_MENU) | mapFuncKey(FUNC_KEY_MENU_PAUSE)
-#if defined(_3DS)
-                    | KEY_TOUCH
-#endif
-                    )) {
-            if (singleScreenMode || keyJustPressed(mapFuncKey(FUNC_KEY_MENU_PAUSE)))
-                mgr_pause();
-
-            forceReleaseKey(0xffffffff);
-            fastForwardKey = false;
-            fastForwardMode = false;
-            displayMenu();
-        }
-
         // Native 3DS scaling is intentionally deferred beyond v0.5.5-ko.
         // Keep the shortcut on the DS/DSi renderer where it is validated.
 #ifdef DS
@@ -465,14 +473,6 @@ void mgr_updateVBlank() {
         }
 #endif
 
-#ifdef DS
-        if (fastForwardKey || fastForwardMode) {
-            sharedData->hyperSound = false;
-        }
-        else {
-            sharedData->hyperSound = hyperSound;
-        }
-#endif
         if (keyJustPressed(mapFuncKey(FUNC_KEY_RESET)))
             gameboy->resetGameboy();
 

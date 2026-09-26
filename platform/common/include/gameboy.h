@@ -440,6 +440,22 @@ class Gameboy {
         u8 rtcLatchState;
         bool rtcLatched;
 
+        // A border probe is a disposable boot of this cartridge. Keep only
+        // its cartridge-owned persistent state, not a second emulator image.
+        u8* borderProbeRam;
+        int borderProbeRamBytes;
+        bool borderProbeActive;
+        ClockStruct borderProbeClock;
+        u8 borderProbeRtcLatchState;
+        bool borderProbeRtcLatched;
+        bool borderProbeSaveModified;
+        bool borderProbeAutosaveStarted;
+        int borderProbeAutosaveFrames;
+        int borderProbeSaveWrites;
+        bool borderProbeDirtySectors[MAX_SRAM_SIZE/512];
+        bool beginBorderProbe();
+        void endBorderProbe();
+
         // Game Boy Camera - https://gbdev.io/pandocs/Gameboy_Camera.html
         u8 camRegisters[0x80];
         bool camRegistersEnabled;
