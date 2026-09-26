@@ -6,6 +6,8 @@ on:
       - "platform/common/**"
       - "platform/3ds/gbgfx.cpp"
       - "platform/3ds/soundengine.cpp"
+      - "platform/ds/arm9/source/gbgfx.cpp"
+      - "platform/ds/arm9/source/gbgfx_stage.h"
       - "platform/ds/arm9/source/nifi.cpp"
       - "tests/**"
       - ".github/workflows/core-regression-tests.yml"
@@ -14,6 +16,8 @@ on:
       - "platform/common/**"
       - "platform/3ds/gbgfx.cpp"
       - "platform/3ds/soundengine.cpp"
+      - "platform/ds/arm9/source/gbgfx.cpp"
+      - "platform/ds/arm9/source/gbgfx_stage.h"
       - "platform/ds/arm9/source/nifi.cpp"
       - "tests/**"
       - ".github/workflows/core-regression-tests.yml"
@@ -42,6 +46,11 @@ jobs:
             tests/gb_render_rules_test.cpp platform/common/gb_render_rules.cpp \
             -o /tmp/gb_render_rules_test
           /tmp/gb_render_rules_test
+      - name: Build and run staged graphics conversion tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            tests/gbgfx_stage_test.cpp -o /tmp/gbgfx_stage_test
+          /tmp/gbgfx_stage_test
       - name: Build and run noise LFSR tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \
