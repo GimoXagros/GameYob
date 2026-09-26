@@ -55,6 +55,52 @@ struct GbStagedAssets {
 static_assert(sizeof(GbStagedAssets) == GB_GFX_STAGE_BYTES,
               "Guest graphics staging footprint changed");
 
+// Display, ready, and producer are distinct. A guest frame may replace the
+// previous ready frame without taking the displayed buffer from HBlank.
+class GbFrameSlots {
+public:
+    GbFrameSlots() : displayed_(0), producer_(1), ready_(3), free_(2) {}
+
+    unsigned displayed() const { return displayed_; }
+    unsigned producer() const { return producer_; }
+    unsigned ready() const { return ready_; }
+    bool hasReady() const { return ready_ != 3; }
+
+    // Existing non-staged path: retain the historical two-buffer swap.
+    void publishImmediately() {
+        const unsigned oldDisplayed = displayed_;
+        displayed_ = producer_;
+        producer_ = oldDisplayed;
+    }
+
+    // Called only after the complete producer frame has been staged. Returns
+    // the superseded ready slot, or 3 if this is the first pending frame.
+    unsigned stageCompleted() {
+        const unsigned dropped = ready_;
+        const unsigned nextProducer = hasReady() ? ready_ : free_;
+        ready_ = producer_;
+        producer_ = nextProducer;
+        free_ = 3;
+        return dropped;
+    }
+
+    // The caller must first finish all backing-asset transfers at a host-safe
+    // boundary. This only changes RAM ownership; no DMA/VRAM work belongs here.
+    void commitReady() {
+        if (!hasReady())
+            return;
+        free_ = displayed_;
+        displayed_ = ready_;
+        ready_ = 3;
+    }
+
+private:
+    unsigned displayed_;
+    unsigned producer_;
+    unsigned ready_;
+    unsigned free_;
+};
+
 static inline void convertGbTile(const GbTileTargets& target,
                                   int tileNum, int bank, const uint8_t* src) {
     int index = (tileNum << 4) + (bank * 0x100 * 16);

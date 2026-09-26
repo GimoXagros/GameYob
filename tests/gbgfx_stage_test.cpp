@@ -70,6 +70,29 @@ static GuardedAssets converted = {};
 static GuardedAssets legacy = {};
 
 int main() {
+    GbFrameSlots legacySlots;
+    assert(legacySlots.displayed() == 0 && legacySlots.producer() == 1);
+    legacySlots.publishImmediately();
+    assert(legacySlots.displayed() == 1 && legacySlots.producer() == 0);
+    legacySlots.publishImmediately();
+    assert(legacySlots.displayed() == 0 && legacySlots.producer() == 1);
+
+    GbFrameSlots stagedSlots;
+    assert(stagedSlots.stageCompleted() == 3);
+    assert(stagedSlots.displayed() == 0 && stagedSlots.ready() == 1 &&
+           stagedSlots.producer() == 2);
+    assert(stagedSlots.stageCompleted() == 1);
+    assert(stagedSlots.displayed() == 0 && stagedSlots.ready() == 2 &&
+           stagedSlots.producer() == 1);
+    stagedSlots.commitReady();
+    assert(stagedSlots.displayed() == 2 && !stagedSlots.hasReady() &&
+           stagedSlots.producer() == 1);
+    assert(stagedSlots.stageCompleted() == 3);
+    assert(stagedSlots.displayed() == 2 && stagedSlots.ready() == 1 &&
+           stagedSlots.producer() == 0);
+    stagedSlots.commitReady();
+    assert(stagedSlots.displayed() == 1 && stagedSlots.producer() == 0);
+
     assert(GB_GFX_STAGE_BYTES == 92 * 1024);
     assert(sizeof(GbStagedAssets) == 92 * 1024);
     converted.before = legacy.before = 0x76543210;

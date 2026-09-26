@@ -165,7 +165,8 @@ typedef struct {
     int bgHash;
 } ScanlineStruct;
 
-ScanlineStruct scanlineBuffers[2][144];
+ScanlineStruct scanlineBuffers[3][144];
+static GbFrameSlots frameSlots;
 
 ScanlineStruct *drawingState = scanlineBuffers[0];
 ScanlineStruct *renderingState = scanlineBuffers[1];
@@ -188,8 +189,10 @@ static void traceVideoEvent(VideoFrameEventType type, unsigned line) {
     event.displayControlSub = REG_DISPCNT_SUB;
     event.physicalLine = line;
     event.type = type;
-    event.drawingBuffer = drawingState == scanlineBuffers[0] ? 0 : 1;
-    event.renderingBuffer = renderingState == scanlineBuffers[0] ? 0 : 1;
+    event.drawingBuffer = drawingState == scanlineBuffers[0] ? 0 :
+                          drawingState == scanlineBuffers[1] ? 1 : 2;
+    event.renderingBuffer = renderingState == scanlineBuffers[0] ? 0 :
+                            renderingState == scanlineBuffers[1] ? 1 : 2;
     event.vramC = VRAM_C_CR;
     event.vramD = VRAM_D_CR;
     event.transferReady = sharedData->scaleTransferReady;
@@ -687,6 +690,7 @@ void initGFX()
     for (int i=0; i<144; i++) {
         scanlineBuffers[0][i].modified = false;
         scanlineBuffers[1][i].modified = false;
+        scanlineBuffers[2][i].modified = false;
     }
     gbGraphicsDisabled = false;
 
@@ -1259,9 +1263,9 @@ void drawScreen()
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
 #endif
-    ScanlineStruct* tmp = renderingState;
-    renderingState = drawingState;
-    drawingState = tmp;
+    frameSlots.publishImmediately();
+    drawingState = scanlineBuffers[frameSlots.displayed()];
+    renderingState = scanlineBuffers[frameSlots.producer()];
 #ifdef GAMEYOB_VIDEO_TRACE
     publishedGuestFrame = gameboy->gameboyFrameCounter;
     __asm__ volatile("" ::: "memory");
