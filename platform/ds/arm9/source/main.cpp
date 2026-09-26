@@ -23,6 +23,10 @@
 #include "gbmanager.h"
 #include "config.h"
 #include "error.h"
+#ifdef GAMEYOB_STAGE_COPY_DIAGNOSTIC
+#include "gbgfx_stage_service.h"
+#include "gbgfx_stage_copy_report.h"
+#endif
 #if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
 #include "video_frame_trace.h"
 #include "video_ff_release_capture.h"
@@ -116,6 +120,31 @@ int main(int argc, char* argv[])
     // initGFX is called in gameboy->init, but I also call it from here to
     // set up the vblank handler asap.
     initGFX();
+
+#ifdef GAMEYOB_STAGE_COPY_DIAGNOSTIC
+    // Measure only before a ROM or file chooser can run. The copied bytes are
+    // identical VRAM contents; this does not activate the staged renderer.
+    GbStageCopyMeasurement stageCopyTrials[16];
+    bool stageCopyComplete = true;
+    clearGFX();
+    for (unsigned trial = 0; trial < 16; trial++) {
+        if (!measureGbStageFullCopy(&stageCopyTrials[trial])) {
+            stageCopyComplete = false;
+            break;
+        }
+    }
+    initGFX(); // Always restore ordinary graphics before any ROM is opened.
+    if (stageCopyComplete) {
+        char stageCopyPath[256];
+        if (writeGbStageCopyReport(".", GIT_REVISION, stageCopyTrials, 16,
+                                   stageCopyPath, sizeof(stageCopyPath)))
+            printLog("Stage copy measurement saved: %s\n", stageCopyPath);
+        else
+            printLog("Stage copy measurement could not be saved.\n");
+    } else {
+        printLog("Stage copy measurement aborted; graphics restored.\n");
+    }
+#endif
 
     consoleInitialized = false;
 

@@ -33,6 +33,12 @@ $(error Select only one video trace capture mode)
 endif
 DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY -DGAMEYOB_VIDEO_FF_RELEASE
 endif
+ifeq ($(STAGE_COPY_DIAGNOSTIC),1)
+DEFINES += -DGAMEYOB_STAGE_VIDEO_EXPERIMENT -DGAMEYOB_STAGE_COPY_DIAGNOSTIC
+endif
+ifeq ($(STAGE_VIDEO_ACTIVE),1)
+$(error Staged video activation is not approved for this build)
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \

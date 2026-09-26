@@ -25,7 +25,7 @@ class HostRunnerParserTest(unittest.TestCase):
         self.assertEqual(
             [Path(test[0][test[1]]).name for test in tests].count(
                 'gbgfx_stage_test'), 1)
-        self.assertEqual(sum(test[3] for test in tests), 2)
+        self.assertEqual(sum(test[3] for test in tests), 3)
 
     def test_multi_command_block_preserves_both_tests_and_directory(self):
         block = '''          g++ first.cpp -o /tmp/first

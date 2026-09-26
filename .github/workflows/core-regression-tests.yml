@@ -51,6 +51,13 @@ jobs:
           g++ -std=c++11 -Wall -Wextra -Werror \
             tests/gbgfx_stage_test.cpp -o /tmp/gbgfx_stage_test
           /tmp/gbgfx_stage_test
+      - name: Build and run staged copy report tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror \
+            tests/gbgfx_stage_copy_report_test.cpp platform/ds/arm9/source/gbgfx_stage_copy_report.cpp \
+            -o /tmp/gbgfx_stage_copy_report_test
+          report_dir="$(mktemp -d)"
+          /tmp/gbgfx_stage_copy_report_test "$report_dir"
       - name: Build and run noise LFSR tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

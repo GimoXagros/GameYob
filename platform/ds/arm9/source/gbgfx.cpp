@@ -176,7 +176,11 @@ typedef struct {
     int bgHash;
 } ScanlineStruct;
 
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
 ScanlineStruct scanlineBuffers[3][144];
+#else
+ScanlineStruct scanlineBuffers[2][144];
+#endif
 static GbFrameSlots frameSlots;
 static_assert(sizeof(scanlineBuffers[0]) + sizeof(GbStagedAssets) <=
               150 * 1024, "Video staging exceeds the 150 KiB RAM budget");
@@ -735,7 +739,9 @@ void initGFX()
     for (int i=0; i<144; i++) {
         scanlineBuffers[0][i].modified = false;
         scanlineBuffers[1][i].modified = false;
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
         scanlineBuffers[2][i].modified = false;
+#endif
     }
     gbGraphicsDisabled = false;
 
