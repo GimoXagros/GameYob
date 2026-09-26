@@ -93,6 +93,31 @@ int main() {
     stagedSlots.commitReady();
     assert(stagedSlots.displayed() == 1 && stagedSlots.producer() == 0);
 
+    assert(!mayCommitGbStagedFrame(167, 0));
+    assert(mayCommitGbStagedFrame(168, 40));
+    assert(mayCommitGbStagedFrame(192, 40));
+    assert(!mayCommitGbStagedFrame(193, 40));
+    assert(!mayCommitGbStagedFrame(200, 40));
+    assert(!mayCommitGbStagedFrame(168, 65));
+    assert(gbStageTileDirtyMask(0x7f) ==
+           (STAGE_UNSIGNED | STAGE_UNSIGNED_FILLED | STAGE_OBJ));
+    assert(gbStageTileDirtyMask(0x80) ==
+           (STAGE_UNSIGNED | STAGE_UNSIGNED_FILLED | STAGE_OBJ |
+            STAGE_SIGNED | STAGE_SIGNED_FILLED));
+    assert(gbStageTileDirtyMask(0x100) ==
+           (STAGE_SIGNED | STAGE_SIGNED_FILLED));
+    assert(gbStageMapDirtyMask(0) ==
+           (STAGE_NORMAL_0 | STAGE_COLOR0_0 | STAGE_OVERLAY_0));
+    assert(gbStageMapDirtyMask(1) ==
+           (STAGE_NORMAL_1 | STAGE_COLOR0_1 | STAGE_OVERLAY_1));
+    assert(gbStageSgbDirtyMask() == (STAGE_NORMAL_0 | STAGE_NORMAL_1));
+    unsigned fullDirty = gbStageMapDirtyMask(0) | gbStageMapDirtyMask(1);
+    for (unsigned tile = 0; tile < 0x180; tile++)
+        fullDirty |= gbStageTileDirtyMask(tile);
+    assert(fullDirty == STAGE_ALL);
+    assert(gbStageDirtyBytes(STAGE_ALL) == GB_GFX_STAGE_BYTES);
+    assert(gbStageDirtyBytes(gbStageSgbDirtyMask()) == 4096);
+
     assert(GB_GFX_STAGE_BYTES == 92 * 1024);
     assert(sizeof(GbStagedAssets) == 92 * 1024);
     converted.before = legacy.before = 0x76543210;
@@ -136,8 +161,12 @@ int main() {
         assert(memcmp(&converted.assets, &legacy.assets,
                       sizeof(converted.assets)) == 0);
     }
+    const uint16_t beforeRemap = legacy.assets.normalMaps[1][1023];
     remapSgbMapPalette(converted.assets.normalMaps[1], 1023, 3);
-    remapSgbMapPalette(legacy.assets.normalMaps[1], 1023, 3);
+    legacy.assets.normalMaps[1][1023] =
+        (beforeRemap & ~(uint16_t)(7 << 12)) | (3 << 12);
+    assert((converted.assets.normalMaps[1][1023] & ~(uint16_t)(7 << 12)) ==
+           (beforeRemap & ~(uint16_t)(7 << 12)));
     assert(memcmp(&converted.assets, &legacy.assets,
                   sizeof(converted.assets)) == 0);
     assert(converted.before == 0x76543210);

@@ -101,6 +101,52 @@ private:
     unsigned free_;
 };
 
+// Max-copy-lines comes from a hardware run of the complete 92 KiB transfer.
+// Include two scanlines of margin before the line-0 pre-render at VCOUNT 235.
+static inline bool mayCommitGbStagedFrame(unsigned physicalLine,
+                                           unsigned maxCopyLines) {
+    return physicalLine >= 168 && maxCopyLines <= 64 &&
+           physicalLine + maxCopyLines + 2 < 235;
+}
+
+enum GbStageDirtyBlock {
+    STAGE_UNSIGNED = 1 << 0,
+    STAGE_SIGNED = 1 << 1,
+    STAGE_UNSIGNED_FILLED = 1 << 2,
+    STAGE_SIGNED_FILLED = 1 << 3,
+    STAGE_OBJ = 1 << 4,
+    STAGE_NORMAL_0 = 1 << 5,
+    STAGE_COLOR0_0 = 1 << 6,
+    STAGE_OVERLAY_0 = 1 << 7,
+    STAGE_NORMAL_1 = 1 << 8,
+    STAGE_COLOR0_1 = 1 << 9,
+    STAGE_OVERLAY_1 = 1 << 10,
+    STAGE_ALL = (1 << 11) - 1
+};
+
+static inline unsigned gbStageTileDirtyMask(unsigned tile) {
+    return (tile < 0x100 ?
+            STAGE_UNSIGNED | STAGE_UNSIGNED_FILLED | STAGE_OBJ : 0) |
+           (tile >= 0x80 ? STAGE_SIGNED | STAGE_SIGNED_FILLED : 0);
+}
+
+static inline unsigned gbStageMapDirtyMask(unsigned map) {
+    return 7 << (5 + map * 3);
+}
+
+static inline unsigned gbStageSgbDirtyMask() {
+    return STAGE_NORMAL_0 | STAGE_NORMAL_1;
+}
+
+static inline unsigned gbStageDirtyBytes(unsigned mask) {
+    unsigned bytes = 0;
+    for (unsigned block = 0; block < 5; block++)
+        if (mask & (1 << block)) bytes += 0x4000;
+    for (unsigned block = 5; block < 11; block++)
+        if (mask & (1 << block)) bytes += 0x800;
+    return bytes;
+}
+
 static inline void convertGbTile(const GbTileTargets& target,
                                   int tileNum, int bank, const uint8_t* src) {
     int index = (tileNum << 4) + (bank * 0x100 * 16);
