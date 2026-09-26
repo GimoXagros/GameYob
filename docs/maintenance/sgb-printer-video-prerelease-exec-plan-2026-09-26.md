@@ -110,6 +110,13 @@ failure and bound RLE/packet sizes. No real user printouts in fixtures/assets.
 
 ## Outcome
 
+Follow-up in progress: user reports no recurrence of the original whole-screen
+black flicker in the diagnostic build and generally working SGB/fast-forward.
+A distinct Castlevania Legends white-horizontal-line defect reportedly persists
+across ROM changes with Prefer GBC and borders. This is the active investigation;
+diagnostic timing versus normal-build behavior remains a validation boundary.
+Printer patch incompatibility is a user hypothesis, not an established cause.
+
 Software candidate `a0846aae39fc9999ddda34269de317429dee85d1` corrects the
 review's probe-transition save regression and menu trace-retention gap. Exact
 source tests/builds passed and the same reviewer accepted the targeted delta.
@@ -281,3 +288,28 @@ packaging and evidence documentation do not imply redistribution clearance.
   of the slowdown. Preserve SGB-On slowdown/fast-forward failure as USER_REPORTED
   incident conditions, not disproved by the newer INI. The custom-border value
   at the original incident remains unspecified.
+- Follow-up user report: diagnostic build has no original whole-screen black
+  flicker, reiterated explicitly; SGB/fast-forward work generally. Castlevania
+  Legends with Prefer GBC and borders produces white horizontal noise which
+  reportedly carries into the next ROM. User's printer/ROM-patch explanation
+  remains unverified. New white-line defect is separate from the black flicker.
+- Actual follow-up agents `/root/video_sgb_followup` (requested Sol/high) and
+  `/root/integration_followup` (requested Sol/medium), fork none, at most two
+  active children, no redelegation; resolved model/effort still unexposed.
+  Source tip 3bcc1146 initially clean; preserve earlier tested a084 and all
+  stabilization. Video owns isolated renderer/SGB edits, integration owns shared
+  runtime and all remote mutations. Reassess exact release gates after focused
+  regression evidence/review, not by equating a diagnostic non-recurrence report
+  with proof of normal-build timing correctness.
+- User supplied a still and two local videos. Video specialist inspected frames
+  read-only in isolated scratch output: ~3.17s gameplay and ~12.73s boot. Bright
+  region bands are visible but cannot be separated conclusively from filmed LCD
+  interference; no ROM-switch sequence was captured. Preserve the user's real
+  white-line observation without claiming it is only camera interference.
+- Rejected investigation: specialist initially claimed refreshGFX dropped queue
+  lengths without clearing dirty flags and produced helper test red 2/green 0.
+  Full call-chain recheck showed updateTileMap clears each flag during refresh,
+  so the test modeled an impossible production boundary. Commit 3050ee6 was
+  reverted locally by 1107c2f and NEVER integrated. Main corrected the premature
+  commentary; integration stopped before cherry-pick. No new renderer fix or
+  candidate validation is established by that test.
