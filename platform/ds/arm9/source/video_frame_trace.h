@@ -9,7 +9,8 @@ enum VideoFrameEventType {
     VIDEO_HOST_VBLANK = 3,
     VIDEO_HOST_LINE = 4,
     VIDEO_VRAM_ARM7 = 5,
-    VIDEO_VRAM_DISPLAY = 6
+    VIDEO_VRAM_DISPLAY = 6,
+    VIDEO_UPLOAD_END = 7
 };
 
 struct VideoFrameEvent {
@@ -28,6 +29,12 @@ struct VideoFrameEvent {
     uint8_t transferReady;
     uint8_t scalingMode;
     uint8_t filterMode;
+    uint8_t fastForward;
+    uint8_t gbMode;
+    uint8_t sgbMode;
+    uint8_t gfxMask;
+    uint16_t tileQueueLength;
+    uint16_t mapQueueLength;
 };
 
 template <unsigned Capacity>

@@ -180,6 +180,12 @@ static void traceVideoEvent(VideoFrameEventType type, unsigned line) {
     event.transferReady = sharedData->scaleTransferReady;
     event.scalingMode = scaleMode;
     event.filterMode = scaleFilter;
+    event.fastForward = fastForwardMode || fastForwardKey;
+    event.gbMode = gameboy ? gameboy->gbMode : 0;
+    event.sgbMode = gameboy && gameboy->sgbMode;
+    event.gfxMask = gfxMask;
+    event.tileQueueLength = changedTileQueueLength + changedTileInFrameQueueLength;
+    event.mapQueueLength = changedMapQueueLength[0] + changedMapQueueLength[1];
 
     // The producer runs in both foreground and display IRQ context. There is
     // no allocation or I/O here, and the interrupt exclusion is short.
@@ -469,9 +475,11 @@ void doHBlank(int line) {
     if (line >= 192)
         return;
 #ifdef GAMEYOB_VIDEO_TRACE
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
     if (line >= screenOffsY && line < screenOffsY + 144 &&
             ((line - screenOffsY) & 7) == 0)
         TRACE_VIDEO(VIDEO_HOST_LINE, line);
+#endif
 #endif
     if ((isFileChooserOn() || isMenuOn()) && line%8 == 0) {
         // Change the backdrop color for a certain row.
@@ -530,7 +538,9 @@ void vcountHandler() {
     vramSetBankC(VRAM_C_SUB_BG);
     if (sharedData->scalingOn)
         vramSetBankD(VRAM_D_LCD);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
     TRACE_VIDEO(VIDEO_VRAM_DISPLAY, 235);
+#endif
 
     // Do hblank stuff for the very top line (physical line 0)
     doHBlank(0);
@@ -559,8 +569,10 @@ void vblankHandler()
     didVblank = true;
     dsFrameCounter = dsFrameCounter + 1;
     TRACE_VIDEO(VIDEO_HOST_VBLANK, 192);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
     if (sharedData->scalingOn)
         TRACE_VIDEO(VIDEO_VRAM_ARM7, 192);
+#endif
 
     memset(lineCompleted, 0, sizeof(lineCompleted));
     if (scaleFilter == 1) {
@@ -1316,6 +1328,7 @@ void drawScreen()
     updateTileMaps();
     if (gameboy->sgbMode)
         refreshSgbPalette();
+    TRACE_VIDEO(VIDEO_UPLOAD_END, REG_VCOUNT);
 }
 
 void drawSprites(u8* data, int tall) {
