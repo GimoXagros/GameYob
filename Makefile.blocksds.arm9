@@ -18,6 +18,12 @@ DEFINES		:= -DNO_VIZ -DGIT_REVISION=\"$(REVISION)\" \
 ifeq ($(VIDEO_TRACE),1)
 DEFINES += -DGAMEYOB_VIDEO_TRACE
 endif
+ifeq ($(VIDEO_TRACE_PROFILE),1)
+ifneq ($(VIDEO_TRACE),1)
+$(error VIDEO_TRACE_PROFILE requires VIDEO_TRACE=1)
+endif
+DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \

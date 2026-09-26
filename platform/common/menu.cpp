@@ -462,12 +462,14 @@ void videoTraceDumpFunc(int) {
     const uint32_t overwritten = videoFrameTraceOverwritten();
     bool ok = fprintf(output, "overwritten,%lu\n", (unsigned long)overwritten) > 0;
     ok = ok && fprintf(output, "host,guest,published,line,type,draw,render,"
-        "vram_c,vram_d,ready,scale,filter,capture,main,sub\n") > 0;
+        "vram_c,vram_d,ready,scale,filter,capture,main,sub,"
+        "fast_forward,gb_mode,sgb_mode,gfx_mask,tile_queue,map_queue\n") > 0;
     VideoFrameEvent event;
     unsigned count = 0;
     while (ok && count < 256 && readVideoFrameTrace(&event, 1) == 1) {
         ok = fprintf(output,
-            "%lu,%lu,%lu,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lu,%lu,%lu\n",
+            "%lu,%lu,%lu,%u,%u,%u,%u,%u,%u,%u,%u,%u,%lu,%lu,%lu,"
+            "%u,%u,%u,%u,%u,%u\n",
             (unsigned long)event.hostFrame,
             (unsigned long)event.guestFrame,
             (unsigned long)event.publishedFrame,
@@ -476,7 +478,9 @@ void videoTraceDumpFunc(int) {
             event.transferReady, event.scalingMode, event.filterMode,
             (unsigned long)event.captureControl,
             (unsigned long)event.displayControlMain,
-            (unsigned long)event.displayControlSub) > 0;
+            (unsigned long)event.displayControlSub,
+            event.fastForward, event.gbMode, event.sgbMode, event.gfxMask,
+            event.tileQueueLength, event.mapQueueLength) > 0;
         ++count;
     }
     const int flushResult = fflush(output);

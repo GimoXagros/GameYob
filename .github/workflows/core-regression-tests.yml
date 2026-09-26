@@ -176,6 +176,15 @@ jobs:
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror tests/video_frame_trace_test.cpp -o /tmp/video_frame_trace_test
           /tmp/video_frame_trace_test
+      - name: Build and run publication profile tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/video_trace_profile_test.cpp -o /tmp/video_trace_profile_test
+          /tmp/video_trace_profile_test
+          g++ -std=c++11 -Wall -Wextra -Werror -DGAMEYOB_VIDEO_TRACE -DGAMEYOB_VIDEO_PUBLICATION_ONLY \
+            tests/video_trace_profile_export_test.cpp platform/ds/arm9/source/video_trace_profile_export.cpp \
+            -o /tmp/video_trace_profile_export_test
+          trace_dir="$(mktemp -d)"
+          /tmp/video_trace_profile_export_test "$trace_dir/"
       - name: Build and run synthetic printer packet and BMP tests
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror tests/gbprinter_test.cpp -o /tmp/gbprinter_test

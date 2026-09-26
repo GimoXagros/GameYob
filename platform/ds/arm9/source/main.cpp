@@ -23,6 +23,10 @@
 #include "gbmanager.h"
 #include "config.h"
 #include "error.h"
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+#include "video_frame_trace.h"
+#include "video_trace_profile.h"
+#endif
 
 void updateVBlank();
 
@@ -131,9 +135,48 @@ int main(int argc, char* argv[])
         mgr_selectRom();
     }
 
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+    // This scripted diagnostic runs only for an explicitly autoloaded ROM.
+    // Keep the 180-frame warmup out of the trace ring and never write in IRQ.
+    const bool runVideoProfile = autoloadRom && *autoloadRom;
+    VideoTraceProfile videoProfile(gameboy ? gameboy->gameboyFrameCounter : 0,
+                                   &fastForwardMode);
+    uint32_t profileFirstGuestFrame = 0;
+    uint32_t profileOverwrittenBefore = 0;
+    if (runVideoProfile)
+        freezeVideoFrameTrace();
+#endif
     for (;;) {
         mgr_runFrame();
         mgr_updateVBlank();
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+        if (runVideoProfile && gameboy) {
+            const uint32_t guestFrame = gameboy->gameboyFrameCounter;
+            const VideoTraceProfile::Action action = videoProfile.observe(
+                !probingForBorder, guestFrame);
+            if (action == VideoTraceProfile::START_WINDOW) {
+                VideoFrameEvent discarded;
+                while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                profileFirstGuestFrame = guestFrame + 1;
+                profileOverwrittenBefore = videoFrameTraceOverwritten();
+                resumeVideoFrameTrace();
+            } else if (action == VideoTraceProfile::END_WINDOW) {
+                // observe() restores the pre-profile FF state before I/O.
+                freezeVideoFrameTrace();
+                if (!exportVideoTraceProfileCsv(videoProfile.phase(),
+                        profileFirstGuestFrame, guestFrame,
+                        profileOverwrittenBefore))
+                    printLog("Video publication profile export failed.\n");
+                if (videoProfile.nextWindow()) {
+                    VideoFrameEvent discarded;
+                    while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                    profileFirstGuestFrame = guestFrame + 1;
+                    profileOverwrittenBefore = videoFrameTraceOverwritten();
+                    resumeVideoFrameTrace();
+                }
+            }
+        }
+#endif
     }
 
     return 0;
