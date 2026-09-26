@@ -24,6 +24,15 @@ $(error VIDEO_TRACE_PROFILE requires VIDEO_TRACE=1)
 endif
 DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY
 endif
+ifeq ($(VIDEO_TRACE_FF_RELEASE),1)
+ifneq ($(VIDEO_TRACE),1)
+$(error VIDEO_TRACE_FF_RELEASE requires VIDEO_TRACE=1)
+endif
+ifeq ($(VIDEO_TRACE_PROFILE),1)
+$(error Select only one video trace capture mode)
+endif
+DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY -DGAMEYOB_VIDEO_FF_RELEASE
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \

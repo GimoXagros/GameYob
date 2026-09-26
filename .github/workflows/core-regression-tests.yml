@@ -185,6 +185,15 @@ jobs:
             -o /tmp/video_trace_profile_export_test
           trace_dir="$(mktemp -d)"
           /tmp/video_trace_profile_export_test "$trace_dir/"
+      - name: Build and run FF-release capture tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/video_ff_release_capture_test.cpp -o /tmp/video_ff_release_capture_test
+          /tmp/video_ff_release_capture_test
+          g++ -std=c++11 -Wall -Wextra -Werror -DGAMEYOB_VIDEO_TRACE -DGAMEYOB_VIDEO_PUBLICATION_ONLY -DGAMEYOB_VIDEO_FF_RELEASE \
+            tests/video_ff_release_export_test.cpp platform/ds/arm9/source/video_trace_profile_export.cpp \
+            -o /tmp/video_ff_release_export_test
+          release_dir="$(mktemp -d)"
+          /tmp/video_ff_release_export_test "$release_dir"
       - name: Build and run synthetic printer packet and BMP tests
         run: |
           g++ -std=c++17 -Wall -Wextra -Werror tests/gbprinter_test.cpp -o /tmp/gbprinter_test
