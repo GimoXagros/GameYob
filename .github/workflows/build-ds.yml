@@ -8,6 +8,11 @@ on:
         type: boolean
         required: false
         default: false
+      video_trace_profile:
+        description: Build automatic publication-only video profile (implies video trace)
+        type: boolean
+        required: false
+        default: false
   push:
     paths:
       - "platform/ds/**"
@@ -33,16 +38,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build NDS homebrew
         env:
-          VIDEO_TRACE: ${{ inputs.video_trace && '1' || '0' }}
+          VIDEO_TRACE: ${{ (inputs.video_trace || inputs.video_trace_profile) && '1' || '0' }}
+          VIDEO_TRACE_PROFILE: ${{ inputs.video_trace_profile && '1' || '0' }}
         run: |
           docker run --rm \
-            --env VIDEO_TRACE \
+            --env VIDEO_TRACE --env VIDEO_TRACE_PROFILE \
             --volume "$GITHUB_WORKSPACE:/workspace" \
             --workdir /workspace \
             skylyrac/blocksds:slim-v1.22.2@sha256:a073c57ffd340542a6e09d14616dd925d219bc534399dbdc73d2abaa04c1628e \
             bash -euo pipefail -c '
               git config --global --add safe.directory /workspace
-              make -f Makefile.blocksds VIDEO_TRACE="$VIDEO_TRACE"
+              make -f Makefile.blocksds VIDEO_TRACE="$VIDEO_TRACE" VIDEO_TRACE_PROFILE="$VIDEO_TRACE_PROFILE"
             '
       - name: Record artifact checksum
         run: |
@@ -53,7 +59,7 @@ jobs:
       - name: Upload Nintendo DS build
         uses: actions/upload-artifact@v4
         with:
-          name: gameyob-ds-${{ github.sha }}-${{ inputs.video_trace && 'video-diagnostic' || 'normal' }}
+          name: gameyob-ds-${{ github.sha }}-${{ inputs.video_trace_profile && 'publication-profile' || (inputs.video_trace && 'video-diagnostic' || 'normal') }}
           path: |
             platform/ds/gameyob.nds
             platform/ds/gameyob_dsi.nds
