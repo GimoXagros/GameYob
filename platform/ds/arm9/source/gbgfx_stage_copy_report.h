@@ -8,3 +8,9 @@ bool writeGbStageCopyReport(const char* directory, const char* sourceRevision,
                             const GbStageCopyMeasurement* trials,
                             unsigned trialCount, char* writtenPath,
                             size_t writtenPathSize);
+
+bool writeGbStageCalibrationReport(const char* directory,
+                                   const char* sourceRevision,
+                                   bool calibrationCompleted,
+                                   const GbStageCalibration* calibration,
+                                   char* writtenPath, size_t writtenPathSize);

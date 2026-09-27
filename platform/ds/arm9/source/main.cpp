@@ -23,7 +23,7 @@
 #include "gbmanager.h"
 #include "config.h"
 #include "error.h"
-#ifdef GAMEYOB_STAGE_COPY_DIAGNOSTIC
+#if defined(GAMEYOB_STAGE_COPY_DIAGNOSTIC) || defined(GAMEYOB_STAGE_VIDEO_ACTIVE)
 #include "gbgfx_stage_service.h"
 #include "gbgfx_stage_copy_report.h"
 #endif
@@ -121,7 +121,25 @@ int main(int argc, char* argv[])
     // set up the vblank handler asap.
     initGFX();
 
-#ifdef GAMEYOB_STAGE_COPY_DIAGNOSTIC
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    // The ACTIVE experiment remains fail-closed until same-boot hardware
+    // calibration completes. This happens before any ROM or chooser activity.
+    GbStageCalibration stageCalibration = {};
+    clearGFX();
+    const bool stageCalibrationComplete =
+        calibrateGbStagedVideo(&stageCalibration);
+    initGFX(); // Always return to the normal startup display path.
+    char stageCalibrationPath[256];
+    if (writeGbStageCalibrationReport(".", GIT_REVISION,
+                                      stageCalibrationComplete,
+                                      &stageCalibration, stageCalibrationPath,
+                                      sizeof(stageCalibrationPath)))
+        printLog("Staged-video calibration %s: %s\n",
+                 stageCalibrationComplete && stageCalibration.eligible ?
+                     "eligible" : "inactive", stageCalibrationPath);
+    else
+        printLog("Staged-video calibration report could not be saved.\n");
+#elif defined(GAMEYOB_STAGE_COPY_DIAGNOSTIC)
     // Measure only before a ROM or file chooser can run. The copied bytes are
     // identical VRAM contents; this does not activate the staged renderer.
     GbStageCopyMeasurement stageCopyTrials[16];
@@ -181,9 +199,22 @@ int main(int argc, char* argv[])
     if (runVideoProfile)
         freezeVideoFrameTrace();
 #endif
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    bool stageFaultNotified = false;
+#endif
     for (;;) {
         mgr_runFrame();
         mgr_updateVBlank();
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+        const GbStageRuntimeStatus stageStatus = getGbStageRuntimeStatus();
+        if (stageStatus.faultCode != GB_STAGE_FAULT_NONE &&
+                !stageFaultNotified) {
+            stageFaultNotified = true;
+            printMenuMessage("Video fault: reset/reload ROM");
+            printLog("Staged video fault %u; normal video needs Reset/ROM reload.\n",
+                     stageStatus.faultCode);
+        }
+#endif
 #if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
         const uintptr_t activeRom = gameboy && gameboy->isRomLoaded() ?
             (uintptr_t)gameboy->getRomFile() : 0;

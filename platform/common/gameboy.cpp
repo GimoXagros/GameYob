@@ -27,6 +27,9 @@
 #include "menu.h"
 #include "io.h"
 #include "gbmanager.h"
+#if defined(DS) && defined(GAMEYOB_STAGE_VIDEO_ACTIVE)
+#include "../ds/arm9/source/gbgfx_stage_service.h"
+#endif
 
 const int MAX_WAIT_CYCLES=1000000;
 
@@ -556,6 +559,10 @@ int Gameboy::runEmul()
         setEventCycles(soundEngine->cyclesToSoundEvent);
 
         emuRet |= updateLCD(cycles);
+#if defined(DS) && defined(GAMEYOB_STAGE_VIDEO_ACTIVE)
+        // Foreground event cadence also reaches the host-safe window during FF.
+        servicePendingVideoFrameCommit();
+#endif
 
         //interruptTriggered = ioRam[0x0F] & ioRam[0xFF];
         if (interruptTriggered) {

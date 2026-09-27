@@ -36,6 +36,12 @@ endif
 ifeq ($(STAGE_COPY_DIAGNOSTIC),1)
 DEFINES += -DGAMEYOB_STAGE_VIDEO_EXPERIMENT -DGAMEYOB_STAGE_COPY_DIAGNOSTIC
 endif
+ifeq ($(STAGE_VIDEO_EXPERIMENTAL),1)
+ifeq ($(STAGE_COPY_DIAGNOSTIC),1)
+$(error Select only one staged-video diagnostic mode)
+endif
+DEFINES += -DGAMEYOB_STAGE_VIDEO_EXPERIMENT -DGAMEYOB_STAGE_VIDEO_ACTIVE
+endif
 ifeq ($(STAGE_VIDEO_ACTIVE),1)
 $(error Staged video activation is not approved for this build)
 endif

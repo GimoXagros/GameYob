@@ -44,5 +44,36 @@ int main(int argc, char** argv) {
                                    tooSmall, sizeof(tooSmall)));
     assert(tooSmall[0] == 0);
     assert(readAll(existing) == "keep me");
+
+    GbStageCalibration calibration = {};
+    calibration.trials[0] = trial;
+    calibration.completedTrials = 1;
+    calibration.maxObservedLines = 46;
+    calibration.admittedBoundLines = 62;
+    calibration.eligible = 1;
+    char calibrationPath[256];
+    assert(writeGbStageCalibrationReport(argv[1], "abc123def456", true,
+                                         &calibration, calibrationPath,
+                                         sizeof(calibrationPath)));
+    const std::string eligibleReport = readAll(calibrationPath);
+    assert(eligibleReport.find("result,eligible") != std::string::npos);
+    assert(eligibleReport.find("active_compiled,1") != std::string::npos);
+    assert(eligibleReport.find("max_observed_lines,46") != std::string::npos);
+    assert(eligibleReport.find("admitted_bound_lines,62") != std::string::npos);
+    assert(eligibleReport.find("0,94208,42,42,193,214,1") !=
+           std::string::npos);
+    calibration.eligible = 0;
+    calibration.admittedBoundLines = 0;
+    char secondPath[256];
+    assert(writeGbStageCalibrationReport(argv[1], "abc123def456", false,
+                                         &calibration, secondPath,
+                                         sizeof(secondPath)));
+    assert(strcmp(calibrationPath, secondPath) != 0);
+    assert(readAll(secondPath).find("result,aborted") != std::string::npos);
+    assert(readAll(calibrationPath) == eligibleReport);
+    calibration.completedTrials = GB_STAGE_CALIBRATION_TRIALS + 1;
+    assert(!writeGbStageCalibrationReport(argv[1], "abc", true,
+                                          &calibration, secondPath,
+                                          sizeof(secondPath)));
     return 0;
 }
