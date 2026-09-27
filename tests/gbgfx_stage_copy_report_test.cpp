@@ -58,6 +58,7 @@ int main(int argc, char** argv) {
     const std::string eligibleReport = readAll(calibrationPath);
     assert(eligibleReport.find("result,eligible") != std::string::npos);
     assert(eligibleReport.find("active_compiled,1") != std::string::npos);
+    assert(eligibleReport.find("copy_backend,dma3_words") != std::string::npos);
     assert(eligibleReport.find("max_observed_lines,46") != std::string::npos);
     assert(eligibleReport.find("admitted_bound_lines,62") != std::string::npos);
     assert(eligibleReport.find("0,94208,42,42,193,214,1") !=
@@ -75,5 +76,37 @@ int main(int argc, char** argv) {
     assert(!writeGbStageCalibrationReport(argv[1], "abc", true,
                                           &calibration, secondPath,
                                           sizeof(secondPath)));
+
+    GbStageRuntimeStatus status = {};
+    status.copyBackend = GB_STAGE_COPY_DMA3_WORDS;
+    status.calibrationEligible = 1;
+    status.stagedEntries = 1;
+    status.presentedFrames = 3;
+    status.deferredForCallbacks = 5;
+    status.lastEarlyPollHostFrame = 123;
+    status.lastCopyEndVcount = 211;
+    status.faultCode = GB_STAGE_FAULT_DMA_CONFLICT;
+    char statusPath[256];
+    assert(writeGbStageRuntimeStatusReport(argv[1], "abc123def456", &status,
+                                           statusPath, sizeof(statusPath)));
+    const std::string statusReport = readAll(statusPath);
+    assert(statusReport.find("capture_context,paused_menu") !=
+           std::string::npos);
+    assert(statusReport.find("copy_backend,1") != std::string::npos);
+    assert(statusReport.find("calibration_eligible,1") != std::string::npos);
+    assert(statusReport.find("staged_entries,1") != std::string::npos);
+    assert(statusReport.find("presented_frames,3") != std::string::npos);
+    assert(statusReport.find("fault_code,3") != std::string::npos);
+    assert(statusReport.find("last_copy_end_vcount,211") !=
+           std::string::npos);
+    char nextStatusPath[256];
+    assert(writeGbStageRuntimeStatusReport(argv[1], "abc123def456", &status,
+                                           nextStatusPath,
+                                           sizeof(nextStatusPath)));
+    assert(strcmp(statusPath, nextStatusPath) != 0);
+    assert(readAll(statusPath) == statusReport);
+    assert(!writeGbStageRuntimeStatusReport(argv[1], "abc", &status,
+                                            tooSmall, sizeof(tooSmall)));
+    assert(tooSmall[0] == 0);
     return 0;
 }

@@ -14,3 +14,9 @@ bool writeGbStageCalibrationReport(const char* directory,
                                    bool calibrationCompleted,
                                    const GbStageCalibration* calibration,
                                    char* writtenPath, size_t writtenPathSize);
+
+// Foreground snapshot only while a loaded game is paused in the menu.
+bool writeGbStageRuntimeStatusReport(const char* directory,
+                                     const char* sourceRevision,
+                                     const GbStageRuntimeStatus* status,
+                                     char* writtenPath, size_t writtenPathSize);

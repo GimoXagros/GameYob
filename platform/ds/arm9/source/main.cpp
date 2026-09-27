@@ -201,6 +201,7 @@ int main(int argc, char* argv[])
 #endif
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
     bool stageFaultNotified = false;
+    bool stageStatusSavedThisPauseMenu = false;
 #endif
     for (;;) {
         mgr_runFrame();
@@ -219,6 +220,20 @@ int main(int argc, char* argv[])
             printMenuMessage("Video fault: reset/reload ROM");
             printLog("Staged video fault %u; normal video needs Reset/ROM reload.\n",
                      stageStatus.faultCode);
+        }
+        const bool stageStatusCaptureReady = isMenuOn() && mgr_isPaused() &&
+            gameboy && gameboy->isRomLoaded();
+        if (!stageStatusCaptureReady) {
+            stageStatusSavedThisPauseMenu = false;
+        } else if (!stageStatusSavedThisPauseMenu) {
+            stageStatusSavedThisPauseMenu = true;
+            char stageStatusPath[256];
+            if (writeGbStageRuntimeStatusReport(".", GIT_REVISION,
+                                                &stageStatus, stageStatusPath,
+                                                sizeof(stageStatusPath)))
+                printLog("Staged-video status saved: %s\n", stageStatusPath);
+            else
+                printLog("Staged-video status could not be saved.\n");
         }
 #endif
 #if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
