@@ -23,6 +23,9 @@ public:
         return true;
     }
 
+    // Callers sharing this queue with an IRQ must exclude that IRQ briefly.
+    bool hasPending() const { return lengths_[pending_] != 0; }
+
     // Switch before invoking callbacks: a callback can enqueue for the next
     // VBlank without changing this batch or allocating inside the IRQ.
     Batch beginDrain() {

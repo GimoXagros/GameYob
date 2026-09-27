@@ -26,12 +26,6 @@
 #if defined(GAMEYOB_STAGE_VIDEO_ACTIVE) && !defined(GAMEYOB_STAGE_VIDEO_EXPERIMENT)
 #error "Active staged video requires the experimental renderer build"
 #endif
-#if defined(GAMEYOB_STAGE_VIDEO_ACTIVE) && !defined(GAMEYOB_STAGE_VIDEO_MAX_COPY_LINES)
-#error "Active staged video requires a hardware-measured copy bound"
-#endif
-#if defined(GAMEYOB_STAGE_VIDEO_ACTIVE) && !defined(GAMEYOB_STAGE_VIDEO_LIVENESS_VERIFIED)
-#error "Active staged video awaits safe-window and liveness validation"
-#endif
 
 
 #define BACKDROP_COLOUR RGB15(0,0,0)
@@ -176,7 +170,7 @@ typedef struct {
     int bgHash;
 } ScanlineStruct;
 
-#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
 ScanlineStruct scanlineBuffers[3][144];
 #else
 ScanlineStruct scanlineBuffers[2][144];
@@ -187,9 +181,18 @@ static_assert(sizeof(scanlineBuffers[0]) + sizeof(GbStagedAssets) <=
 
 #ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
 static GbStagedAssets stagedAssets __attribute__((aligned(32)));
+static bool stageCalibrationEligible = false;
+static unsigned stageAdmittedBoundLines = 0;
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
 static bool stagedRendererActive = false;
 static unsigned stagedDirty = 0;
+static uint8_t stageFaultCode = GB_STAGE_FAULT_NONE;
+static uint32_t stagePresentedFrames = 0;
+static uint32_t stageDeferredForCallbacks = 0;
+static uint32_t stageLastEarlyPollHostFrame = 0;
+static uint32_t stageReadySinceHostFrame = 0;
+static bool stageEarlyPollSeen = false;
+static uint16_t stageLastCopyEndVcount = 0;
 static bool readyScreenDisabled = false;
 static uint32_t readyGuestFrame = 0;
 static u8 readySgbMap[18 * 20];
@@ -585,6 +588,9 @@ void hblankHandler()
 
 static VBlankTaskQueue<64> vblankTasks;
 static volatile bool vblankTaskOverflow = false;
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+static volatile bool videoCommitInProgress = false;
+#endif
 
 void doAtVBlank(void (*func)(void)) {
     // A foreground enqueue may be interrupted by VBlank. This short section
@@ -658,10 +664,16 @@ void vblankHandler()
         filterFlip = !filterFlip;
     }
 
-    const VBlankTaskQueue<64>::Batch tasks = vblankTasks.beginDrain();
-    for (unsigned i=0; i<tasks.count; i++) {
-        tasks.tasks[i]();
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+    if (!videoCommitInProgress) {
+#endif
+        const VBlankTaskQueue<64>::Batch tasks = vblankTasks.beginDrain();
+        for (unsigned i=0; i<tasks.count; i++) {
+            tasks.tasks[i]();
+        }
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
     }
+#endif
 }
 
 // This just sets up the background
@@ -739,7 +751,7 @@ void initGFX()
     for (int i=0; i<144; i++) {
         scanlineBuffers[0][i].modified = false;
         scanlineBuffers[1][i].modified = false;
-#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
         scanlineBuffers[2][i].modified = false;
 #endif
     }
@@ -1315,7 +1327,14 @@ void drawScreen()
         return;
 
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
-    if (stagedRendererActive || fastForwardMode || fastForwardKey) {
+    if (stagedRendererActive && stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
+    const bool recentEarlyPoll = stageEarlyPollSeen &&
+        (uint32_t)(dsFrameCounter - stageLastEarlyPollHostFrame) <= 2;
+    if (stagedRendererActive ||
+            ((fastForwardMode || fastForwardKey) &&
+             stageCalibrationEligible && recentEarlyPoll &&
+             stageFaultCode == GB_STAGE_FAULT_NONE)) {
         stageCompletedVideoFrame();
         servicePendingVideoFrameCommit();
         return;
@@ -1728,6 +1747,14 @@ static void stageCompletedVideoFrame() {
         stagedRendererActive = true;
         stagedDirty = 0;
     }
+    // A foreground hook that never reaches the safe host interval must not
+    // leave a permanently stale picture while the guest continues running.
+    // This is a recoverable experimental fault, not a transfer safety bound.
+    if (frameSlots.hasReady() &&
+            gbStageReadyStale(dsFrameCounter, stageReadySinceHostFrame)) {
+        stageFaultCode = GB_STAGE_FAULT_NO_COMMIT_OPPORTUNITY;
+        return;
+    }
 
     for (int i = 0; i < changedTileQueueLength; i++) {
         const int tile = changedTileQueue[i] & 0x1ff;
@@ -1769,7 +1796,10 @@ static void stageCompletedVideoFrame() {
                 superseded[line].spritesModified;
         }
     }
+    const bool hadReady = frameSlots.hasReady();
     frameSlots.stageCompleted();
+    if (!hadReady)
+        stageReadySinceHostFrame = dsFrameCounter;
     renderingState = scanlineBuffers[frameSlots.producer()];
     memcpy(renderingState, completed, sizeof(scanlineBuffers[0]));
 }
@@ -1802,8 +1832,10 @@ static void copyStagedAssetsToLive(unsigned dirtyMask) {
 #undef COPY_STAGED
 }
 
-bool measureGbStageFullCopy(GbStageCopyMeasurement* output) {
-    if (!output || !gameboy || !gbGraphicsDisabled)
+bool measureGbStageFullCopyAtLine(unsigned startLine,
+                                  GbStageCopyMeasurement* output) {
+    if (!output || !gameboy || !gbGraphicsDisabled ||
+            (startLine != 168 && startLine != 192))
         return false;
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
     if (stagedRendererActive)
@@ -1811,28 +1843,138 @@ bool measureGbStageFullCopy(GbStageCopyMeasurement* output) {
 #endif
     copyLiveAssetsToStage();
     swiWaitForVBlank();
+    if (startLine == 168) {
+        while (REG_VCOUNT != 168) {}
+    }
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (vblankTasks.hasPending() || videoCommitInProgress) {
+        REG_IME = previousIme;
+        return false;
+    }
+    videoCommitInProgress = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
     output->startHostFrame = dsFrameCounter;
     output->startVcount = REG_VCOUNT;
     copyStagedAssetsToLive(STAGE_ALL);
     output->endHostFrame = dsFrameCounter;
     output->endVcount = REG_VCOUNT;
     output->bytesCopied = gbStageDirtyBytes(STAGE_ALL);
+    const int restoreIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoCommitInProgress = false;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = restoreIme;
     return true;
+}
+
+bool measureGbStageFullCopy(GbStageCopyMeasurement* output) {
+    return measureGbStageFullCopyAtLine(192, output);
+}
+
+bool calibrateGbStagedVideo(GbStageCalibration* output) {
+    if (!output)
+        return false;
+    if (!gameboy || !gbGraphicsDisabled)
+        return false;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive || stageFaultCode != GB_STAGE_FAULT_NONE)
+        return false;
+#endif
+    memset(output, 0, sizeof(*output));
+    stageCalibrationEligible = false;
+    stageAdmittedBoundLines = 0;
+    for (unsigned trial = 0; trial < GB_STAGE_CALIBRATION_TRIALS; trial++) {
+        if (!measureGbStageFullCopyAtLine(168, &output->trials[trial]))
+            return false;
+        output->completedTrials++;
+        const GbStageCopyMeasurement& sample = output->trials[trial];
+        const unsigned elapsed = gbStageElapsedLines(
+            sample.startHostFrame, sample.startVcount,
+            sample.endHostFrame, sample.endVcount);
+        if (elapsed > output->maxObservedLines)
+            output->maxObservedLines = elapsed;
+    }
+    // This 16-line cushion is intentionally conservative relative to the
+    // observed complete transfer, but remains an experimental, not absolute,
+    // bound. A failed budget leaves the original renderer in use.
+    const unsigned admitted = output->maxObservedLines + 16;
+    if (admitted <= 66 && mayCommitGbStagedFrame(168, admitted)) {
+        output->admittedBoundLines = admitted;
+        output->eligible = 1;
+        stageAdmittedBoundLines = admitted;
+        stageCalibrationEligible = true;
+    }
+    return true;
+}
+
+GbStageRuntimeStatus getGbStageRuntimeStatus() {
+    GbStageRuntimeStatus result = {};
+    result.calibrationEligible = stageCalibrationEligible;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    result.presentedFrames = stagePresentedFrames;
+    result.deferredForCallbacks = stageDeferredForCallbacks;
+    result.lastEarlyPollHostFrame = stageLastEarlyPollHostFrame;
+    result.lastCopyEndVcount = stageLastCopyEndVcount;
+    result.faultCode = stageFaultCode;
+#endif
+    return result;
 }
 
 void servicePendingVideoFrameCommit() {
 #ifndef GAMEYOB_STAGE_VIDEO_ACTIVE
     return;
 #else
+    const unsigned line = REG_VCOUNT;
+    if (line >= 168 && line <= 170) {
+        stageLastEarlyPollHostFrame = dsFrameCounter;
+        stageEarlyPollSeen = true;
+    }
+    if (stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
     if (!stagedRendererActive || !frameSlots.hasReady() ||
             gbGraphicsDisabled || gfxMask || isMenuOn() || isFileChooserOn())
         return;
-    // A full 92 KiB copy was timed on DS hardware, with IRQ and scheduling
-    // margin, before enabling this build. Copy every dirty block in one batch.
-    const unsigned line = REG_VCOUNT;
-    if (!mayCommitGbStagedFrame(line, GAMEYOB_STAGE_VIDEO_MAX_COPY_LINES))
+    if (!stageCalibrationEligible ||
+            !mayCommitGbStagedFrame(line, stageAdmittedBoundLines))
         return;
+
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (vblankTasks.hasPending() || videoCommitInProgress) {
+        stageDeferredForCallbacks++;
+        REG_IME = previousIme;
+        return;
+    }
+    videoCommitInProgress = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+
+    const unsigned startHostFrame = dsFrameCounter;
     copyStagedAssetsToLive(stagedDirty);
+    const unsigned endHostFrame = dsFrameCounter;
+    const unsigned endLine = REG_VCOUNT;
+    const int restoreIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoCommitInProgress = false;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = restoreIme;
+    stageLastCopyEndVcount = endLine;
+
+    const unsigned elapsed = gbStageElapsedLines(startHostFrame, line,
+                                                  endHostFrame, endLine);
+    if (elapsed >= 235 - line || elapsed > stageAdmittedBoundLines) {
+        // Single-bank VRAM cannot roll back a partial host frame here. Stop
+        // future staged publication and report a recoverable fault through
+        // foreground integration; refreshGFX on reset/reload rebuilds VRAM.
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
+        return;
+    }
     stagedDirty = 0;
     TRACE_VIDEO(VIDEO_UPLOAD_END, REG_VCOUNT);
 
@@ -1840,7 +1982,7 @@ void servicePendingVideoFrameCommit() {
     displayTilePriority[0] = readyTilePriority[0];
     displayTilePriority[1] = readyTilePriority[1];
 
-    const int previousIme = REG_IME;
+    const int publishIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
     frameSlots.commitReady();
@@ -1850,13 +1992,22 @@ void servicePendingVideoFrameCommit() {
     publishedGuestFrame = readyGuestFrame;
 #endif
     __asm__ volatile("" ::: "memory");
-    REG_IME = previousIme;
+    REG_IME = publishIme;
+    stagePresentedFrames++;
     TRACE_VIDEO(VIDEO_PUBLISH, REG_VCOUNT);
 #endif
 }
 #else
 void servicePendingVideoFrameCommit() {}
 bool measureGbStageFullCopy(GbStageCopyMeasurement*) { return false; }
+bool measureGbStageFullCopyAtLine(unsigned, GbStageCopyMeasurement*) {
+    return false;
+}
+bool calibrateGbStagedVideo(GbStageCalibration*) { return false; }
+GbStageRuntimeStatus getGbStageRuntimeStatus() {
+    GbStageRuntimeStatus result = {};
+    return result;
+}
 #endif
 
 void updateBgPalette(int paletteid, u8* data, u8 dmgPal) {

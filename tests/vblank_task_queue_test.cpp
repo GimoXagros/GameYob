@@ -13,15 +13,20 @@ static void first() {
 static void second() { order[count++] = 2; }
 
 int main() {
+    assert(!queue.hasPending());
     assert(queue.enqueue(first));
+    assert(queue.hasPending());
     assert(queue.enqueue(second));
     assert(!queue.enqueue(third)); // Explicit, bounded overflow.
     VBlankTaskQueue<2>::Batch batch = queue.beginDrain();
+    assert(!queue.hasPending());
     assert(batch.count == 2);
     for (unsigned i = 0; i < batch.count; ++i)
         batch.tasks[i]();
     assert(count == 2 && order[0] == 1 && order[1] == 2);
+    assert(queue.hasPending());
     batch = queue.beginDrain();
+    assert(!queue.hasPending());
     assert(batch.count == 1);
     batch.tasks[0]();
     assert(count == 3 && order[2] == 3);

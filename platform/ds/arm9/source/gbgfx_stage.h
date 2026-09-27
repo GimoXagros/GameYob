@@ -101,12 +101,30 @@ private:
     unsigned free_;
 };
 
-// Max-copy-lines comes from a hardware run of the complete 92 KiB transfer.
-// Include two scanlines of margin before the line-0 pre-render at VCOUNT 235.
+// The bound includes the calibration's additional IRQ/contention margin.
+// One complete copy must finish before line-0 pre-render at VCOUNT 235.
 static inline bool mayCommitGbStagedFrame(unsigned physicalLine,
                                            unsigned maxCopyLines) {
-    return physicalLine >= 168 && maxCopyLines <= 64 &&
-           physicalLine + maxCopyLines + 2 < 235;
+    return physicalLine >= 168 && physicalLine <= 170 &&
+           maxCopyLines <= 66 && physicalLine + maxCopyLines < 235;
+}
+
+// Only a liveness alarm: a stuck ready generation is reported to foreground
+// integration, never silently discarded or used to justify a late copy.
+static inline bool gbStageReadyStale(uint32_t nowHostFrame,
+                                     uint32_t readySinceHostFrame) {
+    return (uint32_t)(nowHostFrame - readySinceHostFrame) >= 120;
+}
+
+// dsFrameCounter advances at VBlank line 192, not physical line zero.
+static inline unsigned gbStageElapsedLines(uint32_t startHostFrame,
+                                            unsigned startLine,
+                                            uint32_t endHostFrame,
+                                            unsigned endLine) {
+    const int startPhase = (startLine + 263 - 192) % 263;
+    const int endPhase = (endLine + 263 - 192) % 263;
+    return (uint32_t)(endHostFrame - startHostFrame) * 263 +
+           endPhase - startPhase;
 }
 
 enum GbStageDirtyBlock {

@@ -94,11 +94,17 @@ int main() {
     assert(stagedSlots.displayed() == 1 && stagedSlots.producer() == 0);
 
     assert(!mayCommitGbStagedFrame(167, 0));
-    assert(mayCommitGbStagedFrame(168, 40));
-    assert(mayCommitGbStagedFrame(192, 40));
-    assert(!mayCommitGbStagedFrame(193, 40));
-    assert(!mayCommitGbStagedFrame(200, 40));
-    assert(!mayCommitGbStagedFrame(168, 65));
+    assert(mayCommitGbStagedFrame(168, 64));
+    assert(mayCommitGbStagedFrame(170, 64));
+    assert(!mayCommitGbStagedFrame(170, 65));
+    assert(!mayCommitGbStagedFrame(192, 40));
+    assert(!mayCommitGbStagedFrame(168, 67));
+    assert(gbStageElapsedLines(3, 192, 3, 240) == 48);
+    assert(gbStageElapsedLines(3, 168, 4, 216) == 48);
+    assert(gbStageElapsedLines(3, 240, 3, 20) == 43);
+    assert(!gbStageReadyStale(119, 0));
+    assert(gbStageReadyStale(120, 0));
+    assert(gbStageReadyStale(119, 0xfffffffeu));
     assert(gbStageTileDirtyMask(0x7f) ==
            (STAGE_UNSIGNED | STAGE_UNSIGNED_FILLED | STAGE_OBJ));
     assert(gbStageTileDirtyMask(0x80) ==
