@@ -70,6 +70,23 @@ static GuardedAssets converted = {};
 static GuardedAssets legacy = {};
 
 int main() {
+    struct MinimalLine { bool modified; int scroll; };
+    MinimalLine latest[3][2] = {};
+    GbFrameSlots latestSlots;
+    latest[1][0].modified = true;
+    latest[1][0].scroll = 0;
+    latest[1][1].modified = true;
+    latest[1][1].scroll = 8;
+    gbStageCompleteLatestFrame(latestSlots, latest); // Ready A.
+    assert(latestSlots.ready() == 1 && latestSlots.producer() == 2);
+    latest[2][0].modified = true;  // B starts with a full-frame line-0 state.
+    latest[2][0].scroll = 0;
+    latest[2][1].modified = false; // No line-1 change in B.
+    gbStageCompleteLatestFrame(latestSlots, latest); // B supersedes A.
+    assert(latestSlots.ready() == 2);
+    assert(!latest[2][1].modified); // Old A's line flag must not replay.
+    assert(!latest[latestSlots.producer()][1].modified);
+
     GbFrameSlots legacySlots;
     assert(legacySlots.displayed() == 0 && legacySlots.producer() == 1);
     legacySlots.publishImmediately();
@@ -95,16 +112,31 @@ int main() {
 
     assert(!mayCommitGbStagedFrame(167, 0));
     assert(mayCommitGbStagedFrame(168, 64));
-    assert(mayCommitGbStagedFrame(170, 64));
-    assert(!mayCommitGbStagedFrame(170, 65));
+    assert(!mayCommitGbStagedFrame(170, 64));
+    assert(mayCommitGbStagedFrame(170, 62));
+    assert(!mayCommitGbStagedFrame(170, 63));
     assert(!mayCommitGbStagedFrame(192, 40));
     assert(!mayCommitGbStagedFrame(168, 67));
+    assert(gbStageMayPublish(232));
+    assert(!gbStageMayPublish(233));
+    assert(!gbStageMayPublish(20));
     assert(gbStageElapsedLines(3, 192, 3, 240) == 48);
     assert(gbStageElapsedLines(3, 168, 4, 216) == 48);
     assert(gbStageElapsedLines(3, 240, 3, 20) == 43);
     assert(!gbStageReadyStale(119, 0));
     assert(gbStageReadyStale(120, 0));
     assert(gbStageReadyStale(119, 0xfffffffeu));
+    assert(gbStageNeedsForegroundWait(true, true, true, true));
+    assert(!gbStageNeedsForegroundWait(true, false, true, true));
+    assert(!gbStageNeedsForegroundWait(true, true, false, true));
+    assert(!gbStageNeedsForegroundWait(true, true, true, false));
+    assert(!gbStageNeedsForegroundWait(false, true, true, true));
+    assert(gbStageAwaitSafePoll(7, 7, true));
+    assert(!gbStageAwaitSafePoll(7, 8, true));
+    assert(!gbStageAwaitSafePoll(7, 7, false));
+    assert(gbStageAwaitHostVBlank(12, 12)); // Service before line 192.
+    assert(!gbStageAwaitHostVBlank(12, 13)); // Copy crossed line 192.
+    assert(gbStageAwaitHostVBlank(13, 13)); // Entered after line 168.
     assert(gbStageTileDirtyMask(0x7f) ==
            (STAGE_UNSIGNED | STAGE_UNSIGNED_FILLED | STAGE_OBJ));
     assert(gbStageTileDirtyMask(0x80) ==

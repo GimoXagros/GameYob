@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <string.h>
 
 // The six guest BG maps and four guest character blocks occupy exactly 92 KiB
 // with the 512 guest OBJ tiles. Border graphics and the printer icon are not
@@ -101,12 +102,28 @@ private:
     unsigned free_;
 };
 
+// A superseding ready frame is self-contained: line 0's renderer snapshot
+// seeds the complete frame, and unmodified lines intentionally remain
+// unmodified. Carrying flags from the previous ready frame would replay old
+// scroll/palette/sprite payload against the new frame.
+template <typename Line, unsigned SlotCount, unsigned LineCount>
+static inline void gbStageCompleteLatestFrame(
+        GbFrameSlots& slots, Line (&buffers)[SlotCount][LineCount]) {
+    Line* const completed = buffers[slots.producer()];
+    slots.stageCompleted();
+    memcpy(buffers[slots.producer()], completed, sizeof(buffers[0]));
+}
+
 // The bound includes the calibration's additional IRQ/contention margin.
 // One complete copy must finish before line-0 pre-render at VCOUNT 235.
 static inline bool mayCommitGbStagedFrame(unsigned physicalLine,
                                            unsigned maxCopyLines) {
     return physicalLine >= 168 && physicalLine <= 170 &&
-           maxCopyLines <= 66 && physicalLine + maxCopyLines < 235;
+           maxCopyLines <= 64 && physicalLine + maxCopyLines + 2 < 235;
+}
+
+static inline bool gbStageMayPublish(unsigned physicalLine) {
+    return physicalLine >= 168 && physicalLine + 2 < 235;
 }
 
 // Only a liveness alarm: a stuck ready generation is reported to foreground
@@ -114,6 +131,23 @@ static inline bool mayCommitGbStagedFrame(unsigned physicalLine,
 static inline bool gbStageReadyStale(uint32_t nowHostFrame,
                                      uint32_t readySinceHostFrame) {
     return (uint32_t)(nowHostFrame - readySinceHostFrame) >= 120;
+}
+
+static inline bool gbStageNeedsForegroundWait(bool active, bool ready,
+                                               bool displayAllowed,
+                                               bool faultFree) {
+    return active && ready && displayAllowed && faultFree;
+}
+
+static inline bool gbStageAwaitSafePoll(uint32_t startingSerial,
+                                        uint32_t currentSerial,
+                                        bool faultFree) {
+    return startingSerial == currentSerial && faultFree;
+}
+
+static inline bool gbStageAwaitHostVBlank(uint32_t serviceHostFrame,
+                                          uint32_t currentHostFrame) {
+    return serviceHostFrame == currentHostFrame;
 }
 
 // dsFrameCounter advances at VBlank line 192, not physical line zero.

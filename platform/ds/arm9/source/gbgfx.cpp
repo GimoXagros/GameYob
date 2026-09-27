@@ -190,6 +190,7 @@ static uint8_t stageFaultCode = GB_STAGE_FAULT_NONE;
 static uint32_t stagePresentedFrames = 0;
 static uint32_t stageDeferredForCallbacks = 0;
 static uint32_t stageLastEarlyPollHostFrame = 0;
+static uint32_t stageEarlyPollSerial = 0;
 static uint32_t stageReadySinceHostFrame = 0;
 static bool stageEarlyPollSeen = false;
 static uint16_t stageLastCopyEndVcount = 0;
@@ -1306,14 +1307,34 @@ void drawScreen()
         return;
 
     if (!(fastForwardMode || fastForwardKey)) {
-        if (interruptWaitMode == 1) // Always wait for Vblank.
-            swiWaitForVBlank();
-        else { // Continue if we've passed vblank.
-            // I used to do swiIntrWait(0,IRQ_VBLANK), but apparently that
-            // stopped working?
-
-            // This is essentially equivalent.
-            if (!didVblank)
+        const bool mustWait = interruptWaitMode == 1 || !didVblank;
+        if (mustWait) {
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+            if (gbStageNeedsForegroundWait(
+                    stagedRendererActive, frameSlots.hasReady(),
+                    !gbGraphicsDisabled && !gfxMask && !isMenuOn() &&
+                    !isFileChooserOn(),
+                    stageFaultCode == GB_STAGE_FAULT_NONE)) {
+                // A blocking VBlank wait after releasing FF can miss the
+                // only safe foreground publication interval. Keep normal
+                // host pacing, but service line 168 first. Guest cycles do
+                // not advance during this wait, just as with the old SWI.
+                const uint32_t pollSerial = stageEarlyPollSerial;
+                uint32_t serviceFrame = dsFrameCounter;
+                while (gbStageAwaitSafePoll(
+                           pollSerial, stageEarlyPollSerial,
+                           stageFaultCode == GB_STAGE_FAULT_NONE)) {
+                    const unsigned line = REG_VCOUNT;
+                    if (line >= 168 && line <= 170) {
+                        serviceFrame = dsFrameCounter;
+                        servicePendingVideoFrameCommit();
+                    }
+                }
+                if (stageFaultCode == GB_STAGE_FAULT_NONE &&
+                        gbStageAwaitHostVBlank(serviceFrame, dsFrameCounter))
+                    swiWaitForVBlank();
+            } else
+#endif
                 swiWaitForVBlank();
         }
     }
@@ -1781,27 +1802,11 @@ static void stageCompletedVideoFrame() {
     readyTilePriority[1] = usingTilePriority[1];
     winPosY = -1;
 
-    const unsigned oldReady = frameSlots.ready();
-    ScanlineStruct* const completed = renderingState;
-    if (frameSlots.hasReady()) {
-        const ScanlineStruct* const superseded = scanlineBuffers[oldReady];
-        for (int line = 0; line < 144; line++) {
-            completed[line].modified |= superseded[line].modified;
-            completed[line].mapsModified |= superseded[line].mapsModified;
-            completed[line].bgPalettesModified |=
-                superseded[line].bgPalettesModified;
-            completed[line].sprPalettesModified |=
-                superseded[line].sprPalettesModified;
-            completed[line].spritesModified |=
-                superseded[line].spritesModified;
-        }
-    }
     const bool hadReady = frameSlots.hasReady();
-    frameSlots.stageCompleted();
+    gbStageCompleteLatestFrame(frameSlots, scanlineBuffers);
     if (!hadReady)
         stageReadySinceHostFrame = dsFrameCounter;
     renderingState = scanlineBuffers[frameSlots.producer()];
-    memcpy(renderingState, completed, sizeof(scanlineBuffers[0]));
 }
 #endif
 
@@ -1854,20 +1859,20 @@ bool measureGbStageFullCopyAtLine(unsigned startLine,
         return false;
     }
     videoCommitInProgress = true;
-    __asm__ volatile("" ::: "memory");
-    REG_IME = previousIme;
     output->startHostFrame = dsFrameCounter;
     output->startVcount = REG_VCOUNT;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
     copyStagedAssetsToLive(STAGE_ALL);
-    output->endHostFrame = dsFrameCounter;
-    output->endVcount = REG_VCOUNT;
-    output->bytesCopied = gbStageDirtyBytes(STAGE_ALL);
     const int restoreIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
+    output->endHostFrame = dsFrameCounter;
+    output->endVcount = REG_VCOUNT;
     videoCommitInProgress = false;
     __asm__ volatile("" ::: "memory");
     REG_IME = restoreIme;
+    output->bytesCopied = gbStageDirtyBytes(STAGE_ALL);
     return true;
 }
 
@@ -1902,7 +1907,7 @@ bool calibrateGbStagedVideo(GbStageCalibration* output) {
     // observed complete transfer, but remains an experimental, not absolute,
     // bound. A failed budget leaves the original renderer in use.
     const unsigned admitted = output->maxObservedLines + 16;
-    if (admitted <= 66 && mayCommitGbStagedFrame(168, admitted)) {
+    if (admitted <= 64 && mayCommitGbStagedFrame(168, admitted)) {
         output->admittedBoundLines = admitted;
         output->eligible = 1;
         stageAdmittedBoundLines = admitted;
@@ -1932,6 +1937,7 @@ void servicePendingVideoFrameCommit() {
     if (line >= 168 && line <= 170) {
         stageLastEarlyPollHostFrame = dsFrameCounter;
         stageEarlyPollSeen = true;
+        stageEarlyPollSerial++;
     }
     if (stageFaultCode != GB_STAGE_FAULT_NONE)
         return;
@@ -1945,55 +1951,79 @@ void servicePendingVideoFrameCommit() {
     const int previousIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
+    const unsigned reservedLine = REG_VCOUNT;
+    if (!mayCommitGbStagedFrame(reservedLine, stageAdmittedBoundLines)) {
+        REG_IME = previousIme;
+        return;
+    }
     if (vblankTasks.hasPending() || videoCommitInProgress) {
         stageDeferredForCallbacks++;
         REG_IME = previousIme;
         return;
     }
+    const uint32_t startHostFrame = dsFrameCounter;
     videoCommitInProgress = true;
     __asm__ volatile("" ::: "memory");
     REG_IME = previousIme;
 
-    const unsigned startHostFrame = dsFrameCounter;
     copyStagedAssetsToLive(stagedDirty);
-    const unsigned endHostFrame = dsFrameCounter;
-    const unsigned endLine = REG_VCOUNT;
     const int restoreIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
+    const uint32_t endHostFrame = dsFrameCounter;
+    const unsigned endLine = REG_VCOUNT;
     videoCommitInProgress = false;
     __asm__ volatile("" ::: "memory");
     REG_IME = restoreIme;
     stageLastCopyEndVcount = endLine;
 
-    const unsigned elapsed = gbStageElapsedLines(startHostFrame, line,
+    const unsigned elapsed = gbStageElapsedLines(startHostFrame, reservedLine,
                                                   endHostFrame, endLine);
-    if (elapsed >= 235 - line || elapsed > stageAdmittedBoundLines) {
+    if (elapsed > stageAdmittedBoundLines || !gbStageMayPublish(endLine)) {
         // Single-bank VRAM cannot roll back a partial host frame here. Stop
         // future staged publication and report a recoverable fault through
-        // foreground integration; refreshGFX on reset/reload rebuilds VRAM.
+        // foreground integration. Reset/reload rebuilds ordinary VRAM;
+        // staging remains disabled until an app restart.
         stageFaultCode = GB_STAGE_FAULT_DEADLINE;
         return;
     }
-    stagedDirty = 0;
-    TRACE_VIDEO(VIDEO_UPLOAD_END, REG_VCOUNT);
-
-    memcpy(displaySgbMap, readySgbMap, sizeof(displaySgbMap));
-    displayTilePriority[0] = readyTilePriority[0];
-    displayTilePriority[1] = readyTilePriority[1];
 
     const int publishIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
+    const unsigned publishLine = REG_VCOUNT;
+    const uint32_t publishHostFrame = dsFrameCounter;
+    if (!gbStageMayPublish(publishLine) ||
+            gbStageElapsedLines(startHostFrame, reservedLine,
+                                publishHostFrame, publishLine) >
+                stageAdmittedBoundLines) {
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
+        REG_IME = publishIme;
+        return;
+    }
+    memcpy(displaySgbMap, readySgbMap, sizeof(displaySgbMap));
+    displayTilePriority[0] = readyTilePriority[0];
+    displayTilePriority[1] = readyTilePriority[1];
     frameSlots.commitReady();
     drawingState = scanlineBuffers[frameSlots.displayed()];
     screenDisabled = readyScreenDisabled;
 #ifdef GAMEYOB_VIDEO_TRACE
     publishedGuestFrame = readyGuestFrame;
 #endif
+    const unsigned finalLine = REG_VCOUNT;
+    const uint32_t finalHostFrame = dsFrameCounter;
+    if (!gbStageMayPublish(finalLine) ||
+            gbStageElapsedLines(startHostFrame, reservedLine,
+                                finalHostFrame, finalLine) >
+                stageAdmittedBoundLines)
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
     __asm__ volatile("" ::: "memory");
     REG_IME = publishIme;
+    if (stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
+    stagedDirty = 0;
     stagePresentedFrames++;
+    TRACE_VIDEO(VIDEO_UPLOAD_END, endLine);
     TRACE_VIDEO(VIDEO_PUBLISH, REG_VCOUNT);
 #endif
 }
