@@ -210,6 +210,12 @@ int main(int argc, char* argv[])
         if (stageStatus.faultCode != GB_STAGE_FAULT_NONE &&
                 !stageFaultNotified) {
             stageFaultNotified = true;
+            // The console can be disabled during gameplay (single-screen or
+            // scaled display). Make the recovery choice visible immediately.
+            if (!isMenuOn() && !isFileChooserOn()) {
+                mgr_pause();
+                displayMenu();
+            }
             printMenuMessage("Video fault: reset/reload ROM");
             printLog("Staged video fault %u; normal video needs Reset/ROM reload.\n",
                      stageStatus.faultCode);
