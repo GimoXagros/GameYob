@@ -11,6 +11,7 @@
 #include "gb_render_rules.h"
 #include "mmu.h"
 #include "gameboy.h"
+#include "gbmanager.h"
 #include "console.h"
 #include "menu.h"
 #include "filechooser.h"
@@ -1344,6 +1345,17 @@ void drawScreen()
     if (REG_VCOUNT == 192)
         sharedData->frameFlip_DS = sharedData->frameFlip_Gameboy;
 
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    const bool paused = mgr_isPaused();
+    const bool suspended = gbStageDisplaySuspended(
+        paused, isMenuOn(), isFileChooserOn(), gfxMask, gbGraphicsDisabled);
+    gbStageRebaseReadyAge(dsFrameCounter, suspended,
+                          frameSlots.hasReady(), &stageReadySinceHostFrame);
+    // A paused manager calls drawScreen again without producing a guest
+    // frame. Keep the last complete ready generation and its staged assets.
+    if (stagedRendererActive && paused)
+        return;
+#endif
     if (gfxMask)
         return;
 
@@ -1941,11 +1953,17 @@ void servicePendingVideoFrameCommit() {
     }
     if (stageFaultCode != GB_STAGE_FAULT_NONE)
         return;
-    if (!stagedRendererActive || !frameSlots.hasReady() ||
-            gbGraphicsDisabled || gfxMask || isMenuOn() || isFileChooserOn())
+    const bool suspended = gbStageDisplaySuspended(
+        mgr_isPaused(), isMenuOn(), isFileChooserOn(), gfxMask,
+        gbGraphicsDisabled);
+    gbStageRebaseReadyAge(dsFrameCounter, suspended,
+                          frameSlots.hasReady(), &stageReadySinceHostFrame);
+    if (suspended)
         return;
-    if (!stageCalibrationEligible ||
-            !mayCommitGbStagedFrame(line, stageAdmittedBoundLines))
+    if (!stagedRendererActive || !frameSlots.hasReady() ||
+            !stageCalibrationEligible)
+        return;
+    if (!mayCommitGbStagedFrame(line, stageAdmittedBoundLines))
         return;
 
     const int previousIme = REG_IME;

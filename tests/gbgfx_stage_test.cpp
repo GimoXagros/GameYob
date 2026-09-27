@@ -131,6 +131,27 @@ int main() {
     assert(!gbStageNeedsForegroundWait(true, true, false, true));
     assert(!gbStageNeedsForegroundWait(true, true, true, false));
     assert(!gbStageNeedsForegroundWait(false, true, true, true));
+    assert(gbStageDisplaySuspended(true, false, false, false, false));
+    assert(gbStageDisplaySuspended(false, true, false, false, false));
+    assert(gbStageDisplaySuspended(false, false, true, false, false));
+    assert(!gbStageDisplaySuspended(false, false, false, false, false));
+    uint32_t readySince = 3;
+    gbStageRebaseReadyAge(150, true, true, &readySince);
+    assert(readySince == 150 && !gbStageReadyStale(151, readySince));
+    gbStageRebaseReadyAge(151, false, true, &readySince);
+    assert(readySince == 150);
+    gbStageRebaseReadyAge(200, true, false, &readySince);
+    assert(readySince == 150);
+    GbFrameSlots suspendedSlots;
+    assert(suspendedSlots.stageCompleted() == 3);
+    readySince = 0;
+    for (uint32_t hostFrame = 1; hostFrame <= 180; hostFrame++)
+        gbStageRebaseReadyAge(hostFrame, true,
+                              suspendedSlots.hasReady(), &readySince);
+    assert(suspendedSlots.hasReady());
+    assert(!gbStageReadyStale(181, readySince));
+    suspendedSlots.commitReady(); // First eligible service after resume.
+    assert(!suspendedSlots.hasReady() && suspendedSlots.displayed() == 1);
     assert(gbStageAwaitSafePoll(7, 7, true));
     assert(!gbStageAwaitSafePoll(7, 8, true));
     assert(!gbStageAwaitSafePoll(7, 7, false));

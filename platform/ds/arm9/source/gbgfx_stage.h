@@ -139,6 +139,19 @@ static inline bool gbStageNeedsForegroundWait(bool active, bool ready,
     return active && ready && displayAllowed && faultFree;
 }
 
+static inline bool gbStageDisplaySuspended(bool paused, bool menu,
+                                           bool chooser, bool mask,
+                                           bool graphicsDisabled) {
+    return paused || menu || chooser || mask || graphicsDisabled;
+}
+
+static inline void gbStageRebaseReadyAge(uint32_t nowHostFrame,
+                                         bool suspended, bool ready,
+                                         uint32_t* readySinceHostFrame) {
+    if (suspended && ready)
+        *readySinceHostFrame = nowHostFrame;
+}
+
 static inline bool gbStageAwaitSafePoll(uint32_t startingSerial,
                                         uint32_t currentSerial,
                                         bool faultFree) {
