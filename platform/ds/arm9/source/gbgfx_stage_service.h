@@ -14,7 +14,13 @@ enum { GB_STAGE_CALIBRATION_TRIALS = 16 };
 enum GbStageFaultCode {
     GB_STAGE_FAULT_NONE = 0,
     GB_STAGE_FAULT_DEADLINE = 1,
-    GB_STAGE_FAULT_NO_COMMIT_OPPORTUNITY = 2
+    GB_STAGE_FAULT_NO_COMMIT_OPPORTUNITY = 2,
+    GB_STAGE_FAULT_DMA_CONFLICT = 3
+};
+
+enum GbStageCopyBackend {
+    GB_STAGE_COPY_NONE = 0,
+    GB_STAGE_COPY_DMA3_WORDS = 1
 };
 
 struct GbStageCalibration {
@@ -26,12 +32,14 @@ struct GbStageCalibration {
 };
 
 struct GbStageRuntimeStatus {
+    uint32_t stagedEntries;
     uint32_t presentedFrames;
     uint32_t deferredForCallbacks;
     uint32_t lastEarlyPollHostFrame;
     uint16_t lastCopyEndVcount;
     uint8_t calibrationEligible;
     uint8_t faultCode;
+    uint8_t copyBackend;
 };
 
 // Diagnostic-only, foreground pre-ROM call while game graphics are disabled.

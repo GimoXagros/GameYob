@@ -188,6 +188,7 @@ static unsigned stageAdmittedBoundLines = 0;
 static bool stagedRendererActive = false;
 static unsigned stagedDirty = 0;
 static uint8_t stageFaultCode = GB_STAGE_FAULT_NONE;
+static uint32_t stageStagedEntries = 0;
 static uint32_t stagePresentedFrames = 0;
 static uint32_t stageDeferredForCallbacks = 0;
 static uint32_t stageLastEarlyPollHostFrame = 0;
@@ -1778,6 +1779,7 @@ static void stageCompletedVideoFrame() {
     if (!stagedRendererActive) {
         copyLiveAssetsToStage();
         stagedRendererActive = true;
+        stageStagedEntries++;
         stagedDirty = 0;
     }
     // A foreground hook that never reaches the safe host interval must not
@@ -1822,31 +1824,24 @@ static void stageCompletedVideoFrame() {
 }
 #endif
 
-static void copyStagedAssetsToLive(unsigned dirtyMask) {
+struct GbStageDmaOps {
+    bool busy() const { return dmaBusy(3) != 0; }
+    void flush(const void* source, unsigned bytes) const {
+        DC_FlushRange(source, bytes);
+    }
+    void copy(const void* source, void* destination, unsigned bytes) const {
+        dmaCopyWords(3, source, destination, bytes);
+    }
+};
+
+static bool copyStagedAssetsToLive(unsigned dirtyMask) {
     const GbTileTargets liveTiles = liveGbTileTargets();
     const GbMapTargets liveMaps = liveGbMapTargets();
     const GbTileTargets ramTiles = stagedAssets.tileTargets();
     const GbMapTargets ramMaps = stagedAssets.mapTargets();
-#define COPY_STAGED(bit, dest, src, bytes) \
-    do { if (dirtyMask & (bit)) memcpy((dest), (src), (bytes)); } while (0)
-    COPY_STAGED(STAGE_UNSIGNED, liveTiles.unsignedTiles,
-                ramTiles.unsignedTiles, 0x4000);
-    COPY_STAGED(STAGE_SIGNED, liveTiles.signedTiles,
-                ramTiles.signedTiles, 0x4000);
-    COPY_STAGED(STAGE_UNSIGNED_FILLED, liveTiles.unsignedFilledTiles,
-                ramTiles.unsignedFilledTiles, 0x4000);
-    COPY_STAGED(STAGE_SIGNED_FILLED, liveTiles.signedFilledTiles,
-                ramTiles.signedFilledTiles, 0x4000);
-    COPY_STAGED(STAGE_OBJ, liveTiles.objTiles, ramTiles.objTiles, 0x4000);
-    for (int m = 0; m < 2; m++) {
-        COPY_STAGED(1 << (5 + m * 3), liveMaps.normal[m],
-                    ramMaps.normal[m], 0x800);
-        COPY_STAGED(1 << (6 + m * 3), liveMaps.color0[m],
-                    ramMaps.color0[m], 0x800);
-        COPY_STAGED(1 << (7 + m * 3), liveMaps.overlay[m],
-                    ramMaps.overlay[m], 0x800);
-    }
-#undef COPY_STAGED
+    GbStageDmaOps ops;
+    return gbStageTransferDirtyAssets(dirtyMask, ramTiles, ramMaps,
+                                       liveTiles, liveMaps, ops);
 }
 
 bool measureGbStageFullCopyAtLine(unsigned startLine,
@@ -1866,7 +1861,7 @@ bool measureGbStageFullCopyAtLine(unsigned startLine,
     const int previousIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
-    if (vblankTasks.hasPending() || videoCommitInProgress) {
+    if (vblankTasks.hasPending() || videoCommitInProgress || dmaBusy(3)) {
         REG_IME = previousIme;
         return false;
     }
@@ -1875,7 +1870,7 @@ bool measureGbStageFullCopyAtLine(unsigned startLine,
     output->startVcount = REG_VCOUNT;
     __asm__ volatile("" ::: "memory");
     REG_IME = previousIme;
-    copyStagedAssetsToLive(STAGE_ALL);
+    const bool transferCompleted = copyStagedAssetsToLive(STAGE_ALL);
     const int restoreIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
@@ -1884,6 +1879,8 @@ bool measureGbStageFullCopyAtLine(unsigned startLine,
     videoCommitInProgress = false;
     __asm__ volatile("" ::: "memory");
     REG_IME = restoreIme;
+    if (!transferCompleted)
+        return false;
     output->bytesCopied = gbStageDirtyBytes(STAGE_ALL);
     return true;
 }
@@ -1931,7 +1928,9 @@ bool calibrateGbStagedVideo(GbStageCalibration* output) {
 GbStageRuntimeStatus getGbStageRuntimeStatus() {
     GbStageRuntimeStatus result = {};
     result.calibrationEligible = stageCalibrationEligible;
+    result.copyBackend = GB_STAGE_COPY_DMA3_WORDS;
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    result.stagedEntries = stageStagedEntries;
     result.presentedFrames = stagePresentedFrames;
     result.deferredForCallbacks = stageDeferredForCallbacks;
     result.lastEarlyPollHostFrame = stageLastEarlyPollHostFrame;
@@ -1974,7 +1973,8 @@ void servicePendingVideoFrameCommit() {
         REG_IME = previousIme;
         return;
     }
-    if (vblankTasks.hasPending() || videoCommitInProgress) {
+    if (vblankTasks.hasPending() || videoCommitInProgress ||
+            (stagedDirty && dmaBusy(3))) {
         stageDeferredForCallbacks++;
         REG_IME = previousIme;
         return;
@@ -1984,7 +1984,7 @@ void servicePendingVideoFrameCommit() {
     __asm__ volatile("" ::: "memory");
     REG_IME = previousIme;
 
-    copyStagedAssetsToLive(stagedDirty);
+    const bool transferCompleted = copyStagedAssetsToLive(stagedDirty);
     const int restoreIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
@@ -1994,6 +1994,11 @@ void servicePendingVideoFrameCommit() {
     __asm__ volatile("" ::: "memory");
     REG_IME = restoreIme;
     stageLastCopyEndVcount = endLine;
+
+    if (!transferCompleted) {
+        stageFaultCode = GB_STAGE_FAULT_DMA_CONFLICT;
+        return;
+    }
 
     const unsigned elapsed = gbStageElapsedLines(startHostFrame, reservedLine,
                                                   endHostFrame, endLine);

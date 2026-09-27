@@ -68,8 +68,68 @@ struct GuardedAssets {
 
 static GuardedAssets converted = {};
 static GuardedAssets legacy = {};
+alignas(32) static GbStagedAssets dmaSource = {};
+alignas(32) static GbStagedAssets dmaDestination = {};
+
+struct RecordedDmaOps {
+    bool occupied;
+    unsigned busyCalls;
+    unsigned flushCalls;
+    unsigned copyCalls;
+    unsigned copiedBytes;
+
+    RecordedDmaOps() : occupied(false), busyCalls(0), flushCalls(0),
+                       copyCalls(0), copiedBytes(0) {}
+    bool busy() { busyCalls++; return occupied; }
+    void flush(const void* source, unsigned bytes) {
+        assert(((uintptr_t)source & 31) == 0 && (bytes & 31) == 0);
+        flushCalls++;
+    }
+    void copy(const void* source, void* destination, unsigned bytes) {
+        assert(((uintptr_t)destination & 3) == 0 && (bytes & 3) == 0);
+        memcpy(destination, source, bytes);
+        copyCalls++;
+        copiedBytes += bytes;
+    }
+};
 
 int main() {
+    memset(&dmaSource, 0x5a, sizeof(dmaSource));
+    memset(&dmaDestination, 0, sizeof(dmaDestination));
+    RecordedDmaOps dmaOps;
+    assert(gbStageTransferDirtyAssets(
+        STAGE_ALL, dmaSource.tileTargets(), dmaSource.mapTargets(),
+        dmaDestination.tileTargets(), dmaDestination.mapTargets(), dmaOps));
+    assert(dmaOps.flushCalls == 11 && dmaOps.copyCalls == 11);
+    assert(dmaOps.copiedBytes == GB_GFX_STAGE_BYTES);
+    assert(memcmp(&dmaSource, &dmaDestination, sizeof(dmaSource)) == 0);
+    dmaOps = RecordedDmaOps();
+    dmaOps.occupied = true;
+    assert(!gbStageTransferDirtyAssets(
+        STAGE_ALL, dmaSource.tileTargets(), dmaSource.mapTargets(),
+        dmaDestination.tileTargets(), dmaDestination.mapTargets(), dmaOps));
+    assert(dmaOps.busyCalls == 1 && dmaOps.flushCalls == 0 &&
+           dmaOps.copyCalls == 0);
+    dmaOps = RecordedDmaOps();
+    dmaOps.occupied = true;
+    assert(gbStageTransferDirtyAssets(
+        0, dmaSource.tileTargets(), dmaSource.mapTargets(),
+        dmaDestination.tileTargets(), dmaDestination.mapTargets(), dmaOps));
+    assert(dmaOps.busyCalls == 0 && dmaOps.copyCalls == 0);
+    dmaOps = RecordedDmaOps();
+    GbTileTargets invalidSource = dmaSource.tileTargets();
+    invalidSource.unsignedTiles++;
+    assert(!gbStageTransferDirtyAssets(
+        STAGE_UNSIGNED, invalidSource, dmaSource.mapTargets(),
+        dmaDestination.tileTargets(), dmaDestination.mapTargets(), dmaOps));
+    assert(dmaOps.busyCalls == 0 && dmaOps.copyCalls == 0);
+    dmaOps = RecordedDmaOps();
+    assert(gbStageTransferDirtyAssets(
+        STAGE_NORMAL_0 | STAGE_NORMAL_1,
+        dmaSource.tileTargets(), dmaSource.mapTargets(),
+        dmaDestination.tileTargets(), dmaDestination.mapTargets(), dmaOps));
+    assert(dmaOps.copyCalls == 2 && dmaOps.copiedBytes == 4096);
+
     struct MinimalLine { bool modified; int scroll; };
     MinimalLine latest[3][2] = {};
     GbFrameSlots latestSlots;

@@ -212,6 +212,73 @@ static inline unsigned gbStageDirtyBytes(unsigned mask) {
     return bytes;
 }
 
+struct GbStageTransferRegion {
+    unsigned bit;
+    const void* source;
+    void* destination;
+    unsigned bytes;
+};
+
+static inline void gbStageTransferPlan(const GbTileTargets& sourceTiles,
+                                        const GbMapTargets& sourceMaps,
+                                        const GbTileTargets& liveTiles,
+                                        const GbMapTargets& liveMaps,
+                                        GbStageTransferRegion (&regions)[11]) {
+    const GbStageTransferRegion plan[11] = {
+        { STAGE_UNSIGNED, sourceTiles.unsignedTiles,
+          liveTiles.unsignedTiles, 0x4000 },
+        { STAGE_SIGNED, sourceTiles.signedTiles,
+          liveTiles.signedTiles, 0x4000 },
+        { STAGE_UNSIGNED_FILLED, sourceTiles.unsignedFilledTiles,
+          liveTiles.unsignedFilledTiles, 0x4000 },
+        { STAGE_SIGNED_FILLED, sourceTiles.signedFilledTiles,
+          liveTiles.signedFilledTiles, 0x4000 },
+        { STAGE_OBJ, sourceTiles.objTiles, liveTiles.objTiles, 0x4000 },
+        { STAGE_NORMAL_0, sourceMaps.normal[0], liveMaps.normal[0], 0x800 },
+        { STAGE_COLOR0_0, sourceMaps.color0[0], liveMaps.color0[0], 0x800 },
+        { STAGE_OVERLAY_0, sourceMaps.overlay[0], liveMaps.overlay[0], 0x800 },
+        { STAGE_NORMAL_1, sourceMaps.normal[1], liveMaps.normal[1], 0x800 },
+        { STAGE_COLOR0_1, sourceMaps.color0[1], liveMaps.color0[1], 0x800 },
+        { STAGE_OVERLAY_1, sourceMaps.overlay[1], liveMaps.overlay[1], 0x800 }
+    };
+    memcpy(regions, plan, sizeof(plan));
+}
+
+static inline bool gbStageDmaRegionValid(const GbStageTransferRegion& region) {
+    return ((uintptr_t)region.source & 31) == 0 &&
+           ((uintptr_t)region.destination & 3) == 0 &&
+           (region.bytes & 31) == 0;
+}
+
+// The same callback sequence is used for pre-ROM calibration and active
+// publication. Validation and channel ownership checks precede every write;
+// Ops::copy is synchronous and must finish before returning.
+template <typename Ops>
+static inline bool gbStageTransferDirtyAssets(
+        unsigned dirtyMask, const GbTileTargets& sourceTiles,
+        const GbMapTargets& sourceMaps, const GbTileTargets& liveTiles,
+        const GbMapTargets& liveMaps, Ops& ops) {
+    if (!(dirtyMask & STAGE_ALL))
+        return true;
+    GbStageTransferRegion regions[11];
+    gbStageTransferPlan(sourceTiles, sourceMaps, liveTiles, liveMaps, regions);
+    for (unsigned index = 0; index < 11; index++) {
+        if ((dirtyMask & regions[index].bit) &&
+                !gbStageDmaRegionValid(regions[index]))
+            return false;
+    }
+    if (ops.busy())
+        return false;
+    for (unsigned index = 0; index < 11; index++) {
+        const GbStageTransferRegion& region = regions[index];
+        if (!(dirtyMask & region.bit))
+            continue;
+        ops.flush(region.source, region.bytes);
+        ops.copy(region.source, region.destination, region.bytes);
+    }
+    return true;
+}
+
 static inline void convertGbTile(const GbTileTargets& target,
                                   int tileNum, int bank, const uint8_t* src) {
     int index = (tileNum << 4) + (bank * 0x100 * 16);
