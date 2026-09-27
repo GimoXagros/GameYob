@@ -27,6 +27,11 @@
 #include "gbgfx_stage_service.h"
 #include "gbgfx_stage_copy_report.h"
 #endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+#include "hblank_ff_capture.h"
+#include "hblank_anomaly_trace.h"
+#include "hblank_anomaly_report.h"
+#endif
 #if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
 #include "video_frame_trace.h"
 #include "video_ff_release_capture.h"
@@ -203,6 +208,16 @@ int main(int argc, char* argv[])
     bool stageFaultNotified = false;
     bool stageStatusSavedThisPauseMenu = false;
 #endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    HBlankFfCapture hblankFfCapture;
+    static HBlankAnomalyEvent hblankSnapshot[64];
+    unsigned hblankSnapshotCount = 0;
+    uint32_t hblankOverwritten = 0;
+    uint32_t hblankReleaseGuest = 0;
+    uint32_t hblankReleaseHost = 0;
+    uint16_t hblankReleaseVcount = 0;
+    bool hblankExportAttemptedThisPauseMenu = false;
+#endif
     for (;;) {
         mgr_runFrame();
         mgr_updateVBlank();
@@ -234,6 +249,56 @@ int main(int argc, char* argv[])
                 printLog("Staged-video status saved: %s\n", stageStatusPath);
             else
                 printLog("Staged-video status could not be saved.\n");
+        }
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+        const uintptr_t hblankRom = gameboy && gameboy->isRomLoaded() ?
+            (uintptr_t)gameboy->getRomFile() : 0;
+        const bool hblankGameplay = !probingForBorder && !isMenuOn() &&
+            !isFileChooserOn() && !mgr_isPaused();
+        const uint32_t hblankGuest = gameboy ?
+            gameboy->gameboyFrameCounter : 0;
+        const HBlankFfCapture::Action hblankAction = hblankFfCapture.observe(
+            hblankRom, hblankGameplay, hblankGuest,
+            fastForwardKey || fastForwardMode);
+        if (hblankAction == HBlankFfCapture::CLEAR) {
+            clearHBlankAnomalyTrace();
+            hblankSnapshotCount = 0;
+            hblankOverwritten = 0;
+        } else if (hblankAction == HBlankFfCapture::RELEASE) {
+            // Freeze immediately; the visible line disappears when L is
+            // released. Copy the sparse ring in foreground, without FAT I/O.
+            freezeHBlankAnomalyTrace();
+            hblankReleaseGuest = hblankGuest;
+            hblankReleaseHost = dsFrameCounter;
+            hblankReleaseVcount = REG_VCOUNT;
+            hblankOverwritten = hblankAnomalyTraceOverwritten();
+            hblankSnapshotCount = readHBlankAnomalyTrace(
+                hblankSnapshot, sizeof(hblankSnapshot) /
+                                sizeof(hblankSnapshot[0]));
+        }
+        const bool hblankPauseMenu = isMenuOn() && mgr_isPaused() &&
+            hblankRom != 0;
+        if (!hblankPauseMenu) {
+            hblankExportAttemptedThisPauseMenu = false;
+        } else if (hblankFfCapture.pending() &&
+                   !hblankExportAttemptedThisPauseMenu) {
+            hblankExportAttemptedThisPauseMenu = true;
+            char hblankPath[256];
+            if (writeHBlankAnomalyReport(".", GIT_REVISION,
+                                         hblankReleaseGuest,
+                                         hblankReleaseHost,
+                                         hblankReleaseVcount,
+                                         hblankOverwritten, hblankSnapshot,
+                                         hblankSnapshotCount, hblankPath,
+                                         sizeof(hblankPath))) {
+                hblankFfCapture.exported();
+                printLog("HBlank FF anomaly trace saved: %s\n", hblankPath);
+                printMenuMessage("HBlank FF trace saved in current folder.");
+            } else {
+                printLog("HBlank FF anomaly trace save failed; reopen Pause menu to retry.\n");
+                printMenuMessage("HBlank FF trace save failed.");
+            }
         }
 #endif
 #if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)

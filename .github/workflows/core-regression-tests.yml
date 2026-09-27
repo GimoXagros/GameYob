@@ -58,6 +58,15 @@ jobs:
             -o /tmp/gbgfx_stage_copy_report_test
           report_dir="$(mktemp -d)"
           /tmp/gbgfx_stage_copy_report_test "$report_dir"
+      - name: Build and run sparse HBlank anomaly diagnostics tests
+        run: |
+          g++ -std=c++11 -Wall -Wextra -Werror tests/hblank_anomaly_trace_test.cpp -o /tmp/hblank_anomaly_trace_test
+          /tmp/hblank_anomaly_trace_test
+          g++ -std=c++11 -Wall -Wextra -Werror tests/hblank_ff_capture_test.cpp -o /tmp/hblank_ff_capture_test
+          /tmp/hblank_ff_capture_test
+          g++ -std=c++11 -Wall -Wextra -Werror tests/hblank_anomaly_report_test.cpp platform/ds/arm9/source/hblank_anomaly_report.cpp -o /tmp/hblank_anomaly_report_test
+          report_dir="$(mktemp -d)"
+          /tmp/hblank_anomaly_report_test "$report_dir"
       - name: Build and run noise LFSR tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

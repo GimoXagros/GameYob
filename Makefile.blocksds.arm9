@@ -45,6 +45,12 @@ endif
 ifeq ($(STAGE_VIDEO_ACTIVE),1)
 $(error Staged video activation is not approved for this build)
 endif
+ifeq ($(HBLANK_ANOMALY_TRACE),1)
+ifneq ($(STAGE_VIDEO_EXPERIMENTAL),1)
+$(error HBLANK_ANOMALY_TRACE requires STAGE_VIDEO_EXPERIMENTAL=1)
+endif
+DEFINES += -DGAMEYOB_HBLANK_ANOMALY_TRACE
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \
