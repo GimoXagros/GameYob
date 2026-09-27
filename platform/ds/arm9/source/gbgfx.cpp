@@ -21,6 +21,7 @@
 #include "error.h"
 #include "vblank_task_queue.h"
 #include "video_frame_trace.h"
+#include "hblank_anomaly_trace.h"
 #include "gbgfx_stage.h"
 #include "gbgfx_stage_service.h"
 
@@ -331,6 +332,100 @@ typedef struct
 #define BG_HOFS(x) (*((vu16*)0x4000010+(x)*2))
 #define BG_VOFS(x) (*((vu16*)0x4000012+(x)*2))
 
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+static HBlankAnomalyRing<64> hblankAnomalies;
+static uint32_t hblankPublishedGuestFrame = 0;
+static bool hblankPreviousLineRetried = false;
+
+unsigned readHBlankAnomalyTrace(HBlankAnomalyEvent* output,
+                                unsigned capacity) {
+    if (!output)
+        return 0;
+    unsigned count = 0;
+    while (count < capacity) {
+        const int previousIme = REG_IME;
+        REG_IME = 0;
+        __asm__ volatile("" ::: "memory");
+        const bool available = hblankAnomalies.pop(&output[count]);
+        __asm__ volatile("" ::: "memory");
+        REG_IME = previousIme;
+        if (!available)
+            break;
+        ++count;
+    }
+    return count;
+}
+
+uint32_t hblankAnomalyTraceOverwritten() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const uint32_t count = hblankAnomalies.overwritten();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+    return count;
+}
+
+void freezeHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.freeze();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void resumeHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.resume();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void clearHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.clear();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+static void recordHBlankAnomaly(unsigned entryVcount, unsigned exitVcount,
+                                unsigned dispstat, unsigned requestedLine,
+                                uint8_t flags) {
+    HBlankAnomalyEvent event = {};
+    event.hostFrame = dsFrameCounter;
+    event.guestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+    event.publishedGuestFrame = hblankPublishedGuestFrame;
+    event.entryVcount = entryVcount;
+    event.exitVcount = exitVcount;
+    event.requestedPhysicalLine = requestedLine;
+    event.guestLine = (int)requestedLine - screenOffsY;
+    event.dispstat = dispstat;
+    event.bg0cnt = REG_BG0CNT;
+    event.winIn = WIN_IN;
+    event.bgPalette0 = BG_PALETTE[0];
+    event.spritePalette0 = SPRITE_PALETTE[0];
+    event.firstGuestObjAttr0 = sprites[firstGbSprite].attr0;
+    event.flags = flags;
+    event.drawingBuffer = frameSlots.displayed();
+    event.screenDisabled = screenDisabled;
+    event.fastForward = fastForwardMode || fastForwardKey;
+    if (event.guestLine >= 0 && event.guestLine < 144) {
+        const ScanlineStruct& state = drawingState[event.guestLine];
+        event.modified = state.modified;
+        event.mapsModified = state.mapsModified;
+        event.bgPalettesModified = state.bgPalettesModified;
+        event.sprPalettesModified = state.sprPalettesModified;
+        event.spritesModified = state.spritesModified;
+    }
+    hblankAnomalies.record(event);
+}
+#endif
+
 // The graphics are drawn with the DS's native hardware.
 // Games tend to modify the graphics in the middle of being drawn.
 // These changes are recorded and applied during DS hblank.
@@ -568,8 +663,12 @@ void doHBlank(int line) {
     if (gbLine >= 144 || gbLine <= 0)
         return;
 
-    if (drawingState[gbLine-1].modified && !lineCompleted[gbLine-1])
+    if (drawingState[gbLine-1].modified && !lineCompleted[gbLine-1]) {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+        hblankPreviousLineRetried = true;
+#endif
         drawLine(gbLine-1);
+    }
 
     if (!drawingState[gbLine].modified)
         return;
@@ -583,10 +682,28 @@ void hblankHandler();
 
 void hblankHandler()
 {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    const unsigned entryVcount = REG_VCOUNT;
+    const unsigned dispstat = REG_DISPSTAT;
+    int line = entryVcount + 1;
+    if ((dispstat & 3) != 2)
+        line--;
+    hblankPreviousLineRetried = false;
+    doHBlank(line);
+    if (line >= screenOffsY && line <= screenOffsY + 144) {
+        const unsigned exitVcount = REG_VCOUNT;
+        const uint8_t flags = hblankAnomalyFlags(
+            entryVcount, exitVcount, dispstat, hblankPreviousLineRetried);
+        if (flags)
+            recordHBlankAnomaly(entryVcount, exitVcount, dispstat, line,
+                                flags);
+    }
+#else
     int line = REG_VCOUNT+1;
     if ((REG_DISPSTAT&3) != 2)
         line--;
     doHBlank(line);
+#endif
 }
 
 static VBlankTaskQueue<64> vblankTasks;
@@ -765,6 +882,9 @@ void initGFX()
 }
 
 void refreshGFX() {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+#endif
 #ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
     stagedRendererActive = false;
     stagedDirty = 0;
@@ -1377,7 +1497,7 @@ void drawScreen()
 
     // In a trace build, publish the pointer and its generation atomically for
     // the HBlank observer. The release build retains its original fast path.
-#ifdef GAMEYOB_VIDEO_TRACE
+#if defined(GAMEYOB_VIDEO_TRACE) || defined(GAMEYOB_HBLANK_ANOMALY_TRACE)
     const int previousIme = REG_IME;
     REG_IME = 0;
     __asm__ volatile("" ::: "memory");
@@ -1387,6 +1507,11 @@ void drawScreen()
     renderingState = scanlineBuffers[frameSlots.producer()];
 #ifdef GAMEYOB_VIDEO_TRACE
     publishedGuestFrame = gameboy->gameboyFrameCounter;
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = gameboy->gameboyFrameCounter;
+#endif
+#if defined(GAMEYOB_VIDEO_TRACE) || defined(GAMEYOB_HBLANK_ANOMALY_TRACE)
     __asm__ volatile("" ::: "memory");
     REG_IME = previousIme;
 #endif
@@ -2032,6 +2157,9 @@ void servicePendingVideoFrameCommit() {
     screenDisabled = readyScreenDisabled;
 #ifdef GAMEYOB_VIDEO_TRACE
     publishedGuestFrame = readyGuestFrame;
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = readyGuestFrame;
 #endif
     const unsigned finalLine = REG_VCOUNT;
     const uint32_t finalHostFrame = dsFrameCounter;
