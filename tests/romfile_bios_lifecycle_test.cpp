@@ -76,9 +76,13 @@ void CheatEngine::setRomFile(RomFile* rom) { romFile = rom; }
 void CheatEngine::applyGSCheats() {}
 void CheatEngine::loadCheats(const char*) {}
 void enableSleepMode() {}
+#ifndef PRINTER_SERIAL_TEST
 void initGbPrinter() {}
 void updateGbPrinter() {}
 u8 sendGbPrinterByte(u8 value) { return value; }
+#else
+void displayIcon(int) {}
+#endif
 bool nifiIsLinked() { return false; }
 void refreshGFX() {}
 void resetSgbBorder() {}
@@ -99,11 +103,22 @@ void system_checkPolls() {}
 void inputUpdateVBlank() {}
 bool isMenuOn() { return false; }
 void updateMenu() {}
+#ifdef BORDER_INPUT_TEST
+static int syntheticPressedKeys = 0;
+static int syntheticJustPressedKeys = 0;
+static int syntheticMenuOpens = 0;
+int mapFuncKey(int key) { return 1 << key; }
+bool keyPressed(int key) { return (syntheticPressedKeys & key) != 0; }
+bool keyJustPressed(int key) { return (syntheticJustPressedKeys & key) != 0; }
+void forceReleaseKey(int) {}
+void displayMenu() { ++syntheticMenuOpens; }
+#else
 int mapFuncKey(int) { return 0; }
 bool keyPressed(int) { return false; }
 bool keyJustPressed(int) { return false; }
 void forceReleaseKey(int) {}
 void displayMenu() {}
+#endif
 void gbsCheckInput() {}
 void nifiUpdateInput() {}
 void disableMenuOption(const char*) {}

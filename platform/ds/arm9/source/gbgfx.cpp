@@ -3,7 +3,6 @@
 #include <string.h>
 #include <dirent.h>
 #include <unistd.h>
-#include <vector>
 #include <nds.h>
 #include <stdio.h>
 #include <math.h>
@@ -12,12 +11,23 @@
 #include "gb_render_rules.h"
 #include "mmu.h"
 #include "gameboy.h"
+#include "gbmanager.h"
 #include "console.h"
 #include "menu.h"
 #include "filechooser.h"
 #include "inputhelper.h"
 #include "common.h"
 #include "soundengine.h"
+#include "error.h"
+#include "vblank_task_queue.h"
+#include "video_frame_trace.h"
+#include "hblank_anomaly_trace.h"
+#include "gbgfx_stage.h"
+#include "gbgfx_stage_service.h"
+
+#if defined(GAMEYOB_STAGE_VIDEO_ACTIVE) && !defined(GAMEYOB_STAGE_VIDEO_EXPERIMENT)
+#error "Active staged video requires the experimental renderer build"
+#endif
 
 
 #define BACKDROP_COLOUR RGB15(0,0,0)
@@ -35,6 +45,20 @@ u16* const color0Map[2] = {BG_MAP_RAM(color0_map_base[0]), BG_MAP_RAM(color0_map
 u16* const overlayMap[2] = {BG_MAP_RAM(overlay_map_base[0]), BG_MAP_RAM(overlay_map_base[1])};
 u16* const offMap = BG_MAP_RAM(off_map_base);
 u16* const borderMap = BG_MAP_RAM(border_map_base);
+
+static GbTileTargets liveGbTileTargets() {
+    GbTileTargets result = { BG_GFX + 0x8000, BG_GFX + 0xc000,
+                             BG_GFX + 0x10000, BG_GFX + 0x14000,
+                             SPRITE_GFX };
+    return result;
+}
+
+static GbMapTargets liveGbMapTargets() {
+    GbMapTargets result = { { map[0], map[1] },
+                            { color0Map[0], color0Map[1] },
+                            { overlayMap[0], overlayMap[1] } };
+    return result;
+}
 
 const int firstGbSprite = 128-40;
 
@@ -148,10 +172,151 @@ typedef struct {
     int bgHash;
 } ScanlineStruct;
 
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+ScanlineStruct scanlineBuffers[3][144];
+#else
 ScanlineStruct scanlineBuffers[2][144];
+#endif
+static GbFrameSlots frameSlots;
+static_assert(sizeof(scanlineBuffers[0]) + sizeof(GbStagedAssets) <=
+              150 * 1024, "Video staging exceeds the 150 KiB RAM budget");
+
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+static GbStagedAssets stagedAssets __attribute__((aligned(32)));
+static bool stageCalibrationEligible = false;
+static unsigned stageAdmittedBoundLines = 0;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+static bool stagedRendererActive = false;
+static unsigned stagedDirty = 0;
+static uint8_t stageFaultCode = GB_STAGE_FAULT_NONE;
+static uint32_t stageStagedEntries = 0;
+static uint32_t stagePresentedFrames = 0;
+static uint32_t stageDeferredForCallbacks = 0;
+static uint32_t stageLastEarlyPollHostFrame = 0;
+static uint32_t stageEarlyPollSerial = 0;
+static uint32_t stageReadySinceHostFrame = 0;
+static bool stageEarlyPollSeen = false;
+static uint16_t stageLastCopyEndVcount = 0;
+static bool readyScreenDisabled = false;
+static uint32_t readyGuestFrame = 0;
+static u8 readySgbMap[18 * 20];
+static u8 displaySgbMap[18 * 20];
+static int readyTilePriority[2];
+static int displayTilePriority[2];
+
+static void stageCompletedVideoFrame();
+#endif
+#endif
+
+static int visibleTilePriority(int mapIndex) {
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive)
+        return displayTilePriority[mapIndex];
+#endif
+    return usingTilePriority[mapIndex];
+}
+
+static int visibleSgbPalette(int index) {
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive)
+        return displaySgbMap[index] & 3;
+#endif
+    return gameboy->sgbMap[index] & 3;
+}
 
 ScanlineStruct *drawingState = scanlineBuffers[0];
 ScanlineStruct *renderingState = scanlineBuffers[1];
+
+#ifdef GAMEYOB_VIDEO_TRACE
+static VideoFrameTraceRing<256> videoTrace;
+static uint32_t publishedGuestFrame = 0;
+
+static void traceVideoEvent(VideoFrameEventType type, unsigned line) {
+    // Take the source fields and append one entry as a single brief snapshot.
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    VideoFrameEvent event = {};
+    event.hostFrame = dsFrameCounter;
+    event.guestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+    event.publishedFrame = publishedGuestFrame;
+    event.captureControl = REG_DISPCAPCNT;
+    event.displayControlMain = REG_DISPCNT;
+    event.displayControlSub = REG_DISPCNT_SUB;
+    event.physicalLine = line;
+    event.type = type;
+    event.drawingBuffer = drawingState == scanlineBuffers[0] ? 0 :
+                          drawingState == scanlineBuffers[1] ? 1 : 2;
+    event.renderingBuffer = renderingState == scanlineBuffers[0] ? 0 :
+                            renderingState == scanlineBuffers[1] ? 1 : 2;
+    event.vramC = VRAM_C_CR;
+    event.vramD = VRAM_D_CR;
+    event.transferReady = sharedData->scaleTransferReady;
+    event.scalingMode = scaleMode;
+    event.filterMode = scaleFilter;
+    event.fastForward = fastForwardMode || fastForwardKey;
+    event.gbMode = gameboy ? gameboy->gbMode : 0;
+    event.sgbMode = gameboy && gameboy->sgbMode;
+    event.gfxMask = gfxMask;
+    event.tileQueueLength = changedTileQueueLength + changedTileInFrameQueueLength;
+    event.mapQueueLength = changedMapQueueLength[0] + changedMapQueueLength[1];
+
+    // The producer runs in both foreground and display IRQ context. There is
+    // no allocation or I/O here, and the interrupt exclusion is short.
+    videoTrace.record(event);
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+unsigned readVideoFrameTrace(VideoFrameEvent* output, unsigned capacity) {
+    if (!output)
+        return 0;
+    unsigned count = 0;
+    while (count < capacity) {
+        const int previousIme = REG_IME;
+        REG_IME = 0;
+        __asm__ volatile("" ::: "memory");
+        const bool available = videoTrace.pop(&output[count]);
+        __asm__ volatile("" ::: "memory");
+        REG_IME = previousIme;
+        if (!available)
+            break;
+        ++count;
+    }
+    return count;
+}
+
+uint32_t videoFrameTraceOverwritten() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const uint32_t count = videoTrace.overwritten();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+    return count;
+}
+
+void freezeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.freeze();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void resumeVideoFrameTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    videoTrace.resume();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+#define TRACE_VIDEO(type, line) traceVideoEvent((type), (line))
+#else
+#define TRACE_VIDEO(type, line) ((void)0)
+#endif
 
 typedef struct
 {
@@ -166,6 +331,100 @@ typedef struct
 #define BG_CNT(x) (*((vu16*)0x4000008+(x)))
 #define BG_HOFS(x) (*((vu16*)0x4000010+(x)*2))
 #define BG_VOFS(x) (*((vu16*)0x4000012+(x)*2))
+
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+static HBlankAnomalyRing<64> hblankAnomalies;
+static uint32_t hblankPublishedGuestFrame = 0;
+static bool hblankPreviousLineRetried = false;
+
+unsigned readHBlankAnomalyTrace(HBlankAnomalyEvent* output,
+                                unsigned capacity) {
+    if (!output)
+        return 0;
+    unsigned count = 0;
+    while (count < capacity) {
+        const int previousIme = REG_IME;
+        REG_IME = 0;
+        __asm__ volatile("" ::: "memory");
+        const bool available = hblankAnomalies.pop(&output[count]);
+        __asm__ volatile("" ::: "memory");
+        REG_IME = previousIme;
+        if (!available)
+            break;
+        ++count;
+    }
+    return count;
+}
+
+uint32_t hblankAnomalyTraceOverwritten() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const uint32_t count = hblankAnomalies.overwritten();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+    return count;
+}
+
+void freezeHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.freeze();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void resumeHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.resume();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+void clearHBlankAnomalyTrace() {
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    hblankAnomalies.clear();
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+}
+
+static void recordHBlankAnomaly(unsigned entryVcount, unsigned exitVcount,
+                                unsigned dispstat, unsigned requestedLine,
+                                uint8_t flags) {
+    HBlankAnomalyEvent event = {};
+    event.hostFrame = dsFrameCounter;
+    event.guestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+    event.publishedGuestFrame = hblankPublishedGuestFrame;
+    event.entryVcount = entryVcount;
+    event.exitVcount = exitVcount;
+    event.requestedPhysicalLine = requestedLine;
+    event.guestLine = (int)requestedLine - screenOffsY;
+    event.dispstat = dispstat;
+    event.bg0cnt = REG_BG0CNT;
+    event.winIn = WIN_IN;
+    event.bgPalette0 = BG_PALETTE[0];
+    event.spritePalette0 = SPRITE_PALETTE[0];
+    event.firstGuestObjAttr0 = sprites[firstGbSprite].attr0;
+    event.flags = flags;
+    event.drawingBuffer = frameSlots.displayed();
+    event.screenDisabled = screenDisabled;
+    event.fastForward = fastForwardMode || fastForwardKey;
+    if (event.guestLine >= 0 && event.guestLine < 144) {
+        const ScanlineStruct& state = drawingState[event.guestLine];
+        event.modified = state.modified;
+        event.mapsModified = state.mapsModified;
+        event.bgPalettesModified = state.bgPalettesModified;
+        event.sprPalettesModified = state.sprPalettesModified;
+        event.spritesModified = state.spritesModified;
+    }
+    hblankAnomalies.record(event);
+}
+#endif
 
 // The graphics are drawn with the DS's native hardware.
 // Games tend to modify the graphics in the middle of being drawn.
@@ -204,11 +463,11 @@ void drawLine(int gbLine) {
                     bgLayers = 2;
                 }
                 else {
-                    if (usingTilePriority[state->bgMap]) {
+                    if (visibleTilePriority(state->bgMap)) {
                         winLayers = 1;
                         bgLayers = 2;
                     }
-                    else if (usingTilePriority[state->winMap]) {
+                    else if (visibleTilePriority(state->winMap)) {
                         winLayers = 2;
                         bgLayers = 1;
                     }
@@ -247,7 +506,7 @@ void drawLine(int gbLine) {
                 BG_VOFS(layer++) = wvofs;
             }
             else if (winLayers == 2) {
-                if (usingTilePriority[state->winMap]) {
+                if (visibleTilePriority(state->winMap)) {
                     // Apply tile priority bit.
                     BG_CNT(layer) = state->winAllCnt;
                     BG_HOFS(layer) = whofs;
@@ -310,7 +569,7 @@ void drawLine(int gbLine) {
                     BG_VOFS(layer++) = vofs;
                 }
                 else if (bgLayers == 2) { // not enough for both priority bits.
-                    if (usingTilePriority[state->bgMap]) {
+                    if (visibleTilePriority(state->bgMap)) {
                         // Apply tile priority bit.
                         BG_CNT(layer) = state->bgAllCnt;
                         BG_HOFS(layer) = hofs;
@@ -383,6 +642,13 @@ void doHBlank(int line);
 void doHBlank(int line) {
     if (line >= 192)
         return;
+#ifdef GAMEYOB_VIDEO_TRACE
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    if (line >= screenOffsY && line < screenOffsY + 144 &&
+            ((line - screenOffsY) & 7) == 0)
+        TRACE_VIDEO(VIDEO_HOST_LINE, line);
+#endif
+#endif
     if ((isFileChooserOn() || isMenuOn()) && line%8 == 0) {
         // Change the backdrop color for a certain row.
         // This is used in the file selection menu.
@@ -397,8 +663,12 @@ void doHBlank(int line) {
     if (gbLine >= 144 || gbLine <= 0)
         return;
 
-    if (drawingState[gbLine-1].modified && !lineCompleted[gbLine-1])
+    if (drawingState[gbLine-1].modified && !lineCompleted[gbLine-1]) {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+        hblankPreviousLineRetried = true;
+#endif
         drawLine(gbLine-1);
+    }
 
     if (!drawingState[gbLine].modified)
         return;
@@ -412,16 +682,46 @@ void hblankHandler();
 
 void hblankHandler()
 {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    const unsigned entryVcount = REG_VCOUNT;
+    const unsigned dispstat = REG_DISPSTAT;
+    int line = entryVcount + 1;
+    if ((dispstat & 3) != 2)
+        line--;
+    hblankPreviousLineRetried = false;
+    doHBlank(line);
+    if (line >= screenOffsY && line <= screenOffsY + 144) {
+        const unsigned exitVcount = REG_VCOUNT;
+        const uint8_t flags = hblankAnomalyFlags(
+            entryVcount, exitVcount, dispstat, hblankPreviousLineRetried);
+        if (flags)
+            recordHBlankAnomaly(entryVcount, exitVcount, dispstat, line,
+                                flags);
+    }
+#else
     int line = REG_VCOUNT+1;
     if ((REG_DISPSTAT&3) != 2)
         line--;
     doHBlank(line);
+#endif
 }
 
-std::vector<void (*)()> vblankTasks;
+static VBlankTaskQueue<64> vblankTasks;
+static volatile bool vblankTaskOverflow = false;
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+static volatile bool videoCommitInProgress = false;
+#endif
 
 void doAtVBlank(void (*func)(void)) {
-    vblankTasks.push_back(func);
+    // A foreground enqueue may be interrupted by VBlank. This short section
+    // protects only the queue metadata, never a callback or VRAM transfer.
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (!vblankTasks.enqueue(func))
+        vblankTaskOverflow = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
 }
 
 
@@ -431,6 +731,9 @@ void vcountHandler() {
     vramSetBankC(VRAM_C_SUB_BG);
     if (sharedData->scalingOn)
         vramSetBankD(VRAM_D_LCD);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    TRACE_VIDEO(VIDEO_VRAM_DISPLAY, 235);
+#endif
 
     // Do hblank stuff for the very top line (physical line 0)
     doHBlank(0);
@@ -458,6 +761,11 @@ void vblankHandler()
     }
     didVblank = true;
     dsFrameCounter = dsFrameCounter + 1;
+    TRACE_VIDEO(VIDEO_HOST_VBLANK, 192);
+#ifndef GAMEYOB_VIDEO_PUBLICATION_ONLY
+    if (sharedData->scalingOn)
+        TRACE_VIDEO(VIDEO_VRAM_ARM7, 192);
+#endif
 
     memset(lineCompleted, 0, sizeof(lineCompleted));
     if (scaleFilter == 1) {
@@ -476,12 +784,16 @@ void vblankHandler()
         filterFlip = !filterFlip;
     }
 
-    // Copy the list so that functions which access vblankTasks work.
-    std::vector<void (*)()> tasks = vblankTasks;
-    vblankTasks.clear();
-    for (uint i=0; i<tasks.size(); i++) {
-        tasks[i]();
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+    if (!videoCommitInProgress) {
+#endif
+        const VBlankTaskQueue<64>::Batch tasks = vblankTasks.beginDrain();
+        for (unsigned i=0; i<tasks.count; i++) {
+            tasks.tasks[i]();
+        }
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
     }
+#endif
 }
 
 // This just sets up the background
@@ -559,6 +871,9 @@ void initGFX()
     for (int i=0; i<144; i++) {
         scanlineBuffers[0][i].modified = false;
         scanlineBuffers[1][i].modified = false;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+        scanlineBuffers[2][i].modified = false;
+#endif
     }
     gbGraphicsDisabled = false;
 
@@ -567,6 +882,16 @@ void initGFX()
 }
 
 void refreshGFX() {
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = gameboy ? gameboy->gameboyFrameCounter : 0;
+#endif
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    stagedRendererActive = false;
+    stagedDirty = 0;
+    frameSlots = GbFrameSlots();
+    drawingState = scanlineBuffers[frameSlots.displayed()];
+    renderingState = scanlineBuffers[frameSlots.producer()];
+#endif
     for (int i=0; i<0x180; i++) {
         drawTile(i, 0);
         drawTile(i, 1);
@@ -647,7 +972,8 @@ void resetSgbBorder() {
 // SGB palettes can't quite be perfect because SGB doesn't (necessarily) align 
 // palettes with tiles. Mostly problematic with scrolling around status bars.  
 // Bars on the bottom are favored by this code.
-void refreshSgbPalette() {
+static void refreshSgbPaletteTo(const GbMapTargets& targets,
+                                const ScanlineStruct* source) {
     int winMap=0,bgMap=0;
     bool winJustDisabled = false;
     bool winOn=0;
@@ -656,16 +982,16 @@ void refreshSgbPalette() {
     for (int y=0; y<18; y++) {
         winJustDisabled = false;
         for (int yPix=y*8-7; yPix<=y*8; yPix++) {
-            if (yPix >= 0 && drawingState[yPix].modified && drawingState[yPix].mapsModified) {
+            if (yPix >= 0 && source[yPix].modified && source[yPix].mapsModified) {
                 if (!winJustDisabled)
-                    winJustDisabled = winOn && (!drawingState[yPix].winOn);
-                winOn = drawingState[yPix].winOn;
-                winX = drawingState[yPix].winX;
-                winY = drawingState[yPix].winY;
-                hofs = drawingState[yPix].hofs;
-                vofs = drawingState[yPix].vofs;
-                winMap = drawingState[yPix].winMap;
-                bgMap = drawingState[yPix].bgMap;
+                    winJustDisabled = winOn && (!source[yPix].winOn);
+                winOn = source[yPix].winOn;
+                winX = source[yPix].winX;
+                winY = source[yPix].winY;
+                hofs = source[yPix].hofs;
+                vofs = source[yPix].vofs;
+                winMap = source[yPix].winMap;
+                bgMap = source[yPix].bgMap;
             }
         }
         for (int x=0; x<20; x++) {
@@ -679,8 +1005,7 @@ void refreshSgbPalette() {
                     int realx = (((x+j)*8+hofs)&0xff)/8;
                     int realy = (((y-yLoop)*8+vofs+7)&0xff)/8;
                     int i = realy*32+realx;
-                    map[bgMap][i] &= ~(7<<12);
-                    map[bgMap][i] |= (palette<<12);
+                    remapSgbMapPalette(targets.normal[bgMap], i, palette);
                 }
             }
 
@@ -696,8 +1021,7 @@ void refreshSgbPalette() {
 
                         if (realx >= 0 && realy >= 0 && realx < 32 && realy < 32) {
                             int i = realy*32+realx;
-                            map[winMap][i] &= ~(7<<12);
-                            map[winMap][i] |= (palette<<12);
+                            remapSgbMapPalette(targets.normal[winMap], i, palette);
                         }
                     }
                 }
@@ -706,6 +1030,9 @@ void refreshSgbPalette() {
     }
 }
 
+void refreshSgbPalette() {
+    refreshSgbPaletteTo(liveGbMapTargets(), drawingState);
+}
 
 void displayIcon(int iconid) {
     const u16* gfx;
@@ -1044,99 +1371,34 @@ void setSgbMap(u8* src) {
     }
 }
 
-void updateTileMaps() {
+static void updateTileMapTo(const GbMapTargets& targets, int m, int i) {
+    changedMap[m][i] = false;
+    int mapAddr = (m ? 0x1c00+i : 0x1800+i);
+    convertGbMapEntry(targets, m, i,
+                      gameboy->vram[0][mapAddr],
+                      gameboy->vram[1][mapAddr], gameboy->gbMode == CGB);
+}
+
+static void updateTileMapsTo(const GbMapTargets& targets) {
     for (int m=0; m<2; m++) {
         while (changedMapQueueLength[m] != 0) {
             int tile = changedMapQueue[m][--changedMapQueueLength[m]];
-            updateTileMap(m, tile);
+            updateTileMapTo(targets, m, tile);
         }
     }
 }
+
+void updateTileMaps() {
+    updateTileMapsTo(liveGbMapTargets());
+}
+
 void updateTileMap(int m, int i) {
-    changedMap[m][i] = false;
-    int mapAddr = (m ? 0x1c00+i : 0x1800+i);
-    int tileNum = gameboy->vram[0][mapAddr];
-
-    int bank=0;
-    int flipX = 0, flipY = 0;
-    int paletteid = 0;
-    int priority = 0;
-
-    if (gameboy->gbMode == CGB)
-    {
-        flipX = !!(gameboy->vram[1][mapAddr] & 0x20);
-        flipY = !!(gameboy->vram[1][mapAddr] & 0x40);
-        bank = !!(gameboy->vram[1][mapAddr] & 0x8);
-        paletteid = gameboy->vram[1][mapAddr] & 0x7;
-        priority = !!(gameboy->vram[1][mapAddr] & 0x80);
-    }
-    if (priority)
-        overlayMap[m][i] = (tileNum+(bank*0x100)) | (paletteid<<12) | (flipX<<10) | (flipY<<11);
-    else {
-        overlayMap[m][i] = 0x300;
-    }
-    map[m][i] = (tileNum+(bank*0x100)) | (paletteid<<12) | (flipX<<10) | (flipY<<11);
-    color0Map[m][i] = paletteid<<12;
+    updateTileMapTo(liveGbMapTargets(), m, i);
 }
 
 void drawTile(int tileNum, int bank) {
-    int index = (tileNum<<4)+(bank*0x100*16);
-    int signedIndex=index;
-    if (tileNum >= 0x100)
-        signedIndex -= (0x100<<4);
-
-    bool unsign = tileNum < 0x100;
-    bool sign = tileNum >= 0x80;
-    u8* src = &gameboy->vram[bank][tileNum<<4];
-    for (int y=0; y<8; y++) {
-        int b1=*(src++);
-        int b2=*(src++)<<1;
-        int bb0=0, bb1=0;
-        int fb0=0, fb1=0;
-        int sb0=0, sb1=0;
-        int shift=12;
-        for (int x=0; x<4; x++) {
-            int colorid = b1&1;
-            b1 >>= 1;
-            colorid |= b2&2;
-            b2 >>= 1;
-
-            fb1 |= (colorid+1)<<shift;
-            if (colorid != 0)
-                bb1 |= ((colorid+1)<<shift);
-            if (unsign)
-                sb1 |= (colorid<<shift);
-            shift -= 4;
-        }
-        shift = 12;
-        for (int x=0; x<4; x++) {
-            int colorid = b1&1;
-            b1 >>= 1;
-            colorid |= b2&2;
-            b2 >>= 1;
-
-            fb0 |= (colorid+1)<<shift;
-            if (colorid != 0)
-                bb0 |= ((colorid+1)<<shift);
-            if (unsign)
-                sb0 |= (colorid<<shift);
-            shift -= 4;
-        }
-        if (unsign) {
-            BG_GFX[0x8000+index] = bb0;
-            BG_GFX[0x8000+index+1] = bb1;
-            BG_GFX[0x10000+index] = fb0;
-            BG_GFX[0x10000+index+1] = fb1;
-            SPRITE_GFX[index++] = sb0;
-            SPRITE_GFX[index++] = sb1;
-        }
-        if (sign) {
-            BG_GFX[0xc000+signedIndex] = bb0;
-            BG_GFX[0xc000+signedIndex+1] = bb1;
-            BG_GFX[0x14000+signedIndex++] = fb0;
-            BG_GFX[0x14000+signedIndex++] = fb1;
-        }
-    }
+    convertGbTile(liveGbTileTargets(), tileNum, bank,
+                  &gameboy->vram[bank][tileNum << 4]);
 }
 
 // Currently not actually used
@@ -1157,18 +1419,44 @@ void copyTile(u8 *src,u16 *dest) {
 
 void drawScreen()
 {
+    TRACE_VIDEO(VIDEO_GUEST_COMPLETE, REG_VCOUNT);
+    // Overflow is exceptional: do not silently lose a display transition.
+    // Report from foreground code, never from the VBlank interrupt.
+    if (vblankTaskOverflow)
+        fatalerr("VBlank display task queue overflow");
+
     if (probingForBorder)
         return;
 
     if (!(fastForwardMode || fastForwardKey)) {
-        if (interruptWaitMode == 1) // Always wait for Vblank.
-            swiWaitForVBlank();
-        else { // Continue if we've passed vblank.
-            // I used to do swiIntrWait(0,IRQ_VBLANK), but apparently that
-            // stopped working?
-
-            // This is essentially equivalent.
-            if (!didVblank)
+        const bool mustWait = interruptWaitMode == 1 || !didVblank;
+        if (mustWait) {
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+            if (gbStageNeedsForegroundWait(
+                    stagedRendererActive, frameSlots.hasReady(),
+                    !gbGraphicsDisabled && !gfxMask && !isMenuOn() &&
+                    !isFileChooserOn(),
+                    stageFaultCode == GB_STAGE_FAULT_NONE)) {
+                // A blocking VBlank wait after releasing FF can miss the
+                // only safe foreground publication interval. Keep normal
+                // host pacing, but service line 168 first. Guest cycles do
+                // not advance during this wait, just as with the old SWI.
+                const uint32_t pollSerial = stageEarlyPollSerial;
+                uint32_t serviceFrame = dsFrameCounter;
+                while (gbStageAwaitSafePoll(
+                           pollSerial, stageEarlyPollSerial,
+                           stageFaultCode == GB_STAGE_FAULT_NONE)) {
+                    const unsigned line = REG_VCOUNT;
+                    if (line >= 168 && line <= 170) {
+                        serviceFrame = dsFrameCounter;
+                        servicePendingVideoFrameCommit();
+                    }
+                }
+                if (stageFaultCode == GB_STAGE_FAULT_NONE &&
+                        gbStageAwaitHostVBlank(serviceFrame, dsFrameCounter))
+                    swiWaitForVBlank();
+            } else
+#endif
                 swiWaitForVBlank();
         }
     }
@@ -1178,12 +1466,56 @@ void drawScreen()
     if (REG_VCOUNT == 192)
         sharedData->frameFlip_DS = sharedData->frameFlip_Gameboy;
 
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    const bool paused = mgr_isPaused();
+    const bool suspended = gbStageDisplaySuspended(
+        paused, isMenuOn(), isFileChooserOn(), gfxMask, gbGraphicsDisabled);
+    gbStageRebaseReadyAge(dsFrameCounter, suspended,
+                          frameSlots.hasReady(), &stageReadySinceHostFrame);
+    // A paused manager calls drawScreen again without producing a guest
+    // frame. Keep the last complete ready generation and its staged assets.
+    if (stagedRendererActive && paused)
+        return;
+#endif
     if (gfxMask)
         return;
 
-    ScanlineStruct* tmp = renderingState;
-    renderingState = drawingState;
-    drawingState = tmp;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive && stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
+    const bool recentEarlyPoll = stageEarlyPollSeen &&
+        (uint32_t)(dsFrameCounter - stageLastEarlyPollHostFrame) <= 2;
+    if (stagedRendererActive ||
+            ((fastForwardMode || fastForwardKey) &&
+             stageCalibrationEligible && recentEarlyPoll &&
+             stageFaultCode == GB_STAGE_FAULT_NONE)) {
+        stageCompletedVideoFrame();
+        servicePendingVideoFrameCommit();
+        return;
+    }
+#endif
+
+    // In a trace build, publish the pointer and its generation atomically for
+    // the HBlank observer. The release build retains its original fast path.
+#if defined(GAMEYOB_VIDEO_TRACE) || defined(GAMEYOB_HBLANK_ANOMALY_TRACE)
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+#endif
+    frameSlots.publishImmediately();
+    drawingState = scanlineBuffers[frameSlots.displayed()];
+    renderingState = scanlineBuffers[frameSlots.producer()];
+#ifdef GAMEYOB_VIDEO_TRACE
+    publishedGuestFrame = gameboy->gameboyFrameCounter;
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = gameboy->gameboyFrameCounter;
+#endif
+#if defined(GAMEYOB_VIDEO_TRACE) || defined(GAMEYOB_HBLANK_ANOMALY_TRACE)
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+#endif
+    TRACE_VIDEO(VIDEO_PUBLISH, REG_VCOUNT);
 
     screenDisabled = lastScreenDisabled;
     if (!(gameboy->ioRam[0x40] & 0x80))
@@ -1196,6 +1528,7 @@ void drawScreen()
     updateTileMaps();
     if (gameboy->sgbMode)
         refreshSgbPalette();
+    TRACE_VIDEO(VIDEO_UPLOAD_END, REG_VCOUNT);
 }
 
 void drawSprites(u8* data, int tall) {
@@ -1253,7 +1586,7 @@ void drawSprites(u8* data, int tall) {
                             yPos = 0;
                         else if (yPos >= 18)
                             yPos = 17;
-                        int sgbPalette = gameboy->sgbMap[yPos*20 + xPos]&3;
+                        int sgbPalette = visibleSgbPalette(yPos*20 + xPos);
                         paletteid = sgbPalette+(!!(data[spriteNum+3] & 0x10))*4;
                     }
                     else
@@ -1520,11 +1853,12 @@ void writeVram16(u16 dest, u16 src) {
 }
 
 
-void updateTiles() {
+static void updateTilesTo(const GbTileTargets& targets) {
     while (changedTileQueueLength > 0) {
         int val = changedTileQueue[--changedTileQueueLength];
         int bank = val>>9,tile=val&0x1ff;
-        drawTile(tile, bank);
+        convertGbTile(targets, tile, bank,
+                      &gameboy->vram[bank][tile << 4]);
         changedTile[bank][tile] = false;
     }
     // copy "changedTileInFrame" to "changedTile", where they'll be applied next 
@@ -1537,6 +1871,325 @@ void updateTiles() {
         changedTileQueue[changedTileQueueLength++] = val;
     }
 }
+
+void updateTiles() {
+    updateTilesTo(liveGbTileTargets());
+}
+
+#ifdef GAMEYOB_STAGE_VIDEO_EXPERIMENT
+static void copyLiveAssetsToStage() {
+    const GbTileTargets liveTiles = liveGbTileTargets();
+    const GbMapTargets liveMaps = liveGbMapTargets();
+    const GbTileTargets ramTiles = stagedAssets.tileTargets();
+    const GbMapTargets ramMaps = stagedAssets.mapTargets();
+    memcpy(ramTiles.unsignedTiles, liveTiles.unsignedTiles, 0x4000);
+    memcpy(ramTiles.signedTiles, liveTiles.signedTiles, 0x4000);
+    memcpy(ramTiles.unsignedFilledTiles, liveTiles.unsignedFilledTiles, 0x4000);
+    memcpy(ramTiles.signedFilledTiles, liveTiles.signedFilledTiles, 0x4000);
+    memcpy(ramTiles.objTiles, liveTiles.objTiles, 0x4000);
+    for (int m = 0; m < 2; m++) {
+        memcpy(ramMaps.normal[m], liveMaps.normal[m], 0x800);
+        memcpy(ramMaps.color0[m], liveMaps.color0[m], 0x800);
+        memcpy(ramMaps.overlay[m], liveMaps.overlay[m], 0x800);
+    }
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    memcpy(displaySgbMap, gameboy->sgbMap, sizeof(displaySgbMap));
+    displayTilePriority[0] = usingTilePriority[0];
+    displayTilePriority[1] = usingTilePriority[1];
+#endif
+}
+
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+static void stageCompletedVideoFrame() {
+    if (!stagedRendererActive) {
+        copyLiveAssetsToStage();
+        stagedRendererActive = true;
+        stageStagedEntries++;
+        stagedDirty = 0;
+    }
+    // A foreground hook that never reaches the safe host interval must not
+    // leave a permanently stale picture while the guest continues running.
+    // This is a recoverable experimental fault, not a transfer safety bound.
+    if (frameSlots.hasReady() &&
+            gbStageReadyStale(dsFrameCounter, stageReadySinceHostFrame)) {
+        stageFaultCode = GB_STAGE_FAULT_NO_COMMIT_OPPORTUNITY;
+        return;
+    }
+
+    for (int i = 0; i < changedTileQueueLength; i++) {
+        const int tile = changedTileQueue[i] & 0x1ff;
+        stagedDirty |= gbStageTileDirtyMask(tile);
+    }
+    for (int m = 0; m < 2; m++) {
+        if (changedMapQueueLength[m])
+            stagedDirty |= gbStageMapDirtyMask(m);
+    }
+
+    updateTilesTo(stagedAssets.tileTargets());
+    updateTileMapsTo(stagedAssets.mapTargets());
+    if (gameboy->sgbMode) {
+        refreshSgbPaletteTo(stagedAssets.mapTargets(), renderingState);
+        stagedDirty |= gbStageSgbDirtyMask();
+    }
+
+    readyScreenDisabled = lastScreenDisabled ||
+                          !(gameboy->ioRam[0x40] & 0x80);
+    lastScreenDisabled = !(gameboy->ioRam[0x40] & 0x80);
+    readyGuestFrame = gameboy->gameboyFrameCounter;
+    memcpy(readySgbMap, gameboy->sgbMap, sizeof(readySgbMap));
+    readyTilePriority[0] = usingTilePriority[0];
+    readyTilePriority[1] = usingTilePriority[1];
+    winPosY = -1;
+
+    const bool hadReady = frameSlots.hasReady();
+    gbStageCompleteLatestFrame(frameSlots, scanlineBuffers);
+    if (!hadReady)
+        stageReadySinceHostFrame = dsFrameCounter;
+    renderingState = scanlineBuffers[frameSlots.producer()];
+}
+#endif
+
+struct GbStageDmaOps {
+    bool busy() const { return dmaBusy(3) != 0; }
+    void flush(const void* source, unsigned bytes) const {
+        DC_FlushRange(source, bytes);
+    }
+    void copy(const void* source, void* destination, unsigned bytes) const {
+        dmaCopyWords(3, source, destination, bytes);
+    }
+};
+
+static bool copyStagedAssetsToLive(unsigned dirtyMask) {
+    const GbTileTargets liveTiles = liveGbTileTargets();
+    const GbMapTargets liveMaps = liveGbMapTargets();
+    const GbTileTargets ramTiles = stagedAssets.tileTargets();
+    const GbMapTargets ramMaps = stagedAssets.mapTargets();
+    GbStageDmaOps ops;
+    return gbStageTransferDirtyAssets(dirtyMask, ramTiles, ramMaps,
+                                       liveTiles, liveMaps, ops);
+}
+
+bool measureGbStageFullCopyAtLine(unsigned startLine,
+                                  GbStageCopyMeasurement* output) {
+    if (!output || !gameboy || !gbGraphicsDisabled ||
+            (startLine != 168 && startLine != 192))
+        return false;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive)
+        return false;
+#endif
+    copyLiveAssetsToStage();
+    swiWaitForVBlank();
+    if (startLine == 168) {
+        while (REG_VCOUNT != 168) {}
+    }
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    if (vblankTasks.hasPending() || videoCommitInProgress || dmaBusy(3)) {
+        REG_IME = previousIme;
+        return false;
+    }
+    videoCommitInProgress = true;
+    output->startHostFrame = dsFrameCounter;
+    output->startVcount = REG_VCOUNT;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+    const bool transferCompleted = copyStagedAssetsToLive(STAGE_ALL);
+    const int restoreIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    output->endHostFrame = dsFrameCounter;
+    output->endVcount = REG_VCOUNT;
+    videoCommitInProgress = false;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = restoreIme;
+    if (!transferCompleted)
+        return false;
+    output->bytesCopied = gbStageDirtyBytes(STAGE_ALL);
+    return true;
+}
+
+bool measureGbStageFullCopy(GbStageCopyMeasurement* output) {
+    return measureGbStageFullCopyAtLine(192, output);
+}
+
+bool calibrateGbStagedVideo(GbStageCalibration* output) {
+    if (!output)
+        return false;
+    if (!gameboy || !gbGraphicsDisabled)
+        return false;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    if (stagedRendererActive || stageFaultCode != GB_STAGE_FAULT_NONE)
+        return false;
+#endif
+    memset(output, 0, sizeof(*output));
+    stageCalibrationEligible = false;
+    stageAdmittedBoundLines = 0;
+    for (unsigned trial = 0; trial < GB_STAGE_CALIBRATION_TRIALS; trial++) {
+        if (!measureGbStageFullCopyAtLine(168, &output->trials[trial]))
+            return false;
+        output->completedTrials++;
+        const GbStageCopyMeasurement& sample = output->trials[trial];
+        const unsigned elapsed = gbStageElapsedLines(
+            sample.startHostFrame, sample.startVcount,
+            sample.endHostFrame, sample.endVcount);
+        if (elapsed > output->maxObservedLines)
+            output->maxObservedLines = elapsed;
+    }
+    // This 16-line cushion is intentionally conservative relative to the
+    // observed complete transfer, but remains an experimental, not absolute,
+    // bound. A failed budget leaves the original renderer in use.
+    const unsigned admitted = output->maxObservedLines + 16;
+    if (admitted <= 64 && mayCommitGbStagedFrame(168, admitted)) {
+        output->admittedBoundLines = admitted;
+        output->eligible = 1;
+        stageAdmittedBoundLines = admitted;
+        stageCalibrationEligible = true;
+    }
+    return true;
+}
+
+GbStageRuntimeStatus getGbStageRuntimeStatus() {
+    GbStageRuntimeStatus result = {};
+    result.calibrationEligible = stageCalibrationEligible;
+    result.copyBackend = GB_STAGE_COPY_DMA3_WORDS;
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    result.stagedEntries = stageStagedEntries;
+    result.presentedFrames = stagePresentedFrames;
+    result.deferredForCallbacks = stageDeferredForCallbacks;
+    result.lastEarlyPollHostFrame = stageLastEarlyPollHostFrame;
+    result.lastCopyEndVcount = stageLastCopyEndVcount;
+    result.faultCode = stageFaultCode;
+#endif
+    return result;
+}
+
+void servicePendingVideoFrameCommit() {
+#ifndef GAMEYOB_STAGE_VIDEO_ACTIVE
+    return;
+#else
+    const unsigned line = REG_VCOUNT;
+    if (line >= 168 && line <= 170) {
+        stageLastEarlyPollHostFrame = dsFrameCounter;
+        stageEarlyPollSeen = true;
+        stageEarlyPollSerial++;
+    }
+    if (stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
+    const bool suspended = gbStageDisplaySuspended(
+        mgr_isPaused(), isMenuOn(), isFileChooserOn(), gfxMask,
+        gbGraphicsDisabled);
+    gbStageRebaseReadyAge(dsFrameCounter, suspended,
+                          frameSlots.hasReady(), &stageReadySinceHostFrame);
+    if (suspended)
+        return;
+    if (!stagedRendererActive || !frameSlots.hasReady() ||
+            !stageCalibrationEligible)
+        return;
+    if (!mayCommitGbStagedFrame(line, stageAdmittedBoundLines))
+        return;
+
+    const int previousIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const unsigned reservedLine = REG_VCOUNT;
+    if (!mayCommitGbStagedFrame(reservedLine, stageAdmittedBoundLines)) {
+        REG_IME = previousIme;
+        return;
+    }
+    if (vblankTasks.hasPending() || videoCommitInProgress ||
+            (stagedDirty && dmaBusy(3))) {
+        stageDeferredForCallbacks++;
+        REG_IME = previousIme;
+        return;
+    }
+    const uint32_t startHostFrame = dsFrameCounter;
+    videoCommitInProgress = true;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = previousIme;
+
+    const bool transferCompleted = copyStagedAssetsToLive(stagedDirty);
+    const int restoreIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const uint32_t endHostFrame = dsFrameCounter;
+    const unsigned endLine = REG_VCOUNT;
+    videoCommitInProgress = false;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = restoreIme;
+    stageLastCopyEndVcount = endLine;
+
+    if (!transferCompleted) {
+        stageFaultCode = GB_STAGE_FAULT_DMA_CONFLICT;
+        return;
+    }
+
+    const unsigned elapsed = gbStageElapsedLines(startHostFrame, reservedLine,
+                                                  endHostFrame, endLine);
+    if (elapsed > stageAdmittedBoundLines || !gbStageMayPublish(endLine)) {
+        // Single-bank VRAM cannot roll back a partial host frame here. Stop
+        // future staged publication and report a recoverable fault through
+        // foreground integration. Reset/reload rebuilds ordinary VRAM;
+        // staging remains disabled until an app restart.
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
+        return;
+    }
+
+    const int publishIme = REG_IME;
+    REG_IME = 0;
+    __asm__ volatile("" ::: "memory");
+    const unsigned publishLine = REG_VCOUNT;
+    const uint32_t publishHostFrame = dsFrameCounter;
+    if (!gbStageMayPublish(publishLine) ||
+            gbStageElapsedLines(startHostFrame, reservedLine,
+                                publishHostFrame, publishLine) >
+                stageAdmittedBoundLines) {
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
+        REG_IME = publishIme;
+        return;
+    }
+    memcpy(displaySgbMap, readySgbMap, sizeof(displaySgbMap));
+    displayTilePriority[0] = readyTilePriority[0];
+    displayTilePriority[1] = readyTilePriority[1];
+    frameSlots.commitReady();
+    drawingState = scanlineBuffers[frameSlots.displayed()];
+    screenDisabled = readyScreenDisabled;
+#ifdef GAMEYOB_VIDEO_TRACE
+    publishedGuestFrame = readyGuestFrame;
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    hblankPublishedGuestFrame = readyGuestFrame;
+#endif
+    const unsigned finalLine = REG_VCOUNT;
+    const uint32_t finalHostFrame = dsFrameCounter;
+    if (!gbStageMayPublish(finalLine) ||
+            gbStageElapsedLines(startHostFrame, reservedLine,
+                                finalHostFrame, finalLine) >
+                stageAdmittedBoundLines)
+        stageFaultCode = GB_STAGE_FAULT_DEADLINE;
+    __asm__ volatile("" ::: "memory");
+    REG_IME = publishIme;
+    if (stageFaultCode != GB_STAGE_FAULT_NONE)
+        return;
+    stagedDirty = 0;
+    stagePresentedFrames++;
+    TRACE_VIDEO(VIDEO_UPLOAD_END, endLine);
+    TRACE_VIDEO(VIDEO_PUBLISH, REG_VCOUNT);
+#endif
+}
+#else
+void servicePendingVideoFrameCommit() {}
+bool measureGbStageFullCopy(GbStageCopyMeasurement*) { return false; }
+bool measureGbStageFullCopyAtLine(unsigned, GbStageCopyMeasurement*) {
+    return false;
+}
+bool calibrateGbStagedVideo(GbStageCalibration*) { return false; }
+GbStageRuntimeStatus getGbStageRuntimeStatus() {
+    GbStageRuntimeStatus result = {};
+    return result;
+}
+#endif
 
 void updateBgPalette(int paletteid, u8* data, u8 dmgPal) {
     for (int i=0; i<4; i++) {

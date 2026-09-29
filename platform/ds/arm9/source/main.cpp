@@ -23,6 +23,22 @@
 #include "gbmanager.h"
 #include "config.h"
 #include "error.h"
+#if defined(GAMEYOB_STAGE_COPY_DIAGNOSTIC) || defined(GAMEYOB_STAGE_VIDEO_ACTIVE)
+#include "gbgfx_stage_service.h"
+#include "gbgfx_stage_copy_report.h"
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+#include "hblank_ff_capture.h"
+#include "hblank_anomaly_trace.h"
+#include "hblank_anomaly_report.h"
+#endif
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+#include "video_frame_trace.h"
+#include "video_ff_release_capture.h"
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+#include "video_frame_trace.h"
+#include "video_trace_profile.h"
+#endif
 
 void updateVBlank();
 
@@ -110,6 +126,49 @@ int main(int argc, char* argv[])
     // set up the vblank handler asap.
     initGFX();
 
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    // The ACTIVE experiment remains fail-closed until same-boot hardware
+    // calibration completes. This happens before any ROM or chooser activity.
+    GbStageCalibration stageCalibration = {};
+    clearGFX();
+    const bool stageCalibrationComplete =
+        calibrateGbStagedVideo(&stageCalibration);
+    initGFX(); // Always return to the normal startup display path.
+    char stageCalibrationPath[256];
+    if (writeGbStageCalibrationReport(".", GIT_REVISION,
+                                      stageCalibrationComplete,
+                                      &stageCalibration, stageCalibrationPath,
+                                      sizeof(stageCalibrationPath)))
+        printLog("Staged-video calibration %s: %s\n",
+                 stageCalibrationComplete && stageCalibration.eligible ?
+                     "eligible" : "inactive", stageCalibrationPath);
+    else
+        printLog("Staged-video calibration report could not be saved.\n");
+#elif defined(GAMEYOB_STAGE_COPY_DIAGNOSTIC)
+    // Measure only before a ROM or file chooser can run. The copied bytes are
+    // identical VRAM contents; this does not activate the staged renderer.
+    GbStageCopyMeasurement stageCopyTrials[16];
+    bool stageCopyComplete = true;
+    clearGFX();
+    for (unsigned trial = 0; trial < 16; trial++) {
+        if (!measureGbStageFullCopy(&stageCopyTrials[trial])) {
+            stageCopyComplete = false;
+            break;
+        }
+    }
+    initGFX(); // Always restore ordinary graphics before any ROM is opened.
+    if (stageCopyComplete) {
+        char stageCopyPath[256];
+        if (writeGbStageCopyReport(".", GIT_REVISION, stageCopyTrials, 16,
+                                   stageCopyPath, sizeof(stageCopyPath)))
+            printLog("Stage copy measurement saved: %s\n", stageCopyPath);
+        else
+            printLog("Stage copy measurement could not be saved.\n");
+    } else {
+        printLog("Stage copy measurement aborted; graphics restored.\n");
+    }
+#endif
+
     consoleInitialized = false;
 
     const char* autoloadRom = getAutoloadRomPath();
@@ -131,9 +190,181 @@ int main(int argc, char* argv[])
         mgr_selectRom();
     }
 
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+    VideoFfReleaseCapture ffReleaseCapture;
+    unsigned ffReleaseVcount = 0;
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+    // This scripted diagnostic runs only for an explicitly autoloaded ROM.
+    // Keep the 180-frame warmup out of the trace ring and never write in IRQ.
+    const bool runVideoProfile = autoloadRom && *autoloadRom;
+    VideoTraceProfile videoProfile(gameboy ? gameboy->gameboyFrameCounter : 0,
+                                   &fastForwardMode);
+    uint32_t profileFirstGuestFrame = 0;
+    uint32_t profileOverwrittenBefore = 0;
+    if (runVideoProfile)
+        freezeVideoFrameTrace();
+#endif
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+    bool stageFaultNotified = false;
+    bool stageStatusSavedThisPauseMenu = false;
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+    HBlankFfCapture hblankFfCapture;
+    static HBlankAnomalyEvent hblankSnapshot[64];
+    unsigned hblankSnapshotCount = 0;
+    uint32_t hblankOverwritten = 0;
+    uint32_t hblankReleaseGuest = 0;
+    uint32_t hblankReleaseHost = 0;
+    uint16_t hblankReleaseVcount = 0;
+    bool hblankExportAttemptedThisPauseMenu = false;
+#endif
     for (;;) {
         mgr_runFrame();
         mgr_updateVBlank();
+#ifdef GAMEYOB_STAGE_VIDEO_ACTIVE
+        const GbStageRuntimeStatus stageStatus = getGbStageRuntimeStatus();
+        if (stageStatus.faultCode != GB_STAGE_FAULT_NONE &&
+                !stageFaultNotified) {
+            stageFaultNotified = true;
+            // The console can be disabled during gameplay (single-screen or
+            // scaled display). Make the recovery choice visible immediately.
+            mgr_pause();
+            if (!isMenuOn() && !isFileChooserOn()) {
+                displayMenu();
+            }
+            printMenuMessage("Video fault: reset/reload ROM");
+            printLog("Staged video fault %u; normal video needs Reset/ROM reload.\n",
+                     stageStatus.faultCode);
+        }
+        const bool stageStatusCaptureReady = isMenuOn() && mgr_isPaused() &&
+            gameboy && gameboy->isRomLoaded();
+        if (!stageStatusCaptureReady) {
+            stageStatusSavedThisPauseMenu = false;
+        } else if (!stageStatusSavedThisPauseMenu) {
+            stageStatusSavedThisPauseMenu = true;
+            char stageStatusPath[256];
+            if (writeGbStageRuntimeStatusReport(".", GIT_REVISION,
+                                                &stageStatus, stageStatusPath,
+                                                sizeof(stageStatusPath)))
+                printLog("Staged-video status saved: %s\n", stageStatusPath);
+            else
+                printLog("Staged-video status could not be saved.\n");
+        }
+#endif
+#ifdef GAMEYOB_HBLANK_ANOMALY_TRACE
+        const uintptr_t hblankRom = gameboy && gameboy->isRomLoaded() ?
+            (uintptr_t)gameboy->getRomFile() : 0;
+        const bool hblankGameplay = !probingForBorder && !isMenuOn() &&
+            !isFileChooserOn() && !mgr_isPaused();
+        const uint32_t hblankGuest = gameboy ?
+            gameboy->gameboyFrameCounter : 0;
+        const HBlankFfCapture::Action hblankAction = hblankFfCapture.observe(
+            hblankRom, hblankGameplay, hblankGuest,
+            fastForwardKey || fastForwardMode);
+        if (hblankAction == HBlankFfCapture::CLEAR) {
+            clearHBlankAnomalyTrace();
+            hblankSnapshotCount = 0;
+            hblankOverwritten = 0;
+        } else if (hblankAction == HBlankFfCapture::RELEASE) {
+            // Freeze immediately; the visible line disappears when L is
+            // released. Copy the sparse ring in foreground, without FAT I/O.
+            freezeHBlankAnomalyTrace();
+            hblankReleaseGuest = hblankGuest;
+            hblankReleaseHost = dsFrameCounter;
+            hblankReleaseVcount = REG_VCOUNT;
+            hblankOverwritten = hblankAnomalyTraceOverwritten();
+            hblankSnapshotCount = readHBlankAnomalyTrace(
+                hblankSnapshot, sizeof(hblankSnapshot) /
+                                sizeof(hblankSnapshot[0]));
+        }
+        const bool hblankPauseMenu = isMenuOn() && mgr_isPaused() &&
+            hblankRom != 0;
+        if (!hblankPauseMenu) {
+            hblankExportAttemptedThisPauseMenu = false;
+        } else if (hblankFfCapture.pending() &&
+                   !hblankExportAttemptedThisPauseMenu) {
+            hblankExportAttemptedThisPauseMenu = true;
+            char hblankPath[256];
+            if (writeHBlankAnomalyReport(".", GIT_REVISION,
+                                         hblankReleaseGuest,
+                                         hblankReleaseHost,
+                                         hblankReleaseVcount,
+                                         hblankOverwritten, hblankSnapshot,
+                                         hblankSnapshotCount, hblankPath,
+                                         sizeof(hblankPath))) {
+                hblankFfCapture.exported();
+                printLog("HBlank FF anomaly trace saved: %s\n", hblankPath);
+                printMenuMessage("HBlank FF trace saved in current folder.");
+            } else {
+                printLog("HBlank FF anomaly trace save failed; reopen Pause menu to retry.\n");
+                printMenuMessage("HBlank FF trace save failed.");
+            }
+        }
+#endif
+#if defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_FF_RELEASE)
+        const uintptr_t activeRom = gameboy && gameboy->isRomLoaded() ?
+            (uintptr_t)gameboy->getRomFile() : 0;
+        const bool captureUsable = !probingForBorder && !isMenuOn() &&
+            !isFileChooserOn() && !mgr_isPaused();
+        const VideoFfReleaseCapture::Action releaseAction =
+            ffReleaseCapture.observe(activeRom, captureUsable,
+                gameboy ? gameboy->gameboyFrameCounter : 0,
+                fastForwardKey || fastForwardMode);
+        if (releaseAction == VideoFfReleaseCapture::NEW_ROM ||
+                releaseAction == VideoFfReleaseCapture::CANCEL) {
+            VideoFrameEvent discarded;
+            while (readVideoFrameTrace(&discarded, 1) == 1) {}
+            if (!isMenuOn() && !isFileChooserOn())
+                resumeVideoFrameTrace();
+            if (releaseAction == VideoFfReleaseCapture::CANCEL)
+                printMenuMessage("FF trace cancelled; hold and release L again.");
+        } else if (releaseAction == VideoFfReleaseCapture::RELEASE) {
+            ffReleaseVcount = REG_VCOUNT;
+        } else if (releaseAction == VideoFfReleaseCapture::READY) {
+            freezeVideoFrameTrace();
+            if (exportVideoFfReleaseTrace(ffReleaseCapture.releaseGuest(),
+                                          ffReleaseVcount))
+                printMenuMessage("FF release trace saved in current folder.");
+            else
+                printMenuMessage("FF release trace failed; no valid file.");
+        }
+#elif defined(GAMEYOB_VIDEO_TRACE) && defined(GAMEYOB_VIDEO_PUBLICATION_ONLY)
+        if (runVideoProfile && gameboy) {
+            const uint32_t guestFrame = gameboy->gameboyFrameCounter;
+            const VideoTraceProfile::Action action = videoProfile.observe(
+                !probingForBorder, gfxMask == 0, guestFrame);
+            if (action == VideoTraceProfile::START_WINDOW) {
+                VideoFrameEvent discarded;
+                while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                profileFirstGuestFrame = guestFrame + 1;
+                profileOverwrittenBefore = videoFrameTraceOverwritten();
+                resumeVideoFrameTrace();
+            } else if (action == VideoTraceProfile::ABORT_WINDOW) {
+                freezeVideoFrameTrace();
+                printLog("Video publication profile discarded a masked window.\n");
+            } else if (action == VideoTraceProfile::END_WINDOW) {
+                // observe() restores the pre-profile FF state before I/O.
+                freezeVideoFrameTrace();
+                const VideoTraceProfileExportResult result =
+                    exportVideoTraceProfileCsv(videoProfile.phase(),
+                        videoProfile.attempt(), profileFirstGuestFrame,
+                        guestFrame, profileOverwrittenBefore);
+                if (result == VIDEO_PROFILE_INVALID) {
+                    videoProfile.retryInvalidEvidence(guestFrame);
+                    printLog("Video publication profile discarded invalid evidence.\n");
+                } else if (result == VIDEO_PROFILE_IO_ERROR) {
+                    videoProfile.stop();
+                    printLog("Video publication profile export failed.\n");
+                } else if (videoProfile.nextWindow()) {
+                    VideoFrameEvent discarded;
+                    while (readVideoFrameTrace(&discarded, 1) == 1) {}
+                    profileFirstGuestFrame = guestFrame + 1;
+                    profileOverwrittenBefore = videoFrameTraceOverwritten();
+                    resumeVideoFrameTrace();
+                }
+            }
+        }
+#endif
     }
 
     return 0;

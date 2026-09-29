@@ -2,6 +2,37 @@ name: Nintendo DS build
 
 on:
   workflow_dispatch:
+    inputs:
+      video_trace:
+        description: Build separately identified on-device video diagnostics
+        type: boolean
+        required: false
+        default: false
+      video_trace_profile:
+        description: Build automatic publication-only video profile (implies video trace)
+        type: boolean
+        required: false
+        default: false
+      video_trace_ff_release:
+        description: Build manual fast-forward release diagnostic (implies video trace)
+        type: boolean
+        required: false
+        default: false
+      stage_copy_diagnostic:
+        description: Measure inactive staged-video copy before loading a ROM
+        type: boolean
+        required: false
+        default: false
+      stage_video_experimental:
+        description: Build runtime-calibrated experimental staged video (not release)
+        type: boolean
+        required: false
+        default: false
+      hblank_anomaly_trace:
+        description: Add sparse HBlank FF anomaly trace to experimental staged video
+        type: boolean
+        required: false
+        default: false
   push:
     paths:
       - "platform/ds/**"
@@ -26,14 +57,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build NDS homebrew
+        env:
+          VIDEO_TRACE: ${{ (inputs.video_trace || inputs.video_trace_profile || inputs.video_trace_ff_release) && '1' || '0' }}
+          VIDEO_TRACE_PROFILE: ${{ inputs.video_trace_profile && '1' || '0' }}
+          VIDEO_TRACE_FF_RELEASE: ${{ inputs.video_trace_ff_release && '1' || '0' }}
+          STAGE_COPY_DIAGNOSTIC: ${{ inputs.stage_copy_diagnostic && '1' || '0' }}
+          STAGE_VIDEO_EXPERIMENTAL: ${{ inputs.stage_video_experimental && '1' || '0' }}
+          HBLANK_ANOMALY_TRACE: ${{ inputs.hblank_anomaly_trace && '1' || '0' }}
         run: |
           docker run --rm \
+            --env VIDEO_TRACE --env VIDEO_TRACE_PROFILE --env VIDEO_TRACE_FF_RELEASE --env STAGE_COPY_DIAGNOSTIC --env STAGE_VIDEO_EXPERIMENTAL --env HBLANK_ANOMALY_TRACE \
             --volume "$GITHUB_WORKSPACE:/workspace" \
             --workdir /workspace \
             skylyrac/blocksds:slim-v1.22.2@sha256:a073c57ffd340542a6e09d14616dd925d219bc534399dbdc73d2abaa04c1628e \
             bash -euo pipefail -c '
               git config --global --add safe.directory /workspace
-              make -f Makefile.blocksds
+              make -f Makefile.blocksds VIDEO_TRACE="$VIDEO_TRACE" VIDEO_TRACE_PROFILE="$VIDEO_TRACE_PROFILE" VIDEO_TRACE_FF_RELEASE="$VIDEO_TRACE_FF_RELEASE" STAGE_COPY_DIAGNOSTIC="$STAGE_COPY_DIAGNOSTIC" STAGE_VIDEO_EXPERIMENTAL="$STAGE_VIDEO_EXPERIMENTAL" HBLANK_ANOMALY_TRACE="$HBLANK_ANOMALY_TRACE"
             '
       - name: Record artifact checksum
         run: |
@@ -44,7 +83,7 @@ jobs:
       - name: Upload Nintendo DS build
         uses: actions/upload-artifact@v4
         with:
-          name: gameyob-ds-${{ github.sha }}
+          name: gameyob-ds-${{ github.sha }}-${{ inputs.hblank_anomaly_trace && 'staged-video-hblank-anomaly' || (inputs.stage_video_experimental && 'staged-video-experimental' || (inputs.stage_copy_diagnostic && 'stage-copy-diagnostic' || (inputs.video_trace_ff_release && 'ff-release-diagnostic' || (inputs.video_trace_profile && 'publication-profile' || (inputs.video_trace && 'video-diagnostic' || 'normal'))))) }}
           path: |
             platform/ds/gameyob.nds
             platform/ds/gameyob_dsi.nds

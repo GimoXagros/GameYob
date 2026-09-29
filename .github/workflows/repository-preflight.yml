@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - "tools/run_host_tests.py"
+      - "tests/test_run_host_tests.py"
       - ".github/workflows/repository-preflight.yml"
 
 permissions:
@@ -17,6 +18,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify portable test command parsing
+        run: python3 -m unittest discover -s tests -p test_run_host_tests.py
       - run: python3 tools/run_host_tests.py
       - name: Undefined behavior checks
         if: always()

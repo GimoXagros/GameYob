@@ -1,4 +1,4 @@
-# GameYob v0.5.10 user guide (English)
+# GameYob v0.5.11 user guide (English)
 
 ## 1. Choose a build
 
@@ -28,7 +28,7 @@ The default DS-family mapping uses the D-pad, A/B, Start, and Select as expected
 - **Select Language File** loads a UTF-8 INI, JSON, XML, YAML, or YML file after Custom is selected.
 - **Save Settings** writes `gameyobds.ini` and creates an English `gameyob_language.ini` template beside it if one does not exist. Existing custom templates are never overwritten.
 - **Console Output** selects Off, clock, FPS+clock, or debug logging.
-- **GB Printer** enables printer emulation. Printed output is written beside the ROM.
+- **GB Printer** enables printer emulation. Successful print jobs are saved as numbered BMP files beside the ROM; back up the SD card before testing or printing important images. Each supported job creates a separate image. Multi-copy jobs and printer-paper margins/exposure effects are not currently represented in the BMP output.
 - DS-only options include **Rumble Pak**, **GB Camera** (Inner/Outer on supported DSi hardware), and **Autosaving**.
 
 External language details and examples are in [the language-file guide](../../languages/README.md).
@@ -46,13 +46,21 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS and DSi. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.
 - **GBC Mode** offers Off, If Needed (CGB-only header `0xC0`), or On (CGB-compatible headers `0x80`/`0xC0`); On does not force monochrome-only headers into CGB mode. **SGB Mode** chooses Off, Prefer GBC, or Prefer SGB. **Detect GBA** is a boot identification flag, not a speed option. Reset/reload after changing these modes.
 
-## 7. Sound and debug options
+## 7. v0.5.11 behavior and known limitation
+
+SGB-border extraction may perform a disposable startup before normal play. Back up saves and do not mistake a brief startup delay for a hang. Fast-forward is L on the default DS mapping; **Detect GBA** is unrelated. v0.5.11 includes border-probe isolation and fast-forward handling, and the user reports satisfactory overall performance and stability on a Nintendo 3DS in DS mode with DSpico. This is not an all-games or all-hardware validation. Castlevania Legends still shows intermittent thin white lines while L fast-forward is held; it is tracked as [open issue #8](https://github.com/GimoXagros/GameYob/issues/8), not marked fixed.
+
+For printer output, set **Settings → GB Printer → On** before starting a compatible game. v0.5.11 includes packet/serial validation and staged BMP output. Completed numbered BMPs are written beside the ROM (for example, `game-0.bmp`) through a temporary `.tmp` file; keep free SD space and back up existing data. One-copy output is supported; paper margins and exposure are not reflected in the BMP. Synthetic packet/BMP and production-linked GB/CGB serial tests pass, but the earlier Tales print-menu report has not been independently reproduced on the final hardware build. For a report, provide the build revision, ROM SHA-256, settings, and steps—not ROM/BIOS/save files or private printouts.
+
+The earlier brief whole-screen black flicker has not been re-observed in the user's recent hardware runs, but no cause-linked general renderer fix is claimed. If it returns, record Scaling, Filter, Game Screen, border, and fast-forward settings and whether display recovers without Reset. The normal v0.5.11 NDS files do not enable the experimental staged renderer or video/HBlank trace builds. Diagnostic CSV behavior belongs only to separately labeled private builds.
+
+## 8. Sound and debug options
 
 **Sound Channels** independently enables pulse 1, pulse 2, wave, and noise. **Debug → Sound** is the master switch. DS-only timing switches (**Wait for Vblank**, **Hblank**, **Window**, and **Sound Timing Fix**) should normally remain at their defaults; they are compatibility diagnostics. **ROM Info** shows mapper/ROM/RAM data and **Version Info** shows the exact build revision.
 
 Native 3DS-specific audio diagnostics are documented with the archived build and are outside the active DS/DSi release.
 
-## 8. Local and wireless link
+## 9. Local and wireless link
 
 ### Local Link
 
@@ -64,13 +72,13 @@ Native 3DS-specific audio diagnostics are documented with the archived build and
 
 Native 3DS LAN work is deferred with the archived 3DSX build. It cannot join an `.nds` raw-NiFi room directly; see [`backup/3dsx/TODO.md`](../../backup/3dsx/TODO.md).
 
-## 9. RTC and patched ROMs
+## 10. RTC and patched ROMs
 
 MBC3 and HuC3 clocks use elapsed host time, preserve the MBC3 halt/day-carry bits, and save clock data after SRAM. RTC-only cartridges with no external RAM are supported. Changing the system clock backwards resets the elapsed-time baseline rather than producing a huge jump.
 
 Patched ROMs are sized from their physical file, not only the often-stale header byte. Non-power-of-two layouts are mirrored safely, standard SRAM headers through 128 KiB are supported, and partial banks read as `0xFF`. The hardware MBC5 limit is 8 MiB; larger or unsupported custom mappers require mapper-specific implementation.
 
-## 10. Troubleshooting
+## 11. Troubleshooting
 
 - If a language does not change, select English once, reselect the target language, and save settings. For Custom, verify UTF-8 encoding and unchanged English keys.
 - If an emulator replaces Unicode SD filenames with `?` before passing a directory entry to homebrew, GameYob cannot reconstruct those lost characters. Update the emulator or set `autoloadrom=/gb/your Korean filename.gbc` in `gameyobds.ini`; the value is UTF-8 and supports an absolute SD path.
@@ -79,7 +87,7 @@ Patched ROMs are sized from their physical file, not only the often-stale header
 - If a hack fails, check its mapper, physical size, and RAM header under **Debug → ROM Info**. MMM01 types 0x0B-0x0D are supported; legacy types 0x15-0x17 remain undocumented/unknown. MBC7 EEPROM/tilt and HuC1 banking/IR selection have automated coverage, but physical MBC7/HuC cartridge validation remains pending.
 - Do not share ROMs or BIOS files in bug reports. Record the ROM SHA-256, mapper, platform, build revision, and reproduction steps instead.
 
-## 11. v0.5.10 maintenance notes
+## 12. v0.5.10 maintenance retained in v0.5.11
 
 Both NDS files have DS+DSi unit code `0x02` and identical program payloads;
 `gameyob_dsi.nds` has the `GYOB` title ID. The launcher chooses the actual mode.

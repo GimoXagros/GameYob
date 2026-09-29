@@ -13,8 +13,44 @@ BINDIRS		:= assets/fonts
 
 REVISION	:= $(shell git rev-parse --short=12 HEAD)
 DEFINES		:= -DNO_VIZ -DGIT_REVISION=\"$(REVISION)\" \
-		   -DGAMEYOB_VERSION=\"v0.5.9-ko\" \
+		   -DGAMEYOB_VERSION=\"v0.5.11\" \
 		   -DC_IO_FUNCTIONS -DNIFI -DDS
+ifeq ($(VIDEO_TRACE),1)
+DEFINES += -DGAMEYOB_VIDEO_TRACE
+endif
+ifeq ($(VIDEO_TRACE_PROFILE),1)
+ifneq ($(VIDEO_TRACE),1)
+$(error VIDEO_TRACE_PROFILE requires VIDEO_TRACE=1)
+endif
+DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY
+endif
+ifeq ($(VIDEO_TRACE_FF_RELEASE),1)
+ifneq ($(VIDEO_TRACE),1)
+$(error VIDEO_TRACE_FF_RELEASE requires VIDEO_TRACE=1)
+endif
+ifeq ($(VIDEO_TRACE_PROFILE),1)
+$(error Select only one video trace capture mode)
+endif
+DEFINES += -DGAMEYOB_VIDEO_PUBLICATION_ONLY -DGAMEYOB_VIDEO_FF_RELEASE
+endif
+ifeq ($(STAGE_COPY_DIAGNOSTIC),1)
+DEFINES += -DGAMEYOB_STAGE_VIDEO_EXPERIMENT -DGAMEYOB_STAGE_COPY_DIAGNOSTIC
+endif
+ifeq ($(STAGE_VIDEO_EXPERIMENTAL),1)
+ifeq ($(STAGE_COPY_DIAGNOSTIC),1)
+$(error Select only one staged-video diagnostic mode)
+endif
+DEFINES += -DGAMEYOB_STAGE_VIDEO_EXPERIMENT -DGAMEYOB_STAGE_VIDEO_ACTIVE
+endif
+ifeq ($(STAGE_VIDEO_ACTIVE),1)
+$(error Staged video activation is not approved for this build)
+endif
+ifeq ($(HBLANK_ANOMALY_TRACE),1)
+ifneq ($(STAGE_VIDEO_EXPERIMENTAL),1)
+$(error HBLANK_ANOMALY_TRACE requires STAGE_VIDEO_EXPERIMENTAL=1)
+endif
+DEFINES += -DGAMEYOB_HBLANK_ANOMALY_TRACE
+endif
 
 LIBS		:= -ldswifi9_noip -lnds9
 LIBDIRS		:= $(BLOCKSDS)/libs/dswifi \

@@ -1,0 +1,152 @@
+#include "gbgfx_stage_copy_report.h"
+#include "gbgfx_stage.h"
+#include <stdio.h>
+#include <string.h>
+
+bool writeGbStageCopyReport(const char* directory, const char* sourceRevision,
+                            const GbStageCopyMeasurement* trials,
+                            unsigned trialCount, char* writtenPath,
+                            size_t writtenPathSize) {
+    if (!directory || !sourceRevision || !trials || !trialCount ||
+            !writtenPath || !writtenPathSize)
+        return false;
+    writtenPath[0] = 0;
+    for (unsigned number = 0; number < 100; number++) {
+        char path[256];
+        const int length = snprintf(path, sizeof(path),
+                                    "%s/gameyob_stage_copy_%02u.csv",
+                                    directory, number);
+        if (length < 0 || (size_t)length >= sizeof(path) ||
+                (size_t)length >= writtenPathSize)
+            return false;
+        FILE* output = fopen(path, "wx");
+        if (!output)
+            continue;
+        bool ok = fprintf(output,
+            "source_revision,%s\nprofile,stage_copy_diagnostic\n"
+            "experiment,1\nactive,0\nexpected_payload_bytes,%u\n"
+            "requested_trials,%u\n"
+            "trial,bytes_copied,start_host_frame,end_host_frame,"
+            "start_vcount,end_vcount,same_host_frame\n",
+            sourceRevision, (unsigned)GB_GFX_STAGE_BYTES, trialCount) > 0;
+        for (unsigned index = 0; index < trialCount && ok; index++) {
+            const GbStageCopyMeasurement& value = trials[index];
+            ok = fprintf(output, "%u,%lu,%lu,%lu,%u,%u,%u\n",
+                         index, (unsigned long)value.bytesCopied,
+                         (unsigned long)value.startHostFrame,
+                         (unsigned long)value.endHostFrame,
+                         value.startVcount, value.endVcount,
+                         value.startHostFrame == value.endHostFrame) > 0;
+        }
+        if (fclose(output) != 0)
+            ok = false;
+        if (!ok) {
+            remove(path); // Only the file this call created exclusively.
+            return false;
+        }
+        memcpy(writtenPath, path, (size_t)length + 1);
+        return true;
+    }
+    return false;
+}
+
+bool writeGbStageCalibrationReport(const char* directory,
+                                   const char* sourceRevision,
+                                   bool calibrationCompleted,
+                                   const GbStageCalibration* calibration,
+                                   char* writtenPath, size_t writtenPathSize) {
+    if (!directory || !sourceRevision || !calibration || !writtenPath ||
+            !writtenPathSize ||
+            calibration->completedTrials > GB_STAGE_CALIBRATION_TRIALS)
+        return false;
+    writtenPath[0] = 0;
+    for (unsigned number = 0; number < 100; number++) {
+        char path[256];
+        const int length = snprintf(path, sizeof(path),
+                                    "%s/gameyob_stage_calibration_%02u.csv",
+                                    directory, number);
+        if (length < 0 || (size_t)length >= sizeof(path) ||
+                (size_t)length >= writtenPathSize)
+            return false;
+        FILE* output = fopen(path, "wx");
+        if (!output)
+            continue;
+        const char* result = !calibrationCompleted ? "aborted" :
+            calibration->eligible ? "eligible" : "ineligible";
+        bool ok = fprintf(output,
+            "source_revision,%s\nprofile,experimental_staged_video\n"
+            "experiment,1\nactive_compiled,1\nresult,%s\n"
+            "copy_backend,dma3_words\n"
+            "expected_payload_bytes,%u\ncompleted_trials,%u\n"
+            "max_observed_lines,%u\nadmitted_bound_lines,%u\n"
+            "trial,bytes_copied,start_host_frame,end_host_frame,"
+            "start_vcount,end_vcount,same_host_frame\n",
+            sourceRevision, result, (unsigned)GB_GFX_STAGE_BYTES,
+            calibration->completedTrials, calibration->maxObservedLines,
+            calibration->admittedBoundLines) > 0;
+        for (unsigned index = 0;
+                index < calibration->completedTrials && ok; index++) {
+            const GbStageCopyMeasurement& value = calibration->trials[index];
+            ok = fprintf(output, "%u,%lu,%lu,%lu,%u,%u,%u\n",
+                         index, (unsigned long)value.bytesCopied,
+                         (unsigned long)value.startHostFrame,
+                         (unsigned long)value.endHostFrame,
+                         value.startVcount, value.endVcount,
+                         value.startHostFrame == value.endHostFrame) > 0;
+        }
+        if (fclose(output) != 0)
+            ok = false;
+        if (!ok) {
+            remove(path); // Only the exclusively created report.
+            return false;
+        }
+        memcpy(writtenPath, path, (size_t)length + 1);
+        return true;
+    }
+    return false;
+}
+
+bool writeGbStageRuntimeStatusReport(const char* directory,
+                                     const char* sourceRevision,
+                                     const GbStageRuntimeStatus* status,
+                                     char* writtenPath, size_t writtenPathSize) {
+    if (!directory || !sourceRevision || !status || !writtenPath ||
+            !writtenPathSize)
+        return false;
+    writtenPath[0] = 0;
+    for (unsigned number = 0; number < 100; number++) {
+        char path[256];
+        const int length = snprintf(path, sizeof(path),
+                                    "%s/gameyob_stage_status_%02u.csv",
+                                    directory, number);
+        if (length < 0 || (size_t)length >= sizeof(path) ||
+                (size_t)length >= writtenPathSize)
+            return false;
+        FILE* output = fopen(path, "wx");
+        if (!output)
+            continue;
+        bool ok = fprintf(output,
+            "source_revision,%s\nprofile,experimental_staged_video_status\n"
+            "capture_context,paused_menu\n"
+            "copy_backend,%u\ncalibration_eligible,%u\n"
+            "staged_entries,%lu\npresented_frames,%lu\n"
+            "deferred_for_callbacks,%lu\nlast_early_poll_host_frame,%lu\n"
+            "last_copy_end_vcount,%u\nfault_code,%u\n",
+            sourceRevision, status->copyBackend,
+            status->calibrationEligible,
+            (unsigned long)status->stagedEntries,
+            (unsigned long)status->presentedFrames,
+            (unsigned long)status->deferredForCallbacks,
+            (unsigned long)status->lastEarlyPollHostFrame,
+            status->lastCopyEndVcount, status->faultCode) > 0;
+        if (fclose(output) != 0)
+            ok = false;
+        if (!ok) {
+            remove(path); // Only the exclusively created report.
+            return false;
+        }
+        memcpy(writtenPath, path, (size_t)length + 1);
+        return true;
+    }
+    return false;
+}
