@@ -233,10 +233,6 @@ void mgr_loadRom(const char* filename) {
     // Never let that transient boot state leak into the next cartridge.
     probingForBorder = false;
 
-#ifdef NIFI
-    nifiStop();
-#endif
-
     // A cartridge-owned SGB border must never survive into the next ROM.
     // Reset the platform renderer before opening the new cartridge so even a
     // slow SD read cannot leave the previous border visible on screen.
@@ -319,6 +315,11 @@ void mgr_loadRom(const char* filename) {
 }
 
 void mgr_unloadRom() {
+#ifdef NIFI
+    // Unregister wireless callbacks before either Gameboy or RomFile can be
+    // destroyed, including chooser and application-exit transitions.
+    nifiStop();
+#endif
 #ifdef CPU_DEBUG
     stopDebugger();
 #endif

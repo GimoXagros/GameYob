@@ -160,3 +160,7 @@ jobs:
             tests/huc1_rules_test.cpp platform/common/huc1_rules.cpp \
             -o /tmp/huc1_rules_test
           /tmp/huc1_rules_test
+      - name: Build and run ROM reload lifecycle tests
+        run: |
+          g++ -std=c++17 -w -ffunction-sections -fdata-sections -Wl,--gc-sections -DMANAGER_TEST -DNIFI -DSDL -DC_IO_FUNCTIONS -include platform/sdl/include/typedefs.h -Itests/support -Iplatform/common/include tests/romfile_bios_lifecycle_test.cpp platform/common/gbmanager.cpp platform/common/romfile.cpp platform/common/gameboy.cpp platform/common/mmu.cpp platform/common/mbc.cpp platform/common/sgb.cpp platform/common/sgb_host.cpp platform/common/sgb_protocol.cpp platform/common/huc1_rules.cpp platform/common/rtc.cpp platform/common/gbcpu.cpp platform/common/rom_layout.cpp platform/common/nifi_protocol.cpp platform/common/mmm01.cpp platform/common/mbc7_eeprom.cpp -o /tmp/rom_reload_lifecycle_test
+          /tmp/rom_reload_lifecycle_test
