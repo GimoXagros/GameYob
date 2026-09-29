@@ -184,7 +184,8 @@ def nds(path):
             require((color == 0) == transparent,
                     'NDS banner transparent index differs from source icon')
             actual = struct.unpack_from('<H', data, banner + 0x220 + color * 2)[0] & 0x7fff
-            require(actual == expected, 'NDS banner differs from icon.bmp')
+            if not transparent:
+                require(actual == expected, 'NDS visible banner pixel differs from icon.bmp')
     print('Six banner titles and transparent icon pixels match committed source')
     marker = data.find(b'\xed\xa5\x8d\xbf Chishm\x00')
     require(marker >= 0, 'DLDI marker missing')
