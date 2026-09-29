@@ -32,7 +32,8 @@ def main():
                                    dither=Image.Dither.NONE)
     palette = quantized.getpalette()[:45]
     indexed = Image.new("P", source.size)
-    indexed.putpalette([0, 0, 0] + palette + [0] * (768 - 3 - len(palette)))
+    # ndstool reserves banner palette index 0 for magenta transparency.
+    indexed.putpalette([255, 0, 255] + palette + [0] * (768 - 3 - len(palette)))
     indexed.putdata([
         0 if pixel[3] < 128 else color + 1
         for pixel, color in zip(rgba, quantized.getdata())
