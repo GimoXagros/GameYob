@@ -110,6 +110,13 @@ failure and bound RLE/packet sizes. No real user printouts in fixtures/assets.
 
 ## Outcome
 
+Current controlled USER_REPORTED split: ordinary exact-a084 build shows no white
+line at normal speed, but intermittent lines with L fast-forward; diagnostic
+exact-a084 can show lines at normal speed. Earlier broad normal-speed regression
+interpretation is superseded. Focus implementation on safe host display
+publication during fast-forward and independent debug instrumentation overhead,
+without slowing guest execution merely to conceal artifacts. No fix yet accepted.
+
 Follow-up in progress: user reports no recurrence of the original whole-screen
 black flicker in the diagnostic build and generally working SGB/fast-forward.
 A distinct Castlevania Legends white-horizontal-line defect reportedly persists
@@ -313,3 +320,349 @@ packaging and evidence documentation do not imply redistribution clearance.
   reverted locally by 1107c2f and NEVER integrated. Main corrected the premature
   commentary; integration stopped before cherry-pick. No new renderer fix or
   candidate validation is established by that test.
+- New user photo clearly shows a narrow bright horizontal line immediately below
+  KONAMI inside the guest rectangle, not spanning the decorative border. User
+  reports the line persists regardless of scaling/filter and with SGB borders
+  disabled. The photo itself shows a border, so record the Off tests separately
+  as USER_REPORTED, not as visible photo settings. Cold launch with all Off is
+  not yet distinguished from changing settings in-session; optional question sent.
+  Resumed the same two agents for focused reachable scanline/shared-frame-path
+  analysis; no repeated provenance search, no speculative renderer edits.
+- User subsequently confirmed cold restart, Wait for VBlank On and SGB Mode
+  Off do not remove the line. Supplied CSV contains 256 valid events across host
+  frames 13888..13900, all 12 publish events at physical line 192, no mixed
+  published generation among sampled host scanlines, scale=0. This only weakens
+  the active-swap hypothesis in the captured ~0.2s window; no incident marker or
+  BG/window/palette states are available. No source fix inferred.
+- User explicitly requested PC-emulator reproduction and logs before fix and
+  prerelease. Main read computer-use skill and required API/guidance/confirmation
+  references; main alone owns native UI via sky. Integration prepares isolated
+  melonDS 1.1 config/BIOS copies/DLDI storage and a hash-verified copied ROM, never
+  user saves or the existing GameYobTest image. Video specialist completed a
+  bounded checkpoint, no instrumentation until direct emulator evidence or a
+  specific missing-debugger need; SDL renderer is not a DS output oracle.
+- Latest user clarifies menu entry hides the white line; Castlevania triggers
+  persistence into another ROM, and initialization restores normal rendering.
+  A prior stable build reportedly did not exhibit it. Exact known-good binary and
+  meaning of initialization (menu Reset vs app restart) are requested, not assumed.
+  Earlier all-Off/cold-launch reports concern triggering Castlevania; distinguish
+  that from recovery in a subsequently loaded ROM. GB/GBC transition is a user
+  hypothesis, not a confirmed cause. Same two agents resumed comparing actual
+  load/reset/menu lifecycle call chains and BASE-to-candidate differences. Do not
+  repeat menu-triggered capture as if it leaves the symptom unchanged.
+- User identifies v0.5.10 as free of the white-line problem. Integration will
+  resolve the exact release/tag/artifact identity; expand comparison to that
+  release through a084 rather than assuming stabilization BASE763 was good for
+  this newly reported defect. User has not yet defined Reset vs app restart.
+  Automated bisect remains conditional on a genuine reproducible classifier;
+  melonDS user's non-recurrence is not a failing predicate.
+- Resolved GOOD v0.5.10 source commit: 4d0f29f7e07c26dbaea1006aec310fea7b50828e
+  (annotated tag object 30ec90035d498bff07de939a3e3d52087d8f0c34 is not the
+  commit). Tracked ZIP hash 18c8eff2f7c7b5d38f302e996c68dad5a63935f70782dd13d45343847e4d846c
+  matches GitHub asset digest; released normal NDS hash
+  12dcb43eb301bfd14ac0fa56bd91599532de72fcf9ea01b9dc7ba7ce79ae68b4.
+  Source comparison found no changed BG/window/palette composition algorithm;
+  release-visible graphics delta centers on VBlank queue, with shared startup/
+  probe/BIOS changes and debug-only HBlank trace overhead. No culprit proven.
+- An important remaining split is exact-a084 ordinary vs VIDEO_TRACE build on
+  the same device/ROM/config, because debug IRQ sampling itself may affect timing.
+  Both existing artifacts were already built/tested; do not call this a fix or
+  rebuild unnecessarily. Reset and ROM loading both refresh guest/map content
+  but differ in unload/probe/border/display scheduling. No speculative global
+  clears, source rollback or release authorized by these observations alone.
+- User completed the exact-source A/B: ordinary a084 normal speed is clean,
+  L fast-forward intermittently causes white lines; diagnostic a084 can show
+  lines at normal speed. Requested correction and distribution. Same video and
+  integration agents resumed with implementation scope, first requiring actual
+  production-path evidence and safe frame ownership design; preserve guest timing
+  and baseline stabilization, no blanket frame-wait throttling or speculative
+  mode reset. No new source/release accepted from the hypothesis alone.
+- Video design review found pointer-only publication gating insufficient: live
+  tile/map/palette uploads and deferred dirty queues must also retain ownership
+  and fit host blanking time. Rather than implement an unmeasured timing patch,
+  authorized a low-overhead automated diagnostic to measure actual publication
+  and upload intervals, without HBlank sampling or menu-triggered capture.
+- Video instrumentation-only commit 04d21599130a659e8867e8311ce431449c163082
+  adds UPLOAD_END event and FF/mode/queue metadata; dedicated host ring test
+  passes. Integration adds opt-in profile build, 180 ready-frame warmup then
+  separately captured/exported 20 normal, 20 fast-forward, 20 normal guest frames.
+  Restore previous FF mode before each foreground export including failures;
+  retain 256-event ring, report overwrite deltas. No guest timing or ordinary
+  renderer fix is claimed; require reviewed exact build before PC profiling.
+- Targeted read-only profile review at 2a1b83e found no P0/P1 for isolated,
+  hands-off execution. Inputs/reset/menu/lid can invalidate labeled windows;
+  inspect actual FF fields and monotonic counters. Foreground CSV export leaves
+  a gap, so the final window is not evidence of immediate FF-release behavior.
+- Frozen profile source 71917a5f2f603f4f0e637eb54c3576758ad1d9d2 adds only
+  explicit profile CI dispatch wiring after review; pinned build run 36232317142
+  dispatched. No white-line correction or release accepted yet. Main UI scan
+  found no running melonDS; reuse only isolated scratch setup for next capture.
+- Exact 71917 profile DS/DSi CI and header checks passed; main booted profile in
+  isolated melonDS without intentional guest input, then closed it. Three unique
+  CSVs were exported under scratch sdroot/gb with monotonic counters, 20 guest
+  frames each, FF 0/1/0 and no overwritten events. Integration found startup
+  gfxMask=1 suppressing every publish/upload in the first two windows; therefore
+  these logs validate the harness but NOT the scanout hypothesis. Authorized a
+  diagnostic-only stable-unmasked readiness gate and bounded retry on masking.
+  No thin-line reproduction or production correction established by this run.
+- User clarified ordinary NDS behavior: while L is held, white lines appear and
+  disappear intermittently; releasing L removes them. Treat this as transient
+  FF-only behavior, distinct from prior diagnostic-build persistence reports.
+  Investigate scanout/update timing without assuming persistent GB/GBC state.
+- Resumed after user stopped UI with Escape. Exact dbe8f203 profile (SHA256 NDS
+  c585a5b7bdb65aa4b6269287d0d7de122d9cbd96535a02cfd2235ac1c5abe782)
+  passed targeted review/build, then ran in isolated melonDS. User closed the
+  emulator after UI input conflict and reconfirmed no visible white line on PC.
+  All three current CSVs have 20 complete/publish/upload events, mask=0,
+  FF=0/1/0, monotonic counters, zero overwrite. FF has 11/20 visible-line
+  publications and 10/20 visible upload ends; normal-before has 192->203 for all
+  pairs. Queue counts are zero, so this is not a worst-case transfer budget.
+  Timing overlap is established in PC logs, physical symptom causality is not.
+- User now requests the build for hardware testing. Integration packages exact
+  dbe8f203 as a private automatic diagnostic, explicitly not a renderer fix or
+  public prerelease. Current CSVs must be copied outside folder-sync before any
+  rerun: earlier 71917 CSVs are no longer visible after melonDS synchronization,
+  so no-clobber inside the app does not establish preservation across sync.
+- New hardware manual logs on Desktop (18:55/18:56) replace earlier supplied
+  filenames: trace_00 SHA256 a5187824ba5d307e347dac914f6ad30df6b7dea4c51def229eaf0cb871492277
+  contains 256 events, FF=0 throughout; 64 publish events all at VCOUNT192,
+  uploads end192..200. trace_01 has only headers. These do not capture the
+  reported FF-only line, despite nonzero tile/map queues in normal-speed data.
+- Integration identified a diagnostic routing flaw: automatic profile starts
+  only when autoloadrom is nonempty, not after ordinary file-browser ROM choice.
+  This explains a plausible missing-log path, not a proven user config value.
+  Authorized a narrowly scoped, separately identified FF-release diagnostic:
+  real held/toggle FF release triggers foreground capture of prehistory and
+  eight normal frames, independent of autoload; guard mode/menu/probe/reset
+  contamination, preserve files, test/review before hardware handoff. This is
+  not a renderer correction and does not satisfy prerelease publication gates.
+- FF-release diagnostic frozen at adeab302319348fdd748b873ef1bed1b259400c8.
+  Targeted reviewer found no P0/P1 for private hardware capture; exact pinned
+  DS/DSi workflow36235047396 and core/normal builds passed. Structural/resource
+  checks passed. DS artifact SHA256
+  92d41a873303b48a1e42b5889d49fdc423d6ccbe7c1c0cc34f294a4d9b5b62ee.
+  Manual ROM selection supported; effective FF release preserves eight guest
+  frames then foreground export, no menu/forced FF. Raw CSV validation is not
+  proof of paired complete transition; overwritten is lifetime ring total.
+  Hardware execution remains pending. Handoff uses plain NDS and README under
+  .codex-tmp/integration-tests/diagnostic-ff-release-adeab30. No new public tag
+  or release; white-line cause and renderer correction remain unverified.
+- 2026-09-27 resumed implementation after incident-associated hardware capture.
+  FF-release trace SHA256866f43c51305d3579cfa687623422569d24ecb5d81683bafc44df33d23b27b8c
+  contains 66 FF publishes (35 visible), 67 FF upload ends (36 visible), eight
+  normal publishes192 and upload ends198. Leading unmatched upload is the ring
+  head, not evidence of a missing in-window publish. User explicitly released L
+  upon seeing the line. Last FF guest2151 commits114->120, release VCOUNT122.
+  This strongly associates mid-scanout commits with the incident, without a
+  pixel-event marker. Video specialist resumed concrete transactional-commit
+  implementation design, preserving live VRAM and scanline ownership together;
+  integration performs bounded repository checkpoint only until patch handoff.
+- Architecture decision: a full VRAM-bank shadow conflicts with custom-border
+  storage and the printer OBJ icon. Approved compact RAM staging instead:
+  four 16KiB guest BG tile blocks, 16KiB guest OBJ tiles, six 2KiB maps (92KiB),
+  plus a third scanline buffer for displayed/ready/producer ownership. This
+  capacity estimate is not a measured hardware timing guarantee.
+- Implementation phases: (1) production conversion target abstraction and
+  byte-equality/dirty-coverage tests, (2) queued complete-frame ownership and
+  coalescing tests, (3) bounded safe-window commit with reviewed DMA/channel
+  ownership and frequent foreground service hook, (4) exact builds, targeted
+  review and before/after hardware evidence. DMA activation remains gated until
+  budget and ownership are justified; partial staging is not a released fix.
+  Video owns graphics/helpers/tests, integration only shared scheduling hook.
+- Phase1 conversion extraction integrated at 9c16a9d8e42ad33cf3793cf4eb4b45df085f853d
+  (video commit c62f6cc plus test registration). Production still targets live
+  VRAM, so no visible fix. Exhaustive host conversion tests and pinned DS builds
+  passed; preflight36276373420 DS job passed two deterministic clean builds,
+  host job failed in run_host_tests.py parsing an existing multi-command
+  publication-profile CI step. Authorized narrow runner repair, no skipped tests.
+- Video phase2a0575f436 adds tested ownership helper/reserved third scanline
+  buffer, still not integrated or enabled as FF rendering. Complete staging
+  and safe commit service remain in progress; do not release preparatory code
+  as a white-line fix or repeat full preflights before a complete candidate.
+- Runner repair c27ed6f passed auto preflight36276600118; targeted phase1 review
+  found no P0/P1. Later measurement integration frozen at 1ddd192 includes
+  guarded inactive stage code and pre-ROM16-trial copy/export. Normal builds
+  retain two scanline buffers; EXPERIMENT-only extra RAM, ACTIVE not enabled.
+- Targeted 1ddd192 review found no P0/P1 for inactive measurement only. Pinned
+  diagnostic run36277251778, normal/core/preflight and structural checks passed.
+  DS diagnostic SHA2567853ee9bbcb14db6685ae1c86a0acf99f538cd6e7c9fcf09ccb7f0acd96bb1ad;
+  plain artifact under .codex-tmp/integration-tests/stage-copy-diagnostic-1ddd192.
+  Normal ARM9 BSS216688; diagnostic ELF absent from artifact, so its exact BSS
+  was not measured. No release/tag created.
+- Hardware handoff: launch diagnostic without ROM/input, collect unique
+  gameyob_stage_copy report from startup FAT folder. Trials copy identical
+  94208-byte guest assets while graphics disabled and restore initGFX. This is
+  a baseline copy measurement, NOT loaded-game worst-case timing or liveness
+  proof. Host-frame/VCOUNT snapshots non-atomic; interpret boundaries cautiously.
+  Active stage path still needs budget/margin, ownership/liveness validation,
+  targeted review and incident-matched hardware before/after testing before use.
+- Hardware stage-copy report D:/gameyob_stage_copy_00.csv SHA256
+  ac28a6a14c88b1c85aca85ace597318aafe82366a0f94be26ee24e11a8a495d7:
+  16/16 trials94208bytes, same host frame, VCOUNT192->240 (48 lines), no malformed
+  records. ACTIVE=0 explains unchanged FF symptom. VBlank-start full copy misses
+  line0-pre-render235; 48 observed lines is not a loaded worst-case guarantee.
+- Resumed implementation: video develops earlier foreground commit plus dirty
+  copy and complete-generation ownership; integration owns frequent guest
+  scanline/timeslice service hook. Explicitly audit VBlank callbacks which could
+  allocate or perform I/O during a copy spanning192; do not substitute a long
+  IRQ mask, unbounded callback, or an after-the-fact deadline assertion for a
+  safe transaction. Existing active path remains gated pending this work.
+- Agreed frequent service hook: DS experimental ACTIVE only, after
+  updateLCD(cycles) inside Gameboy::runEmul, with no guest-cycle change or normal
+  build overhead. Renderer owns early168 readiness, empty-VBlank-task admission,
+  short metadata critical section and callback-only deferral during transfer;
+  fixed capture/line-completion IRQ work stays in place.
+- Candidate goal revised to same-boot early168 calibration plus fail-closed
+  runtime activation, avoiding another measurement-only hardware roundtrip.
+  No arbitrary compile-time MAX_COPY_LINES/LIVENESS_VERIFIED declaration.
+  Requires bounded trials, conservative margin, ownership/liveness tests and
+  safe fallback design before enabling; measured success is still experimental
+  evidence, not proof of every hardware load or public-release approval.
+- Renderer5046f1e review caught P1 stale per-line coalescing and normal-wait
+  starvation; corrected by f03331e (integrated fe55722): preserve current-frame
+  event stream, service safe window during normal waits, fresh admission and
+  pre/post-publication timing checks plus two-line publication reserve.
+- Integrated4f6441f builds/preflight passed, but review caught P1 menu/pause
+  watchdog false fault. Fixed at54399baaf879e7dbc38fc538f43aebf3779dc380 with
+  suspended-interval age rebase, no duplicate paused staging, and unconditional
+  pause on newly latched faults. Targeted reviewer accepted this delta with no
+  new P0/P1 for private experimental hardware testing, subject to exact builds.
+  Foreground hook is ACTIVE-only after updateLCD; error opens visible menu once.
+  Reset/Reload recovers ordinary graphics; app restart required for staged retry.
+- Candidate remains experimental: calibration measures early168 full transfer
+  and includes16-line margin; fresh deadline admission and callback reservation
+  constrain copies. Calibration is not proof of universal hardware timing; an
+  observed overrun can only be detected after some live writes. No stable/public
+  release or white-line-fix verification has been claimed.
+- 2026-09-27 hardware calibration for54399baaf879: Desktop
+  gameyob_stage_calibration_00.csv SHA256
+  ffbf826165099577c87da5e5501eace10aa4ca423877a1b9501ff62e0c7e6db1.
+  All16 trials copied94208bytes; thirteen took49scanlines, three48. Result
+  ineligible:49+16margin+2publication reaches235 and fails strict deadline.
+  ACTIVE compiled does not mean activated; the reported reduced frequency,
+  working menu resume and clean post-ROM-switch display are baseline-path
+  observations, not staged-renderer success. User still sees intermittent
+  lines in Castlevania FF and during switching, only this title reported.
+- Next scoped experiment: guarded cache-flushed ARM9 DMA3 through one shared
+  calibration/runtime transfer function, retaining existing admission margins.
+  Verify pinned BlocksDS API, cache alignment and competing ARM9 DMA users;
+  ARM7 scaling DMA is a separate engine. Video owns graphics delta; integration
+  owns shared files/builds. Targeted review and exact-source normal/experimental
+  checks precede another private hardware build. No public release gate passed.
+- DMA candidate frozen at019b81d7eb180018c7a25af70b6287202cce8740 (video8c45ebf
+  integrated asa315c13 plus shared status reporting). Pinned BlocksDS1.22.2
+  libnds5788d216 confirms cache flush/drain and ITCM synchronous dmaCopyWords;
+  calibration/runtime share validated11-block transfer backend. Existing
+  margins/deadline unchanged. Startup report labels dma3_words; paused-menu-only
+  exclusive status export records calibrationEligible, stagedEntries and
+  presentedFrames separately. No active gameplay file I/O or ordinary-path change.
+- Targeted reviewer found no newP0/P1 in54399baa->019b81d7; current foreground
+  DMA ownership and callback exclusion accepted for private hardware trial.
+  Host DMA tests simulate copies and do not prove hardware cache/bus behavior.
+  deferredForCallbacks also counts DMA-busy deferrals (nonblocking naming caveat).
+- Exact019b81d CI passed: experimental36283795566; normalDS push36283791192,
+  PR36283795329; core36283791137/36283795231; preflight36283795186.
+  NDS structural/hash checks passed. Experimental DS SHA256
+  85f3bcffc68889f94984032dc322d8c07bf27fbd0df94e162451f45f133b3463;
+  DSi274708b81d90747dd47685c0d6f9df6398fd0076b40423192253b16eb50379e5.
+  Both739840bytes. Hardware eligibility/activation/white-line outcome pending;
+  private handoff authorized, no new public release/tag or master merge.
+- Hardware019b81d reports supplied2026-09-27: calibration SHA256
+  b763403f8e10d315c03310b45a3d7bbbe52000b2e5dd39af988a8504694eb568,
+  status95c49bffab95caeb3e207c30d94725c3f26f482792bd353004c1c22ed17774e0.
+  StrictUTF8 reads27/11lines, zero malformed records. All16 full94208byte DMA
+  trials168->196 (28lines), eligible1, admitted bound44. Paused-menu status:
+  staged_entries1, presented_frames442, deferred0, last_copy_end_vcount169,
+  fault0. This establishes activation/publication, not all transfers taking1line
+  or universally clean video. Previous CPU calibration49lines was ineligible.
+- User explicitly reports white lines still occur similarly to before. Faster
+  transfer and actual staged publication did NOT resolve the reported symptom.
+  Do not publish as fixed or merely loosen timing gates. Video specialist now
+  audits remaining live palette/OAM/scanline publication and FF scheduling
+  bypasses to propose a discriminating next test before further implementation.
+- Next diagnostic (not a rendering fix): sparse64-event HBlank anomaly ring,
+  capturing previous-line retry, visible non-HBlank entry and line-cross event,
+  frame generation/line state plus selected BG/window/palette/OAM registers.
+  Video delta1c81cf3; ordinary nonflag handler unchanged. Bounded instrumentation
+  still perturbs IRQ timing, so symptom disappearance or no events is inconclusive.
+  Shared integration will arm on new L press, freeze on genuine gameplay L
+  release, and export only from paused menu; no active FAT writes. Same-source
+  ACTIVE control and ACTIVE+anomaly builds requested for matched comparison.
+- Scoped history check found no production HBlank renderer change from v0.5.10
+  to stable BASE; later pre-stage changes include fixed VBlank queue and
+  diagnostics, not evidence by themselves of the cause. Exact user-known-good
+  binary correspondence remains unverified; no deterministic bisect claimed.
+- 2026-09-29 resume: frozen e201c3a4994fb5581c004aa7aebd99f587e824ca remains
+  intact; only this main-owned plan is dirty. Prior integration/review agents
+  stopped on usage limits before final handoff; partial review is NOT approval.
+  Replaced unavailable sessions with /root/integration_resume (requested
+  gpt-6-sol/medium) and /root/hblank_delta_review (gpt-6-astra/xhigh), max2
+  workers/no delegation. Resolved runtime settings remain unverified.
+  Retrieve already dispatched exact-source CI using explicit GimoXagros/GameYob
+  repository (gh default upstream Stewmath produces misleading404). Finish
+  targeted diagnostic review and artifact checks before private handoff; no
+  public release, proven visual fix or new source changes assumed.
+- Resume verification: all7 exacte201c3a runs succeeded (ACTIVE36286087882,
+  anomaly36286089241, ordinaryDS36286088498/36286091468,
+  core36286088550/36286091515, preflight36286091440). Integration downloaded
+  artifacts under.codex-tmp/private-hblank-e201c3a, verified manifests and
+  structural checks for all3 modes. HBlank diagnostic strings absent in
+  normal/control and present in anomaly; not full machine-code absence proof.
+- Targeted review completed2026-09-29: no newP0/P1, private diagnostic handoff
+  allowed. Caveats: releaseHost/VCOUNT pair non-atomic; exit_vcount measures
+  post-doHBlank not full ISR;64event capacity does not bound event frequency;
+  effectiveFF edge includes toggle, so user procedure must use Lhold/release
+  only. Paused-menu-only output and immutable snapshot ownership accepted.
+  No renderer-fix or public-release approval. Hardware HBlank evidence pending.
+- New e201c3a hardware logs: user reports lower frequency but intermittent
+  white lines persist. StrictUTF8 HBlank/calibration/status reads73/27/11lines,
+  zero malformed records. SHA256 respectively:
+  f60b6b13e0fea4653da0a7481719dd6997198187cc6d64e71a444eaae627455d;
+  bba461b684f9efcdbd3033adbcc074396f9f8ed8ab340fd8e173564ebe16221c;
+  4a4e67232551acaf6ead35b31fa8e52b4da5989ebefcc88bf4d0a7ad8bdc42c8.
+  Calibration16x28lines eligible/bound44; status staged_entries1,
+  presented_frames1744, fault0, deferred0. HBlank ring retains64 events,
+  overwritten2344; allflags4 (+1VCOUNT across doHBlank), allFF1. Sixty events
+  at guest128/physical151->152; four at guest24/28/43/119. Retained host
+  range4236..4295, releasehost4296. No pixel marker; cross-line events do not
+  establish visible fault count or first-ever divergence. Specialist checking
+  actual HBlank phase semantics and source work at that boundary before repair.
+- User banner request supersedes renderer implementation for this turn:
+  exact lines GameYob Custom / A Gameboy Emulator for DS / GimoXagros.
+  Supplied32pxRGBA saved unchanged as platform/ds/icon.png; high-res root logo
+  and upstream license attribution retained. Binary alpha threshold128 and
+  <=15visible colors are necessary DS format adaptation, not artwork redraw.
+- Actual pinned ndstoolv1.22.2-blocks4d8ef3e loadsBMP opaque: candidates55da3c0
+  andde6691a rejected after finalNDS transparency failure.2250d26 switched
+  input to generatedRGBAicon_banner.png; actual430transparent/594visible mask
+  passed, but obsolete invisibleRGB assertion failed. Finalab9d1b63d92025c3720675ff53289c28612891b5
+  compares RGB only for visiblepixels and transparency for everypixel.
+- Exactfinal normalDS36589023300 andpreflight36588978713 passed; downloaded
+  DS/DSi checked all6 bannerlanguages exacttext,430index0transparentpixels,
+  594visibleRGB555 pixels, ARM/header/banner/DLDI/TWL. Private normalfiles in
+  .codex-tmp/private-banner-ab9d1b6; DSsha256
+  fab1bea05bbffe23f876a785b189a039074ae0c6475bad0773e63fc45b86514d,
+  DSisha25679c3000698ba5555aecd82eaffae6393627fea6d07c392f6d73b18a39e493b48.
+  No runtimechanges/publicrelease/tag/mastermerge; white-lineissue unresolved.
+- NEW USER AUTHORIZATION2026-09-30: integrate compatible openPRs, merge to
+  master and publish stableGameYobv0.5.11; user reports hardware stabilization
+  and accepts Castlevania FF white-line limitation as separate openissue.
+  This supersedes previous no-master/prerelease-only/white-line release gates,
+  not license or failing-test gates. Current openPR6+7 bothmergeable/green;
+  stableLatestv0.5.10, v0.5.11notlisted. Normal/nonexperimentalbuild intended.
+  Integration sole remoteowner handles dependencyorderedmerges/version/docs/
+  knownissue/reprocollection/package/release. Reviewer independently resolves
+  prior3in1provenanceaudit disposition; do notsilentlyremovefeatures or assert
+  legalitywithoutbasis. Preserve this dirtyplan until explicit selectivecommit.
+- Release prep: issue#8 records Castlevania FF limitation and structured
+  follow-up evidence. PR7 containsPR6tip763f6bf; dependencyorder6then7.
+  Provenance reviewer found no new integrationblocker, but existing3in1
+  permissionbasis remains unknown despite retained attribution/notices.
+  Not an established legal prohibition; no licenseclearance claim possible.
+  User asked to select retain+disclose / approve exclusion / holdpublication.
+  Integration may prepare/mergeauthorizedPRs, but awaits answer beforepublic
+  tag/release. Main authorizes selective inclusion of this plan in finaldocs.
+- USER DISPOSITION: explicitly retain3in1feature and disclose unknown
+  permissionbasis while publishingv0.5.11. This resolves the maintainer choice,
+  NOT underlying provenance verification or legalclearance. Preserve notices,
+  clearly list unresolveditem in release materials and continue stableworkflow.

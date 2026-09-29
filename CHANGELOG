@@ -1,3 +1,27 @@
+Version 0.5.11 (2026-09-30):
+
+- Retained the v0.5.10 base and ROM reload lifecycle stabilization from PR #6.
+- Isolated SGB border probing from normal play and preserved fast-forward
+  handling; hardened Game Boy Printer packet/serial validation and staged
+  numbered BMP output.
+- Updated the DS/DSi launcher banner to `GameYob Custom`,
+  `A Gameboy Emulator for DS`, and `GimoXagros`, using the supplied 32-pixel
+  icon with binary transparency.
+- Kept experimental staged-video and HBlank trace modes out of normal builds.
+  Intermittent white horizontal lines in Castlevania Legends during held L
+  fast-forward remain open issue #8; overall hardware performance/stability
+  satisfaction is user-reported, not an all-games hardware certification.
+- Retained inherited 3in1 code and attribution while disclosing that permission
+  for the exact older fragment remains unverified. See THIRD_PARTY_NOTICES.txt.
+
+버전 0.5.11 (2026-09-30):
+
+- v0.5.10 및 PR #6의 ROM 반복 실행 안정화를 유지하고 SGB 보더 탐색과
+  프린터 패킷·시리얼·BMP 출력을 보강.
+- DS 배너를 요청한 세 줄과 제공된 투명 32픽셀 아이콘으로 변경.
+- 일반 빌드에서 실험적 화면 계측은 끄고, Castlevania L 배속 흰 가로줄은
+  미해결 이슈 #8로 유지. 3in1 기존 코드의 명시적 허락 근거 미확인을 공개.
+
 Version 0.5.10 (2026-09-05):
 
 - Kept save-state version 8 while adding exact version 1-8 prefix sizing,

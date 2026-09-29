@@ -85,6 +85,11 @@ Nintendo 3DS에서도 NDS판을 DS 모드로 실행할 수 있습니다. 네이�
   to 256 of 256, and hardens DS NiFi fragmented receives. Cycle timing,
   reference-trace validation, SPC700/DSP work, and physical-radio tests remain;
   this release does not claim a completed SGB/radio implementation.
+- Version 0.5.11 retains the ROM reload stabilization, isolates SGB border
+  probing, hardens GB Printer serial and BMP output, and uses the requested
+  three-line DS launcher banner. The user reports satisfactory overall
+  performance and stability on a 3DS in DS mode; the Castlevania fast-forward
+  white-line symptom remains [open issue #8](https://github.com/GimoXagros/GameYob/issues/8).
 
 ## 완료된 작업
 
@@ -143,7 +148,7 @@ See [language-file documentation](languages/README.md),
 [wireless-link design](docs/features/wireless-link.md),
 [SGB host coverage](docs/features/sgb-host-coverage.md),
 [rare-cartridge validation](docs/features/rare-cartridge-validation.md), and
-the [v0.5.10 release record](docs/releases/v0.5.10.md).
+the [v0.5.11 release record](docs/releases/v0.5.11.md).
 
 ## User guides / ユーザーガイド / 사용자 가이드
 
@@ -153,9 +158,9 @@ the [v0.5.10 release record](docs/releases/v0.5.10.md).
 
 ## Release / 릴리스
 
-- [Version 0.5.10 release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.10)
-- [Download gameyob.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.10/gameyob.zip)
-- [Detailed release record](docs/releases/v0.5.10.md)
+- [Version 0.5.11 release](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.11)
+- [Download gameyob-v0.5.11.zip](https://github.com/GimoXagros/GameYob/releases/download/v0.5.11/gameyob-v0.5.11.zip)
+- [Detailed release record](docs/releases/v0.5.11.md)
 
 The archive contains `gameyob.nds`, `gameyob_dsi.nds`, the English/Japanese/
 Korean guides, editable language examples, checksums, and required license
@@ -163,7 +168,7 @@ notices. It does not contain a game ROM, BIOS, or native 3DSX executable.
 
 Published release archives through `v0.5.10` are preserved in
 [`old_releases`](old_releases). The earlier native 3DSX binary is preserved
-separately in [`backup/3dsx`](backup/3dsx). `v0.5.10` is a DS/DSi-focused
+separately in [`backup/3dsx`](backup/3dsx). `v0.5.11` is a DS/DSi-focused
 release, and its NDS build can also run on Nintendo 3DS in DS mode.
 
 압축 파일에는 `gameyob.nds`, `gameyob_dsi.nds`, 영어·일본어·한국어 가이드,
@@ -172,7 +177,7 @@ ROM, BIOS 및 네이티브 3DSX 실행 파일은 포함하지 않습니다.
 
 `v0.5.10`까지 배포한 압축 파일은 [`old_releases`](old_releases)에
 보존하고, 이전 네이티브 3DSX 실행 파일은 [`backup/3dsx`](backup/3dsx)에
-별도로 보존합니다. `v0.5.10`은 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
+별도로 보존합니다. `v0.5.11`은 DS/DSi 중심 릴리스이며 NDS판은 Nintendo
 3DS의 DS 모드에서도 실행할 수 있습니다.
 
 ## Known limitations
@@ -206,7 +211,7 @@ unknown specifications, and item 7 is deferred. Existing user-approved RTC,
 ROM reload and border behavior is retained as evidence, not revoked by a new
 regression checklist. The Detect GBA report above remains an investigation.
 
-The following DS/DSi-focused work remains after `v0.5.10`.
+The following DS/DSi-focused work remains after `v0.5.11`.
 
 1. Validate raw NiFi on physical DS-to-DS, DSi-to-DSi, and Nintendo 3DS in DS
    mode-to-DS/DSi combinations.
@@ -240,7 +245,7 @@ The following DS/DSi-focused work remains after `v0.5.10`.
 것이 아니라 최신 변경 이후 회귀검증이 필요하다는 뜻입니다. 위 GBA 감지 보고는
 원인 조사 단계입니다.
 
-`v0.5.10` 이후 남은 DS/DSi 중심 작업입니다.
+`v0.5.11` 이후 남은 DS/DSi 중심 작업입니다.
 
 1. DS↔DS, DSi↔DSi, Nintendo 3DS의 DS 모드↔DS/DSi 조합에서 raw NiFi를
    실기로 검증합니다.
