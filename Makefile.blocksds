@@ -5,9 +5,9 @@ WONDERFUL_TOOLCHAIN	?= /opt/wonderful
 
 NAME		:= gameyob
 VERSION		:= v0.5.10
-GAME_TITLE	:= GameYob $(VERSION)
-GAME_SUBTITLE	:= A Gameboy emulator for DS
-GAME_AUTHOR	:= Author: Drenn
+GAME_TITLE	:= GameYob Custom
+GAME_SUBTITLE	:= A Gameboy Emulator for DS
+GAME_AUTHOR	:= GimoXagros
 GAME_ICON	:= platform/ds/icon.bmp
 
 MAKE		:= make

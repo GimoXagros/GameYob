@@ -8,6 +8,7 @@ import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 from urllib.parse import unquote
 
 import generate_unicode_assets as unicode_assets
@@ -77,6 +78,59 @@ def crc16(data):
     return result
 
 
+def icon_alpha():
+    """Read the committed 32x32 RGBA PNG's alpha without a Pillow CI dependency."""
+    data = (ROOT / 'platform/ds/icon.png').read_bytes()
+    require(data[:8] == b'\x89PNG\r\n\x1a\n', 'Icon source is not PNG')
+    offset = 8
+    compressed = bytearray()
+    while offset + 12 <= len(data):
+        length = struct.unpack_from('>I', data, offset)[0]
+        kind = data[offset + 4:offset + 8]
+        payload = data[offset + 8:offset + 8 + length]
+        require(len(payload) == length, 'Truncated icon PNG chunk')
+        if kind == b'IHDR':
+            require(struct.unpack_from('>IIBBBBB', payload) ==
+                    (32, 32, 8, 6, 0, 0, 0), 'Expected 32x32 RGBA8 noninterlaced icon')
+        elif kind == b'IDAT':
+            compressed.extend(payload)
+        offset += length + 12
+        if kind == b'IEND':
+            break
+    raw = zlib.decompress(compressed)
+    alpha = []
+    previous = bytearray(128)
+    position = 0
+    for _ in range(32):
+        filter_type = raw[position]
+        position += 1
+        scanline = bytearray(raw[position:position + 128])
+        require(len(scanline) == 128, 'Truncated icon PNG scanline')
+        position += 128
+        require(filter_type in range(5), 'Unsupported icon PNG filter')
+        for index in range(128):
+            left = scanline[index - 4] if index >= 4 else 0
+            above = previous[index]
+            upper_left = previous[index - 4] if index >= 4 else 0
+            if filter_type == 1:
+                predictor = left
+            elif filter_type == 2:
+                predictor = above
+            elif filter_type == 3:
+                predictor = (left + above) // 2
+            elif filter_type == 4:
+                p = left + above - upper_left
+                distances = (abs(p - left), abs(p - above), abs(p - upper_left))
+                predictor = (left, above, upper_left)[distances.index(min(distances))]
+            else:
+                predictor = 0
+            scanline[index] = (scanline[index] + predictor) & 255
+        alpha.extend(scanline[3::4])
+        previous = scanline
+    require(position == len(raw), 'Unexpected icon PNG image data')
+    return alpha
+
+
 def nds(path):
     data = path.read_bytes()
     require(len(data) >= 0x200, 'Truncated NDS header')
@@ -96,6 +150,12 @@ def nds(path):
     require(crc16(data[banner + 0x20:banner + 0x840]) == struct.unpack_from('<H', data, banner + 2)[0], 'Banner CRC')
     require(crc16(data[:0x15e]) == struct.unpack_from('<H', data, 0x15e)[0], 'NDS header CRC')
     require(any(data[banner + 0x20:banner + 0x220]), 'Empty banner icon')
+    expected_title = 'GameYob Custom\nA Gameboy Emulator for DS\nGimoXagros'
+    for language in range(6):
+        title = data[banner + 0x240 + language * 0x100:
+                     banner + 0x340 + language * 0x100]
+        require(title.decode('utf-16le').split('\x00', 1)[0] == expected_title,
+                f'Banner title mismatch in language {language}')
     # Compare RGB555 pixels to the committed indexed BMP, independent of
     # ndstool's palette index remapping and tiled storage order.
     bmp = (ROOT / 'platform/ds/icon.bmp').read_bytes()
@@ -103,17 +163,23 @@ def nds(path):
     require(struct.unpack_from('<H', bmp, 28)[0] == 8, 'Expected indexed 8-bit source icon')
     pixels = struct.unpack_from('<I', bmp, 10)[0]
     palette = 14 + struct.unpack_from('<I', bmp, 14)[0]
+    alpha = icon_alpha()
     for y in range(32):
         for x in range(32):
             index = bmp[pixels + (31 - y) * 32 + x]
+            transparent = alpha[y * 32 + x] < 128
+            require((index == 0) == transparent,
+                    'BMP transparent index differs from supplied PNG alpha mask')
             b, g, r = bmp[palette + index * 4:palette + index * 4 + 3]
             expected = (r >> 3) | ((g >> 3) << 5) | ((b >> 3) << 10)
             tile = (y // 8) * 4 + x // 8
             packed = data[banner + 0x20 + tile * 32 + (y % 8) * 4 + (x % 8) // 2]
             color = (packed >> (4 * (x % 2))) & 15
+            require((color == 0) == transparent,
+                    'NDS banner transparent index differs from source icon')
             actual = struct.unpack_from('<H', data, banner + 0x220 + color * 2)[0] & 0x7fff
             require(actual == expected, 'NDS banner differs from icon.bmp')
-    print('Banner icon pixels match committed BMP')
+    print('Six banner titles and transparent icon pixels match committed source')
     marker = data.find(b'\xed\xa5\x8d\xbf Chishm\x00')
     require(marker >= 0, 'DLDI marker missing')
     reserved = 1 << data[marker + 15]
