@@ -14,6 +14,7 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "platform/ds/icon.png"
 OUTPUT = ROOT / "platform/ds/icon.bmp"
+BANNER_OUTPUT = ROOT / "platform/ds/icon_banner.png"
 
 
 def main():
@@ -39,7 +40,16 @@ def main():
         for pixel, color in zip(rgba, quantized.getdata())
     ])
     indexed.save(OUTPUT, format="BMP")
+    colors = indexed.getpalette()
+    banner = Image.new("RGBA", source.size)
+    banner.putdata([
+        (255, 0, 255, 0) if index == 0 else
+        (colors[index * 3], colors[index * 3 + 1], colors[index * 3 + 2], 255)
+        for index in indexed.getdata()
+    ])
+    banner.save(BANNER_OUTPUT, format="PNG")
     print(f"Wrote {OUTPUT} from {SOURCE} (alpha threshold 128, 15 visible colors)")
+    print(f"Wrote {BANNER_OUTPUT} as 16-color RGBA PNG for ndstool")
 
 
 if __name__ == "__main__":

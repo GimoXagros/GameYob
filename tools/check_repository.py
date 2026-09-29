@@ -78,9 +78,9 @@ def crc16(data):
     return result
 
 
-def icon_alpha():
-    """Read the committed 32x32 RGBA PNG's alpha without a Pillow CI dependency."""
-    data = (ROOT / 'platform/ds/icon.png').read_bytes()
+def icon_rgba(path):
+    """Read a committed 32x32 RGBA PNG without a Pillow CI dependency."""
+    data = path.read_bytes()
     require(data[:8] == b'\x89PNG\r\n\x1a\n', 'Icon source is not PNG')
     offset = 8
     compressed = bytearray()
@@ -98,7 +98,7 @@ def icon_alpha():
         if kind == b'IEND':
             break
     raw = zlib.decompress(compressed)
-    alpha = []
+    rgba = bytearray()
     previous = bytearray(128)
     position = 0
     for _ in range(32):
@@ -125,10 +125,10 @@ def icon_alpha():
             else:
                 predictor = 0
             scanline[index] = (scanline[index] + predictor) & 255
-        alpha.extend(scanline[3::4])
+        rgba.extend(scanline)
         previous = scanline
     require(position == len(raw), 'Unexpected icon PNG image data')
-    return alpha
+    return rgba
 
 
 def nds(path):
@@ -163,11 +163,17 @@ def nds(path):
     require(struct.unpack_from('<H', bmp, 28)[0] == 8, 'Expected indexed 8-bit source icon')
     pixels = struct.unpack_from('<I', bmp, 10)[0]
     palette = 14 + struct.unpack_from('<I', bmp, 14)[0]
-    alpha = icon_alpha()
+    source = icon_rgba(ROOT / 'platform/ds/icon.png')
+    converted = icon_rgba(ROOT / 'platform/ds/icon_banner.png')
     for y in range(32):
         for x in range(32):
             index = bmp[pixels + (31 - y) * 32 + x]
-            transparent = alpha[y * 32 + x] < 128
+            pixel = (y * 32 + x) * 4
+            transparent = source[pixel + 3] < 128
+            require((converted[pixel + 3] == 0) == transparent,
+                    'Banner PNG alpha differs from supplied PNG alpha mask')
+            require(converted[pixel + 3] in (0, 255),
+                    'Banner PNG contains unsupported partial alpha')
             require((index == 0) == transparent,
                     'BMP transparent index differs from supplied PNG alpha mask')
             b, g, r = bmp[palette + index * 4:palette + index * 4 + 3]
