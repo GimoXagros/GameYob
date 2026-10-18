@@ -55,7 +55,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build NDS homebrew
         env:
           VIDEO_TRACE: ${{ (inputs.video_trace || inputs.video_trace_profile || inputs.video_trace_ff_release) && '1' || '0' }}
