@@ -83,7 +83,7 @@ jobs:
             '
       - name: Inspect final binaries and embedded assets
         run: python3 tools/check_repository.py --build-dir preflight-artifacts/first
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: preflight-${{ github.sha }}

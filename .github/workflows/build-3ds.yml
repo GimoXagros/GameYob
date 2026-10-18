@@ -41,7 +41,7 @@ jobs:
         run: sha256sum platform/3ds/gameyob.3dsx > platform/3ds/SHA256SUMS.txt
 
       - name: Upload native 3DS build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gameyob-3ds-${{ steps.source.outputs.sha }}
           path: |

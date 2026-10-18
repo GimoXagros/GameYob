@@ -81,7 +81,7 @@ jobs:
             platform/ds/gameyob_dsi.nds \
             > platform/ds/SHA256SUMS.txt
       - name: Upload Nintendo DS build
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: gameyob-ds-${{ github.sha }}-${{ inputs.hblank_anomaly_trace && 'staged-video-hblank-anomaly' || (inputs.stage_video_experimental && 'staged-video-experimental' || (inputs.stage_copy_diagnostic && 'stage-copy-diagnostic' || (inputs.video_trace_ff_release && 'ff-release-diagnostic' || (inputs.video_trace_profile && 'publication-profile' || (inputs.video_trace && 'video-diagnostic' || 'normal'))))) }}
           path: |
