@@ -30,6 +30,7 @@
     <string key="Single Screen">単画面</string>
     <string key="Touch Menu">タッチメニュー</string>
     <string key="Scaling">拡大</string>
+    <string key="Vertical Pan">縦位置</string>
     <string key="Scale Filter">補間</string>
     <string key="SGB Borders">SGBボーダー</string>
     <string key="Custom Border">カスタム枠</string>
@@ -64,6 +65,7 @@
     <string key="Time">時刻</string>
     <string key="FPS+Time">FPS+Time</string>
     <string key="Top">上</string>
+    <string key="Center">中央</string>
     <string key="Bottom">下</string>
     <string key="Aspect">比率</string>
     <string key="Full">全画面</string>

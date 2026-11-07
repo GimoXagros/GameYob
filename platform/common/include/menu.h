@@ -45,6 +45,8 @@ void printMenuMessage(const char* s);
 void displaySubMenu(void (*updateFunc)());
 void closeSubMenu();
 
+void toggleScaleMode(); // Off <-> last used scale mode
+
 int getMenuOption(const char* name);
 void setMenuOption(const char* name, int value);
 void enableMenuOption(const char* name);

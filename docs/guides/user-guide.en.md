@@ -40,7 +40,7 @@ Place a cheat file beside the ROM with the same base name: `Game.gbc` uses `Game
 ## 6. Display, borders, and Game Boy modes
 
 - **Game Screen** chooses the top or bottom screen; **Single Screen** hides the unused console screen.
-- DS and DSi builds provide **Scaling** and **Scale Filter**.
+- DS and DSi builds provide **Scaling** and **Scale Filter**. Scaling offers Off, x1.1, x1.2, x1.3, Aspect (fills the screen height, about x1.33), x1.4, x1.5, x1.6 and Full (stretched to the whole screen). At x1.4–x1.6 the picture is taller than the screen, and **Vertical Pan** (Top, 1/4, Center, 3/4, Bottom) chooses which part stays visible. The Scale button mapping switches between Off and the last scale used.
 - **Touch Menu** enables or disables touch-driven menu and file selection. It is On by default.
 - **SGB Borders** enables borders supplied by compatible cartridges. **Custom Border** and **Select Border** load a BMP.
 - **Select GBC BIOS** accepts an exact 0x900-byte `.bin` on DS and DSi. Reset or reload the game after selecting it, then choose the desired **GBC Bios** mode. **Save Settings** stores its absolute path as `biosfile` in `gameyobds.ini`. With no selected path, the legacy `gbc_bios.bin` lookup in GameYob's current working directory remains available. The BIOS is optional and not distributed.

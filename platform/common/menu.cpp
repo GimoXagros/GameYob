@@ -375,8 +375,22 @@ void setTouchMenuFunc(int value) {
 #endif
 }
 
+// The Scale key switches between Off and the last scaled mode that was used.
+static int lastScaledMode = SCALE_ASPECT;
+
+// Vertical Pan only matters when the zoomed picture is taller than the screen.
+static void updateVerticalPanOption() {
+    if (scaleMode >= SCALE_1_4 && scaleMode <= SCALE_1_6)
+        enableMenuOption("Vertical Pan");
+    else
+        disableMenuOption("Vertical Pan");
+}
+
 void setScaleModeFunc(int value) {
     scaleMode = value;
+    if (value != SCALE_OFF)
+        lastScaledMode = value;
+    updateVerticalPanOption();
     if (!isMenuOn()) {
         updateScreens();
     }
@@ -393,6 +407,13 @@ void setScaleModeFunc(int value) {
     else {
         disableMenuOption("Console Output");
     }
+}
+void toggleScaleMode() {
+    setMenuOption("Scaling", scaleMode == SCALE_OFF ? lastScaledMode : SCALE_OFF);
+}
+void setScalePanFunc(int value) {
+    scalePan = value;
+    // Applied by refreshScaleMode when the menu closes.
 }
 void setScaleFilterFunc(int value) {
     scaleFilter = value;
@@ -627,12 +648,16 @@ SubMenu menuList[] = {
     },
     {
         "Display",
-        8,
+        9,
         {
             {"Game Screen", setScreenFunc, 2, {"Top","Bottom"}, 0, MENU_ALL},
             {"Single Screen", setSingleScreenFunc, 2, {"Off","On"}, 0, MENU_ALL},
             {"Touch Menu", setTouchMenuFunc, 2, {"Off","On"}, 1, MENU_DS},
-            {"Scaling", setScaleModeFunc, 3, {"Off","Aspect","Full"}, 0, MENU_DS},
+            // Same order as the SCALE_* values in gbgfx.h.
+            {"Scaling", setScaleModeFunc, NUM_SCALE_MODES,
+                {"Off","x1.1","x1.2","x1.3","Aspect","x1.4","x1.5","x1.6","Full"}, 0, MENU_DS},
+            {"Vertical Pan", setScalePanFunc, SCALE_PAN_STEPS,
+                {"Top","1/4","Center","3/4","Bottom"}, 2, MENU_DS},
             {"Scale Filter", setScaleFilterFunc, 2, {"Off","On"}, 1, MENU_DS},
             {"SGB Borders", sgbBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
             {"Custom Border", customBorderEnableFunc, 2, {"Off","On"}, 1, MENU_ALL},
@@ -740,6 +765,9 @@ void displayMenu() {
         enableMenuOption("GB Camera");
     else
         disableMenuOption("GB Camera");
+
+    // setMenuDefaults re-enables every option after Scaling's default ran.
+    updateVerticalPanOption();
 
     updateScreens();
     doAtVBlank(redrawMenu);
@@ -1153,6 +1181,11 @@ void disableMenuOption(const char* optionName) {
     }
 }
 
+// Up to v0.5.11, "Scaling" was saved as "Scaling=<0..2>" for Off/Aspect/Full.
+// The list now has more entries, so it is saved under its own key and old
+// files are translated instead of being read as x1.1/x1.2.
+static const char scalingConfigKey[] = "Scaling Mode";
+
 void menuParseConfig(char* line) {
     char* equalsPos = (char*)strchr(line, '=');
     if (equalsPos == 0)
@@ -1161,15 +1194,28 @@ void menuParseConfig(char* line) {
     const char* option = line;
     const char* value = equalsPos+1;
     int val = atoi(value);
+    if (strcasecmp(option, "Scaling") == 0) {
+        static const int legacyScaleModes[] = {SCALE_OFF, SCALE_ASPECT, SCALE_FULL};
+        if (val >= 0 && val < 3)
+            setMenuOption("Scaling", legacyScaleModes[val]);
+        return;
+    }
+    if (strcasecmp(option, scalingConfigKey) == 0) {
+        if (val >= 0 && val < NUM_SCALE_MODES)
+            setMenuOption("Scaling", val);
+        return;
+    }
     setMenuOption(option, val);
 }
 
 void menuPrintConfig(FileHandle* file) {
     for (int i=0; i<numMenus; i++) {
         for (int j=0; j<menuList[i].numOptions; j++) {
-            if (menuList[i].options[j].platforms & MENU_BITMASK &&
-                    menuList[i].options[j].numValues != 0)
-                file_printf(file, "%s=%d\n", menuList[i].options[j].name, menuList[i].options[j].selection);
+            const MenuOption& opt = menuList[i].options[j];
+            if (opt.platforms & MENU_BITMASK && opt.numValues != 0) {
+                const char* key = strcmp(opt.name, "Scaling") == 0 ? scalingConfigKey : opt.name;
+                file_printf(file, "%s=%d\n", key, opt.selection);
+            }
         }
     }
 }

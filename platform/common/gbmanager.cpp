@@ -469,7 +469,7 @@ void mgr_updateVBlank() {
         // Keep the shortcut on the DS/DSi renderer where it is validated.
 #ifdef DS
         if (keyJustPressed(mapFuncKey(FUNC_KEY_SCALE))) {
-            setMenuOption("Scaling", !getMenuOption("Scaling"));
+            toggleScaleMode();
         }
 #endif
 

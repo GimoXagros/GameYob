@@ -21,6 +21,7 @@ bool probingForBorder;
 int interruptWaitMode;
 int scaleMode;
 int scaleFilter;
+int scalePan;
 u8 gfxMask;
 volatile int loadedBorderType;
 bool customBorderExists;
