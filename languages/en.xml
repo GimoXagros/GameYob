@@ -30,6 +30,7 @@
     <string key="Single Screen">Single Screen</string>
     <string key="Touch Menu">Touch Menu</string>
     <string key="Scaling">Scaling</string>
+    <string key="Vertical Pan">Vertical Pan</string>
     <string key="Scale Filter">Scale Filter</string>
     <string key="SGB Borders">SGB Borders</string>
     <string key="Custom Border">Custom Border</string>
@@ -64,6 +65,7 @@
     <string key="Time">Time</string>
     <string key="FPS+Time">FPS+Time</string>
     <string key="Top">Top</string>
+    <string key="Center">Center</string>
     <string key="Bottom">Bottom</string>
     <string key="Aspect">Aspect</string>
     <string key="Full">Full</string>

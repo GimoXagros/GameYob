@@ -30,6 +30,7 @@
     <string key="Single Screen">한 화면</string>
     <string key="Touch Menu">터치 메뉴</string>
     <string key="Scaling">화면 확대</string>
+    <string key="Vertical Pan">세로 위치</string>
     <string key="Scale Filter">확대 필터</string>
     <string key="SGB Borders">SGB 보더</string>
     <string key="Custom Border">사용자 보더</string>
@@ -64,6 +65,7 @@
     <string key="Time">시간</string>
     <string key="FPS+Time">FPS+Time</string>
     <string key="Top">위</string>
+    <string key="Center">가운데</string>
     <string key="Bottom">아래</string>
     <string key="Aspect">비율</string>
     <string key="Full">전체</string>

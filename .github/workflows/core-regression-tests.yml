@@ -32,6 +32,8 @@ jobs:
       - uses: actions/checkout@v7
       - name: Verify SGB opcode coverage inventory
         run: python3 tools/sgb_opcode_coverage.py --check
+      - name: Verify menu config ranges and legacy scaling migration
+        run: python3 tests/menu_config_test.py
       - name: Build and run NiFi protocol tests
         run: |
           g++ -std=c++11 -Wall -Wextra -Werror \

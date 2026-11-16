@@ -119,6 +119,7 @@ int interruptWaitMode=0;
 
 int scaleMode;
 int scaleFilter=1;
+int scalePan=2;
 u8 gfxMask;
 
 volatile int loadedBorderType; // This is read from hblank
@@ -1209,6 +1210,27 @@ end:
         }
     }
 }
+// Affine step per screen pixel for the fixed zoom levels, in 8.8 fixed point
+// (256/zoom, rounded). 0 for the other scale modes.
+static int fixedZoomStep(int mode) {
+    switch (mode) {
+        case SCALE_1_1: return 233;
+        case SCALE_1_2: return 213;
+        case SCALE_1_3: return 197;
+        case SCALE_1_4: return 183;
+        case SCALE_1_5: return 171;
+        case SCALE_1_6: return 160;
+        default:        return 0;
+    }
+}
+
+// Screen pixels covered by `size` Game Boy pixels at this step. Samples are
+// taken in the middle of each screen pixel, and the scale filter moves them by
+// up to 1/8 pixel (1<<5), so the last one must still land inside the picture.
+static int zoomedSize(int size, int step) {
+    return ((size<<8) - step/2 - (1<<5) - 1)/step + 1;
+}
+
 void refreshScaleMode() {
     int BG2PA,BG2PB,BG2PC,BG2PD;
 
@@ -1222,9 +1244,61 @@ void refreshScaleMode() {
     videoBgDisableSub(1);
     bgInitSub(2, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
     bgInitSub(3, BgType_Bmp16, BgSize_B16_256x256, 0, 0);
+    // The menu highlight may have left the sub backdrop blue.
+    setBackdropColorSub(BACKDROP_COLOUR);
 
     switch(scaleMode) {
-        case 1: // Aspect
+        case SCALE_1_1:
+        case SCALE_1_2:
+        case SCALE_1_3:
+        case SCALE_1_4:
+        case SCALE_1_5:
+        case SCALE_1_6:
+            {
+                const int step = fixedZoomStep(scaleMode);
+                BG2PA = step;
+                BG2PB = 0;
+                BG2PC = 0;
+                BG2PD = step;
+
+                // Size and position of the zoomed picture on the screen.
+                const int width = zoomedSize(160, step);
+                const int height = zoomedSize(144, step);
+                const int left = (256-width)/2;
+                int top, bottom;
+
+                // Start half a step in, so the first sample minus the
+                // filter's 1/8 pixel is still inside the picture.
+                SCALE_BGX = (screenOffsX<<8) - left*step + step/2;
+                if (height <= 192) {
+                    // x1.1..x1.3: the whole picture fits, centre it.
+                    top = (192-height)/2;
+                    bottom = top+height;
+                    SCALE_BGY = -top*step + step/2;
+                }
+                else {
+                    // x1.4..x1.6: Vertical Pan picks which rows are shown.
+                    const int pan = scalePan < 0 ? 0 :
+                        scalePan >= SCALE_PAN_STEPS ? SCALE_PAN_STEPS-1 : scalePan;
+                    const int hiddenRows = (144<<8) - 192*step;
+                    top = 0;
+                    bottom = 192;
+                    SCALE_BGY = step/2 + hiddenRows*pan/(SCALE_PAN_STEPS-1);
+                }
+
+                // Bank C holds only the 144 Game Boy rows, so the rows above
+                // and below the picture would show unrelated VRAM. A window
+                // limits the bitmaps (and the filter blend) to the picture.
+                if (left > 0 || top > 0) {
+                    REG_WIN0H_SUB = left<<8 | (left+width);
+                    REG_WIN0V_SUB = top<<8 | bottom;
+                    REG_WININ_SUB = BIT(2) | BIT(3) | BIT(5);
+                    REG_WINOUT_SUB = 0;
+                    REG_DISPCNT_SUB |= DISPLAY_WIN0_ON;
+                }
+                break;
+            }
+        case SCALE_ASPECT:
             {
                 const double scaleFactor = (double)191/144 + 0.125/144;
                 BG2PA = (1<<8)/scaleFactor;
@@ -1236,7 +1310,7 @@ void refreshScaleMode() {
                 SCALE_BGY = 1<<7; // 0.5
                 break;
             }
-        case 2: // Full
+        case SCALE_FULL:
             {
                 const double scaleFactorX = (double)255/160;
                 const double scaleFactorY = (double)191/144 + 0.125/144;
