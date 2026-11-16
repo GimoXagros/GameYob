@@ -1153,6 +1153,8 @@ void setMenuOption(const char* optionName, int value) {
             if (strcasecmp(optionName, menuList[i].options[j].name) == 0) {
                 if (!(menuList[i].options[j].platforms & MENU_BITMASK))
                     continue;
+                if (value < 0 || value >= menuList[i].options[j].numValues)
+                    return;
                 menuList[i].options[j].selection = value;
                 menuList[i].options[j].function(value);
                 return;
