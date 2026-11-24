@@ -7,7 +7,7 @@
 #endif
 
 #ifndef GAMEYOB_VERSION
-#define GAMEYOB_VERSION "v0.5.11"
+#define GAMEYOB_VERSION "v0.5.12"
 #endif
 
 #ifdef DS

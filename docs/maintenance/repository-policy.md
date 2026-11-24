@@ -14,7 +14,7 @@ not change the tag, body, assets, or latest-release designation. New stable
 packages require a separately verified tagged build and release gate; routine
 documentation changes do not create another version or release.
 
-The latest stable DS/DSi release is [v0.5.11](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.11).
+The latest stable DS/DSi release is [v0.5.12](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.12).
 The earlier packages remain in [`old_releases`](../../old_releases), and the
 native 3DSX archive remains in [`backup/3dsx`](../../backup/3dsx). See
 [BUILDING.md](../../BUILDING.md) for current build checks and
@@ -35,5 +35,5 @@ were not deleted:
 
 The v0.5.5-ko, v0.5.3-ko, and v0.5.2-ko.1 release **display titles** were
 normalized to `GameYob v0.5.x`; their tags, release bodies, and assets were
-checked unchanged. All eight published release/tag pairs and the v0.5.11
+checked unchanged. All eight published release/tag pairs and the v0.5.12
 Latest designation were retained. This is housekeeping, not a new build.

@@ -43,8 +43,15 @@ void advanceMbc3(int& seconds, int& minutes, int& hours, int& days,
 }
 
 void advanceHuc3(int& minutes, int& days, int& years,
-        uint64_t elapsedSeconds) {
+        time_t& last, time_t now) {
+    if (last <= 0 || now < last) {
+        last = now;
+        return;
+    }
+    const uint64_t elapsedSeconds = static_cast<uint64_t>(now - last);
     const uint64_t elapsedMinutes = elapsedSeconds / 60;
+    // Keep the unfinished minute across RTC reads, battery saves and reloads.
+    last = now - static_cast<time_t>(elapsedSeconds % 60);
     uint64_t totalMinutes = static_cast<uint64_t>(minutes < 0 ? 0 : minutes) +
         elapsedMinutes;
     minutes = totalMinutes % (24 * 60);
