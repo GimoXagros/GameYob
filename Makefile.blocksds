@@ -4,7 +4,7 @@ BLOCKSDS	?= /opt/blocksds/core
 WONDERFUL_TOOLCHAIN	?= /opt/wonderful
 
 NAME		:= gameyob
-VERSION		:= v0.5.11
+VERSION		:= v0.5.12
 GAME_TITLE	:= GameYob Custom
 GAME_SUBTITLE	:= A Gameboy Emulator for DS
 GAME_AUTHOR	:= GimoXagros
