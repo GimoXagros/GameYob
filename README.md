@@ -17,7 +17,7 @@ ROM·BIOS·펌웨어도 포함하지 않습니다.
 ## Download / 다운로드
 
 - [Latest stable release: GameYob v0.5.12](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.12)
-- [DS/DSi package](https://github.com/GimoXagros/GameYob/releases/download/v0.5.12/gameyob-v0.5.12.zip): `gameyob.nds`, `gameyob_dsi.nds`, guides, language examples, notices, and checksums
+- [DS/DSi package with refreshed launcher icon](https://github.com/GimoXagros/GameYob/releases/download/v0.5.12/gameyob-v0.5.12-icon-refresh.zip): `gameyob.nds`, `gameyob_dsi.nds`, guides, language examples, notices, and checksums
 - [Detailed release record](docs/releases/v0.5.12.md) · [Changelog](CHANGELOG) · [Build instructions](BUILDING.md)
 
 Back up saves, states, settings, and printer BMPs before replacing an older
