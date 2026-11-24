@@ -70,10 +70,20 @@ static void testHuc3Rollover() {
     int minutes = 1439;
     int days = 364;
     int years = 7;
-    rtc::advanceHuc3(minutes, days, years, 60);
+    time_t last = 1000;
+    for (time_t now = 1001; now < 1060; ++now) {
+        rtc::advanceHuc3(minutes, days, years, last, now);
+        assert(minutes == 1439 && days == 364 && years == 7 && last == 1000);
+    }
+    rtc::advanceHuc3(minutes, days, years, last, 1060);
+    assert(last == 1060);
     assert(minutes == 0);
     assert(days == 0);
     assert(years == 8);
+    rtc::advanceHuc3(minutes, days, years, last, 1187);
+    assert(minutes == 2 && last == 1180);
+    rtc::advanceHuc3(minutes, days, years, last, 900);
+    assert(minutes == 2 && last == 900);
 }
 
 int main() {

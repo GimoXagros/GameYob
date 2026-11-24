@@ -548,6 +548,11 @@ void Gameboy::camw (u16 addr, u8 val) {
 void Gameboy::updateClockFromHost()
 {
     const time_t now = getTime();
+    if (romFile->getMBC() == HUC3) {
+        rtc::advanceHuc3(gbClock.huc3.m, gbClock.huc3.d,
+                gbClock.huc3.y, gbClock.last, now);
+        return;
+    }
     if (gbClock.last <= 0 || now < gbClock.last) {
         gbClock.last = now;
         return;
@@ -559,10 +564,6 @@ void Gameboy::updateClockFromHost()
             rtc::advanceMbc3(gbClock.mbc3.s, gbClock.mbc3.m,
                     gbClock.mbc3.h, gbClock.mbc3.d,
                     gbClock.mbc3.ctrl, elapsed);
-            break;
-        case HUC3:
-            rtc::advanceHuc3(gbClock.huc3.m, gbClock.huc3.d,
-                    gbClock.huc3.y, elapsed);
             break;
     }
     gbClock.last = now;
