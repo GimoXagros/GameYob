@@ -1,3 +1,8 @@
+Version 0.5.13:
+
+- Use BlocksDS libnds public Slot-2 rumble APIs instead of the inherited EZFlash driver.
+- Include BlocksDS license notices with the DS/DSi package.
+
 Version 0.5.12 (2026-11-24):
 
 - Preserve elapsed seconds across frequent HuC3 RTC reads and saves.

@@ -4,21 +4,21 @@
   <img src="logo.png" alt="GameYob logo" width="480">
 </p>
 
-GameYob v0.5.12 is a homebrew Game Boy / Game Boy Color emulator for Nintendo
+GameYob v0.5.13 is a homebrew Game Boy / Game Boy Color emulator for Nintendo
 DS and DSi. A Nintendo 3DS can run the NDS version in DS mode. Native 3DSX
 development is paused and no 3DSX executable is included in this release.
 No ROM, BIOS, or firmware is included.
 
-GameYob v0.5.12은 Nintendo DS·DSi용 Game Boy / Game Boy Color 홈브루
+GameYob v0.5.13은 Nintendo DS·DSi용 Game Boy / Game Boy Color 홈브루
 에뮬레이터입니다. Nintendo 3DS에서는 NDS판을 DS 모드로 실행할 수 있습니다.
 네이티브 3DSX 개발은 보류 중이며 이번 릴리스에는 3DSX 실행 파일이 없습니다.
 ROM·BIOS·펌웨어도 포함하지 않습니다.
 
 ## Download / 다운로드
 
-- [Latest stable release: GameYob v0.5.12](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.12)
-- [DS/DSi package with refreshed launcher icon](https://github.com/GimoXagros/GameYob/releases/download/v0.5.12/gameyob-v0.5.12-icon-refresh.zip): `gameyob.nds`, `gameyob_dsi.nds`, guides, language examples, notices, and checksums
-- [Detailed release record](docs/releases/v0.5.12.md) · [Changelog](CHANGELOG) · [Build instructions](BUILDING.md)
+- [Latest stable release: GameYob v0.5.13](https://github.com/GimoXagros/GameYob/releases/tag/v0.5.13)
+- [DS/DSi package with license notices](https://github.com/GimoXagros/GameYob/releases/download/v0.5.13/gameyob-v0.5.13.zip): `gameyob.nds`, `gameyob_dsi.nds`, guides, language examples, notices, and checksums
+- [Detailed release record](docs/releases/v0.5.13.md) · [Changelog](CHANGELOG) · [Build instructions](BUILDING.md)
 
 Back up saves, states, settings, and printer BMPs before replacing an older
 build. The launcher determines DS or DSi execution mode; a filename alone does
@@ -33,10 +33,10 @@ not force that mode. 이전 빌드를 교체하기 전에 세이브·상태·설
 - SGB border and partial host-runtime support; a complete SNES host is **not** claimed.
 - Game Boy Printer packet handling and numbered BMP output beside the ROM.
 - English, Japanese, and Korean menus and guides; editable language files.
-- The v0.5.12 DS banner reads `GameYob Custom` / `A Gameboy Emulator for DS` /
+- The v0.5.13 DS banner reads `GameYob Custom` / `A Gameboy Emulator for DS` /
   `GimoXagros`, using the supplied transparent icon.
 
-기능의 범위와 검증 한계는 [v0.5.12 릴리스 기록](docs/releases/v0.5.12.md)과
+기능의 범위와 검증 한계는 [v0.5.13 릴리스 기록](docs/releases/v0.5.13.md)과
 [CHANGELOG](CHANGELOG)에 있습니다. SGB 호스트 구현과 희귀 카트리지 실기
 검증은 아직 완료되지 않았습니다.
 
@@ -70,7 +70,6 @@ See [BUILDING.md](BUILDING.md) for the pinned DS/DSi build and tests,
 [repository policy](docs/maintenance/repository-policy.md) for branch, tag,
 and release handling. Earlier release archives remain in
 [`old_releases`](old_releases); the deferred native 3DSX binary remains in
-[`backup/3dsx`](backup/3dsx). The inherited 3-in-1 code's exact older
-permission remains unverified and is disclosed in
-[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt); this is not a claim of
-license clearance.
+[`backup/3dsx`](backup/3dsx). v0.5.13 uses the BlocksDS rumble API instead of the inherited EZFlash code.
+Earlier artifacts are historical and not cleared by this change; see
+[THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).

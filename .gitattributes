@@ -1,0 +1,4 @@
+# Preserve historical artifacts in Git, but do not include them in new source exports.
+old_releases/*.nds export-ignore
+old_releases/*.zip export-ignore
+backup/3dsx/*.3dsx export-ignore

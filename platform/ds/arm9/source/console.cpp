@@ -1,4 +1,5 @@
 #include <nds.h>
+#include <nds/arm9/rumble.h>
 #include "gbprinter.h"
 #include "console.h"
 #include "menu.h"
@@ -12,7 +13,6 @@
 #include "gbgfx.h"
 #include "gbs.h"
 #include "common.h"
-#include "3in1.h"
 #include "text.h"
 
 
@@ -250,22 +250,8 @@ void iprintfColored(int palette, const char *format, ...) {
 
 
 int checkRumble() {
-    if (isDSiMode())
-        return 0;
-
-    sysSetCartOwner(BUS_OWNER_ARM9);
-
-    OpenNorWrite();
-    uint32 rumbleID = ReadNorFlashID();
-    CloseNorWrite();
-
-
-    if (isRumbleInserted())
-        return 1; //Warioware / Official rumble found.
-    else if (rumbleID != 0)
-        return 2; //3in1 found
-    else
-        return 0; //No rumble found
+    // DSi/TWL mode has no accessible Slot-2 rumble device.
+    return !isDSiMode() && isRumbleInserted() ? 1 : 0;
 }
 
 int checkCamera() {

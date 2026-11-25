@@ -29,7 +29,11 @@ class PackageTest(unittest.TestCase):
                 names = archive.namelist()
                 self.assertNotIn('gameyob.3dsx', names)
                 for required in ('LICENSE', 'OFL.txt', 'STB_LICENSE.txt',
-                                 'THIRD_PARTY_NOTICES.txt', 'gameyob.nds', 'gameyob_dsi.nds'):
+                                 'THIRD_PARTY_NOTICES.txt', 'gameyob.nds', 'gameyob_dsi.nds',
+                                 'licenses/blocksds/libnds-Zlib.txt',
+                                 'licenses/blocksds/DSWiFi-MIT.txt',
+                                 'licenses/blocksds/DSWiFi-MbedTLS.txt',
+                                 'licenses/blocksds/BlocksDS-CRT-MPL-2.0.txt'):
                     self.assertIn(required, names)
                 for line in archive.read('SHA256SUMS.txt').decode().splitlines():
                     expected, name = line.split('  ', 1)

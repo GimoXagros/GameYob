@@ -1,5 +1,6 @@
 #include <nds.h>
 #include <nds/arm9/camera.h>
+#include <nds/arm9/rumble.h>
 #include <fat.h>
 #include "common.h"
 
@@ -125,19 +126,16 @@ bool system_getTouchPosition(int* x, int* y) {
 
 void system_doRumble(bool rumbleVal)
 {
-    if (rumbleInserted == 1)
-    {
-        setRumble(rumbleVal);
-    }
-    else if (rumbleInserted == 2)
-    {
-        GBA_BUS[0x1FE0000/2] = 0xd200;
-        GBA_BUS[0x0000000/2] = 0x1500;
-        GBA_BUS[0x0020000/2] = 0xd200;
-        GBA_BUS[0x0040000/2] = 0x1500;
-        GBA_BUS[0x1E20000/2] = rumbleVal ? (0xF0 + rumbleStrength) : 0x08;
-        GBA_BUS[0x1FC0000/2] = 0x1500;
-    }
+    if (isDSiMode() || !rumbleInserted)
+        return;
+
+    const int maxStrength = rumbleGetMaxRawStrength();
+    if (maxStrength == 0)
+        return;
+
+    // libnds reports 1 for a standard pak and 3 for a detected EZ device.
+    const int strength = rumbleStrength < maxStrength ? rumbleStrength : maxStrength;
+    setRumble(rumbleVal && strength > 0 ? static_cast<uint8_t>(strength) : 0);
 }
 
 int system_getMotionSensorX() {

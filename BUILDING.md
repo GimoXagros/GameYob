@@ -20,7 +20,7 @@ docker run --rm --volume "$PWD:/workspace" --workdir /workspace \
 The container provides `BLOCKSDS` and `WONDERFUL_TOOLCHAIN`. Do not override
 them with guessed SDK paths. The audited image reports Wonderful GCC
 `16.1.1 20260516` and ndstool `1.22.2`. ARM7/ARM9 ELFs are in `build/`;
-maps are under `build/blocksds/`. Version Info reports v0.5.12,
+maps are under `build/blocksds/`. Version Info reports v0.5.13,
 and Debug version information embeds the current 12-digit Git revision.
 
 Portable tests require Linux, Python 3.10+ and g++. The runner reads the exact
@@ -60,7 +60,7 @@ Packaging (local verification only; this does not publish a release):
 
 ```sh
 python3 tools/package_release.py --nds platform/ds/gameyob.nds \
-  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.12.md \
+  --dsi platform/ds/gameyob_dsi.nds --release-notes docs/releases/v0.5.13.md \
   --output .codex-tmp/preflight-package/gameyob.zip
 ```
 
