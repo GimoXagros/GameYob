@@ -88,14 +88,6 @@ int main(int argc, char* argv[])
     lastRawTime = rawTime;
     timerStart(0, ClockDivider_1024, TIMER_FREQ_1024(1), clockUpdater);
 
-    /* Reset the EZ3in1 if present */
-    if (!isDSiMode()) {
-        sysSetCartOwner(BUS_OWNER_ARM9);
-
-        GBA_BUS[0x0000] = 0xF0;
-        GBA_BUS[0x1000] = 0xF0;
-    }
-
     fifoSetValue32Handler(FIFO_USER_02, fifoValue32Handler, NULL);
 
     SharedData* sharedAllocation =

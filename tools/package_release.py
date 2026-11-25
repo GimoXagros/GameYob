@@ -63,6 +63,9 @@ def main() -> None:
         if language.suffix.lower() in {".ini", ".json", ".xml", ".yaml", ".yml"}:
             files[f"gameyob/languages/{language.name}"] = language.read_bytes()
 
+    for license_file in sorted((root / "licenses" / "blocksds").glob("*.txt")):
+        files[f"licenses/blocksds/{license_file.name}"] = license_file.read_bytes()
+
     checksums = "".join(
         f"{digest(data)}  {name}\n" for name, data in sorted(files.items())
     ).encode("ascii")

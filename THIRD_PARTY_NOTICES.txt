@@ -1,4 +1,4 @@
-GameYob v0.5.11 third-party notices
+GameYob v0.5.13 third-party notices
 
 Galmuri
 Source: https://github.com/quiple/galmuri
@@ -64,19 +64,20 @@ Legacy SDL-only Blip_Buffer 0.4.0: platform/sdl/Blip_Buffer-0.4.0/
 Author: Shay Green. The original source identifies LGPL licensing.
 Not linked into the active BlocksDS DS/DSi targets; retain its bundled notices.
 
-Outstanding provenance review, not a new license grant:
-platform/ds/arm9/source/3in1.cpp and platform/ds/arm9/include/3in1.h retain
-the original aladdin / EZFlash Group copyright attribution. No separate
-license grant for that inherited fragment was identified in this audit.
-The later Dartz150/EZFlash3in1 repository at commit
-602ceadfb5d4af28ad6910ff91757b4a851c0321 publishes related code with
-a GPL-3.0 LICENSE and EZTeam credits:
-https://github.com/Dartz150/EZFlash3in1/blob/602ceadfb5d4af28ad6910ff91757b4a851c0321/LICENSE
-https://github.com/Dartz150/EZFlash3in1/blob/602ceadfb5d4af28ad6910ff91757b4a851c0321/dsCard.cpp
-The piugba rumble discussion (https://github.com/afska/piugba/issues/27)
-documents community implementation/testing, not an explicit grant for the
-older GameYob fragment. Neither source proves public-domain status,
-unrestricted reuse, or retroactive license permission for that fragment.
-The inherited feature and attribution are retained with this uncertainty
-disclosed; no new third-party code is copied or relicensed for v0.5.11.
-Existing public releases and original source notices were not rewritten.
+BlocksDS 1.22.2
+SDK source: https://github.com/blocksds/sdk/tree/v1.22.2
+libnds source: https://github.com/blocksds/libnds/tree/5788d2163afe1139d9dc9be147c77afeaaea9161
+The Slot-2 and rumble API uses Zlib-licensed code credited to Adrian Siekierka.
+See licenses/blocksds/libnds-Zlib.txt and licenses/blocksds/libnds-FatFs.txt.
+DSWiFi is MIT-licensed; the bundled Mbed TLS code is distributed under the
+Apache-2.0 option. Copyright The Mbed TLS Contributors.
+See licenses/blocksds/DSWiFi-MIT.txt and licenses/blocksds/DSWiFi-MbedTLS.txt.
+The BlocksDS startup source is available under MPL-2.0 in the tagged SDK:
+https://github.com/blocksds/sdk/tree/v1.22.2/sys/crts
+See licenses/blocksds/BlocksDS-CRT-MPL-2.0.txt.
+
+Legacy EZFlash 3-in-1 code
+The aladdin / EZFlash Group fragment retained in earlier versions has not
+been relicensed. v0.5.13 removes the inherited source, header and call sites
+from the active tree. It uses the pinned libnds public rumble API instead.
+Older tags and binaries do not inherit this change.
